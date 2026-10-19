@@ -5,6 +5,7 @@ namespace App\Services\Production;
 use App\Enums\PurchaseRequestStatus;
 use App\Models\Expenses\PurchaseRequest;
 use App\Models\Inventory\InventoryRequest;
+use App\Support\DocumentSequence;
 use App\Models\Inventory\InventoryRequestItem;
 use App\Models\MasterData\CategorySubGroup;
 use App\Models\MasterData\Item;
@@ -176,22 +177,14 @@ class SupplyRequestService
 
     private function generateRequestNumber(): string
     {
-        $year = now()->year;
-        $prefix = "SOL-INS-{$year}-";
+        $prefix = 'SOL-INS-' . now()->year;
 
-        $lastNumber = InventoryRequest::query()
-            ->where('document_number', 'like', "{$prefix}%")
-            ->orderByDesc('document_number')
-            ->value('document_number');
+        $next = DocumentSequence::next(
+            "inventory_requests:{$prefix}",
+            fn () => DocumentSequence::maxInTable('inventory_requests', 'document_number', $prefix)
+        );
 
-        if ($lastNumber) {
-            $lastSeq = (int) str_replace($prefix, '', $lastNumber);
-            $nextSeq = $lastSeq + 1;
-        } else {
-            $nextSeq = 1;
-        }
-
-        return $prefix . str_pad((string) $nextSeq, 4, '0', STR_PAD_LEFT);
+        return sprintf('%s-%04d', $prefix, $next);
     }
 
     private function resolveDefaultTaxId(): int
@@ -213,19 +206,12 @@ class SupplyRequestService
     private function notifyLogistics(InventoryRequest $request, User $creator): void
     {
         try {
-            $recipients = User::role('logistica')
-                ->where('id', '!=', $creator->id)
-                ->get();
-
-            if ($recipients->isEmpty()) {
-                return;
-            }
-
             $requesterArea = $this->resolveUserArea($creator);
 
-            Notification::send(
-                $recipients,
-                new InventoryRequestCreatedNotification($request, $creator->name, $requesterArea)
+            app(\App\Services\Settings\NotificationDispatcher::class)->dispatch(
+                'inventory_request_created',
+                new InventoryRequestCreatedNotification($request, $creator->name, $requesterArea),
+                ['actor' => $creator]
             );
         } catch (\Throwable $e) {
             Log::warning('SupplyRequestService: No se pudo notificar a Logística', [
@@ -241,20 +227,7 @@ class SupplyRequestService
             return null;
         }
 
-        $areasSetting = \App\Models\Settings\Setting::query()
-            ->where('kind', 'parameter')
-            ->where('key', 'areas')
-            ->first();
-
-        $areas = is_array($areasSetting?->value) ? $areasSetting->value : [];
-
-        foreach ($areas as $area) {
-            if (is_array($area) && isset($area['id']) && (int) $area['id'] === $user->area_id) {
-                return $area['name'] ?? null;
-            }
-        }
-
-        return null;
+        return \App\Models\Settings\Area::query()->whereKey($user->area_id)->value('name');
     }
 
     /**
@@ -308,22 +281,14 @@ class SupplyRequestService
      */
     private function generatePurchaseRequestNumber(): string
     {
-        $year = now()->year;
-        $prefix = "SC-{$year}-";
+        $prefix = 'SC-' . now()->year;
 
-        $lastNumber = PurchaseRequest::query()
-            ->where('request_number', 'like', "{$prefix}%")
-            ->orderByDesc('request_number')
-            ->value('request_number');
+        $next = DocumentSequence::next(
+            "purchase_requests:{$prefix}",
+            fn () => DocumentSequence::maxInTable('purchase_requests', 'request_number', $prefix)
+        );
 
-        if ($lastNumber) {
-            $lastSeq = (int) str_replace($prefix, '', $lastNumber);
-            $nextSeq = $lastSeq + 1;
-        } else {
-            $nextSeq = 1;
-        }
-
-        return $prefix . str_pad((string) $nextSeq, 4, '0', STR_PAD_LEFT);
+        return sprintf('%s-%04d', $prefix, $next);
     }
 
     /**

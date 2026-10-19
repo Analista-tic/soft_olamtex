@@ -13,7 +13,6 @@ final class PurchaseOrderStatus
 {
     public const PENDING = PurchaseOrderStatusEnum::PENDING->value;
     public const APPROVED = PurchaseOrderStatusEnum::APPROVED->value;
-    public const SENT = PurchaseOrderStatusEnum::SENT->value;
     public const INVOICED = PurchaseOrderStatusEnum::INVOICED->value;
     public const REJECTED = PurchaseOrderStatusEnum::REJECTED->value;
 

@@ -79,7 +79,7 @@ class WarehouseTransferController extends Controller
             return $this->validationErrorResponse($exception);
         } catch (\Throwable $exception) {
             return response()->json([
-                'message' => 'Ocurrio un error al guardar la transferencia.',
+                'message' => 'Ocurrió un error al guardar la transferencia.',
                 'error' => $exception->getMessage(),
             ], 500);
         }
@@ -106,7 +106,7 @@ class WarehouseTransferController extends Controller
             return $this->validationErrorResponse($exception);
         } catch (\Throwable $exception) {
             return response()->json([
-                'message' => 'Ocurrio un error al actualizar la transferencia.',
+                'message' => 'Ocurrió un error al actualizar la transferencia.',
                 'error' => $exception->getMessage(),
             ], 500);
         }

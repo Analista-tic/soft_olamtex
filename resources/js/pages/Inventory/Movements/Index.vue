@@ -1,8 +1,10 @@
 <script setup lang="ts">
+import AccountingDateRangePicker from '@/components/AccountingDateRangePicker.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
+import HoverTooltip from '@/components/common/HoverTooltip.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
-import InputDate from '@/components/InputDate.vue';
+import { Button } from '@/components/ui/button';
 import SelectField from '@/components/SelectField.vue';
 import Input from '@/components/ui/input/Input.vue';
 // pagination list component removed in favor of ServerPagination
@@ -12,13 +14,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 // Tooltip UI removed for actions column
 import { useAlertStack } from '@/composables/useAlert';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
-import type { InventoryMovement, Warehouse } from '@/domain/Inventory';
+import type { InventoryMovement, Warehouse } from '@/domain/inventory';
 import type { Option } from '@/domain/shared';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { useWarehousesStore } from '@/stores/inventory/warehouses';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Search, X } from 'lucide-vue-next';
+import { FileSpreadsheet, Search, X } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 
 const props = withDefaults(
@@ -39,7 +41,9 @@ const totalItems = ref(0);
 const searchQuery = ref('');
 const typeFilter = ref<string | null>(null);
 const warehouseFilter = ref<number | null>(null);
-const dateFilter = ref<string | null>(null);
+const dateFilter = ref<{ from: string | null; to: string | null }>({ from: null, to: null });
+const originFilter = ref<string | null>(null);
+const opCodeFilter = ref('');
 const currentPage = ref(1);
 const itemsPerPage = ref(20);
 const isLoading = ref(false);
@@ -62,7 +66,13 @@ const sortDir = ref<'asc' | 'desc'>('desc');
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isTypeFilterActive = computed(() => typeFilter.value != null);
 const isWarehouseFilterActive = computed(() => warehouseFilter.value != null);
-const isDateFilterActive = computed(() => Boolean(dateFilter.value));
+const isDateFilterActive = computed(() => Boolean(dateFilter.value.from || dateFilter.value.to));
+const isOriginFilterActive = computed(() => originFilter.value != null);
+const isOpCodeFilterActive = computed(() => opCodeFilter.value.trim().length > 0);
+const originButtonClasses = useFilterButtonClasses(isOriginFilterActive);
+
+/** Salidas de insumos registradas desde Control de Lotes (Salida Logística) hacia una OP. */
+const originOptions: Option[] = [{ id: 'op_supply_exit', name: 'Salidas de insumos a OP' }];
 // isNumericFilterActive removed: UI toggle eliminated, values still sent to backend
 
 const typeButtonClasses = useFilterButtonClasses(isTypeFilterActive);
@@ -80,7 +90,8 @@ const typeOptions = [
 const warehouseOptions = computed<Option[]>(() =>
     warehousesStore.items
         .filter((warehouse): warehouse is Warehouse & { id: number } => typeof warehouse.id === 'number')
-        .map((warehouse) => ({ id: warehouse.id, name: warehouse.name })),
+        .map((warehouse) => ({ id: warehouse.id, name: warehouse.name }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
 );
 
 const typeLabelMap: Record<string, string> = {
@@ -158,11 +169,9 @@ function sortIndicator(column: string) {
     return sortDir.value === 'asc' ? '↑' : '↓';
 }
 
-async function fetchMovements(page = 1, search = '') {
-    isLoading.value = true;
+/** Filtros comunes a la tabla y al Excel (mismo resultado en ambos). */
+function buildFilterParams(search: string): Record<string, any> {
     const params: Record<string, any> = {
-        page,
-        per_page: itemsPerPage.value,
         search,
         sort_by: sortBy.value,
         sort_direction: sortDir.value,
@@ -171,10 +180,10 @@ async function fetchMovements(page = 1, search = '') {
     if (typeFilter.value != null) params.type = typeFilter.value;
     if (typeof warehouseFilter.value === 'number') params.warehouse_id = warehouseFilter.value;
     if (fabricItemsOnly.value) params.fabric_items_only = 1;
-    if (dateFilter.value) {
-        params.date_from = dateFilter.value;
-        params.date_to = dateFilter.value;
-    }
+    if (dateFilter.value.from) params.date_from = dateFilter.value.from;
+    if (dateFilter.value.to) params.date_to = dateFilter.value.to;
+    if (originFilter.value != null) params.origin = originFilter.value;
+    if (opCodeFilter.value.trim()) params.op_code = opCodeFilter.value.trim();
 
     if (quantityMin.value !== '') params.quantity_min = quantityMin.value;
     if (quantityMax.value !== '') params.quantity_max = quantityMax.value;
@@ -184,6 +193,21 @@ async function fetchMovements(page = 1, search = '') {
     if (newStockMax.value !== '') params.new_stock_max = newStockMax.value;
     if (weightedPriceMin.value !== '') params.weighted_price_min = weightedPriceMin.value;
     if (weightedPriceMax.value !== '') params.weighted_price_max = weightedPriceMax.value;
+
+    return params;
+}
+
+function exportExcel() {
+    const query = new URLSearchParams();
+    Object.entries(buildFilterParams(searchQuery.value)).forEach(([key, value]) => {
+        if (value !== null && value !== undefined && value !== '') query.append(key, String(value));
+    });
+    window.open(`/movimientos-inventario/exportar-excel?${query.toString()}`, '_blank');
+}
+
+async function fetchMovements(page = 1, search = '') {
+    isLoading.value = true;
+    const params = { ...buildFilterParams(search), page, per_page: itemsPerPage.value };
 
     try {
         const { data } = await axios.get('/movimientos-inventario/data', { params });
@@ -203,7 +227,7 @@ async function fetchMovements(page = 1, search = '') {
 
 async function fetchWarehouses() {
     try {
-        await warehousesStore.fetchWarehouses();
+        await warehousesStore.fetchWarehouses(true);
     } catch (error) {
         console.error('Error al cargar bodegas:', error);
     }
@@ -213,9 +237,18 @@ async function fetchWarehouses() {
 // openDetailDialog removed — no action button in list
 
 // Watchers para filtros principales
-watch([typeFilter, warehouseFilter, dateFilter, fabricItemsOnly], () => {
+watch([typeFilter, warehouseFilter, dateFilter, fabricItemsOnly, originFilter], () => {
     currentPage.value = 1;
     fetchMovements(1, searchQuery.value);
+});
+
+let opCodeTimer: ReturnType<typeof setTimeout> | null = null;
+watch(opCodeFilter, () => {
+    if (opCodeTimer) clearTimeout(opCodeTimer);
+    opCodeTimer = setTimeout(() => {
+        currentPage.value = 1;
+        fetchMovements(1, searchQuery.value);
+    }, 350);
 });
 
 function clearFabricItemsOnlyFilter() {
@@ -253,6 +286,12 @@ onMounted(() => {
                         módulos.
                     </p>
                 </div>
+                <HoverTooltip text="Descarga en Excel los movimientos con los filtros actuales (incluye código de referencia, código legacy y OP).">
+                    <Button variant="outline" size="pill" @click="exportExcel">
+                        <FileSpreadsheet class="h-4 w-4" />
+                        Exportar Excel
+                    </Button>
+                </HoverTooltip>
             </div>
 
             <div v-if="fabricItemsOnly" class="flex items-center gap-2">
@@ -303,8 +342,23 @@ onMounted(() => {
                     />
                 </FilterField>
 
-                <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[220px]">
-                    <InputDate v-model="dateFilter" :clearable="true" placeholder="Seleccionar fecha" />
+                <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[240px]">
+                    <AccountingDateRangePicker v-model="dateFilter" placeholder="Rango de fechas" />
+                </FilterField>
+
+                <FilterField label="Origen" :active="isOriginFilterActive" class="min-w-[220px]">
+                    <SelectField
+                        v-model="originFilter"
+                        label=""
+                        :options="originOptions"
+                        placeholder="Todos"
+                        :clearable="true"
+                        :button-class="originButtonClasses"
+                    />
+                </FilterField>
+
+                <FilterField label="OP" :active="isOpCodeFilterActive" class="min-w-[160px]">
+                    <Input v-model="opCodeFilter" placeholder="Ej: MF-045" class="h-10 w-full" />
                 </FilterField>
             </FilterBar>
 
@@ -321,7 +375,7 @@ onMounted(() => {
                                     </span>
                                 </span>
                             </TableHead>
-                            <TableHead>Item</TableHead>
+                            <TableHead>Ítem</TableHead>
                             <TableHead>Bodega</TableHead>
                             <TableHead>Tipo</TableHead>
                             <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('quantity')">

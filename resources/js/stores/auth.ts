@@ -11,15 +11,15 @@ export const useAuthStore = defineStore('auth', {
         _fetchPromise: null as Promise<void> | null,
     }),
     actions: {
-        async fetchUser() {
-            if (this.user) return;
+        async fetchUser(force = false) {
+            if (!force && this.user) return;
             if (this._fetchPromise) return this._fetchPromise;
 
             // HandleInertiaRequests::share() ya manda auth.user/roles/permissions en
             // cada navegación — si ya están en la página actual, usarlos evita un
             // round-trip HTTP extra a GET /user que repetiría exactamente lo mismo.
             const sharedAuth = usePage<SharedData>().props.auth;
-            if (sharedAuth?.user) {
+            if (!force && sharedAuth?.user) {
                 this.user = sharedAuth.user;
                 this.roles = sharedAuth.roles ?? [];
                 this.permissions = sharedAuth.permissions ?? [];

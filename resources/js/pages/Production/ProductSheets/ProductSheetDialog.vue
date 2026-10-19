@@ -109,16 +109,16 @@ const typeOptions = [
 ];
 
 const tooltips = {
-    type: 'Define si esta referencia es una muestra (desarrollo/prueba) o un producto listo para produccion y venta.',
+    type: 'Define si esta referencia es una muestra (desarrollo/prueba) o un producto listo para producción y venta.',
     section: 'Indica el tipo de prenda al que pertenece la referencia.',
-    group: 'Clasifica la referencia segun su forma de produccion: lineas continuas, lotes periodicos o desarrollos especificos.',
+    group: 'Clasifica la referencia según su forma de producción: líneas continuas, lotes periódicos o desarrollos específicos.',
     world: 'Define el publico o tipo de mercado al que va dirigida la referencia.',
     wovenProduct: 'Indica si la prenda se fabrica a partir de tejido.',
     base: 'Material base principal de la prenda.',
     yarnBase: 'Define la hilaza base usada cuando la prenda se fabrica en tejido.',
-    operationalList: 'Define las operaciones detalladas necesarias para el desarrollo o fabricacion de esta referencia.',
+    operationalList: 'Define las operaciones detalladas necesarias para el desarrollo o fabricación de esta referencia.',
     processes: 'Etapas que seguira la referencia para el control y seguimiento de los lotes.',
-    flatSketch: 'Boceto tecnico de la referencia con medidas, detalles y observaciones para produccion.',
+    flatSketch: 'Boceto técnico de la referencia con medidas, detalles y observaciones para producción.',
 } as const;
 
 const normalizeTypeValue = (value?: string) => normalizeProductSheetType(value);
@@ -131,6 +131,7 @@ const processAliases: Record<string, string> = {
     Sublimado: 'Estampado',
 };
 const hasAppliedDefaultSampleProcess = ref(false);
+const hasUserEditedDescription = ref(false);
 const mandatoryProcesses = ['Muestras', 'Confección', 'Terminación', 'Bodega'];
 const flatSketchRef = ref<InstanceType<typeof ImageUploadViewer> | null>(null);
 
@@ -295,8 +296,12 @@ const FABRIC_BASE_NA_OPTION: OptionParams = {
 
 const baseFabricOptions = ref<OptionParams[]>([]);
 
+function sortByName<T extends { name: unknown }>(options: T[]): T[] {
+    return [...options].sort((a, b) => String(a.name).localeCompare(String(b.name), 'es', { sensitivity: 'base' }));
+}
+
 const fabricBaseOptions = computed<OptionParams[]>(() => {
-    const bases = [...baseFabricOptions.value];
+    const bases = sortByName(baseFabricOptions.value);
 
     if (!form.value.woven_product) {
         return bases;
@@ -316,6 +321,14 @@ const fabricBaseOptions = computed<OptionParams[]>(() => {
 
     return [FABRIC_BASE_NA_OPTION, ...bases];
 });
+
+const sortedSectionOptions = computed(() => sortByName(sectionOptions.value));
+const sortedGroupOptions = computed(() => sortByName(groupOptions.value));
+const sortedBrandOptions = computed(() => sortByName(brandOptions.value));
+const sortedWorldOptions = computed(() => sortByName(worldOptions.value));
+const sortedYarnBaseOptions = computed(() => sortByName(yarnBaseOptions.value));
+const sortedCollectionOptions = computed(() => sortByName(collectionOptions.value));
+const sortedTemplateOptions = computed(() => sortByName(templateOptions.value));
 
 const selectCreationConfig = {
     sections: {
@@ -438,7 +451,11 @@ async function createCatalogOption(catalogKey: keyof typeof selectCreationConfig
             return;
         }
 
-        const updated = [...currentOptions, { id: createdId, name: createdName }];
+        // Las secciones traen su tipo de prenda: con él la sábana fija o deja elegir superior/inferior.
+        const updated = [
+            ...currentOptions,
+            { id: createdId, name: createdName, ...(created?.allowed_garment_type ? { allowed_garment_type: created.allowed_garment_type } : {}) },
+        ];
         config.setOptions(updated);
         config.assign(createdId);
         setError(`${config.successLabel} agregada y seleccionada.`, 'info');
@@ -456,8 +473,40 @@ async function createCatalogOption(catalogKey: keyof typeof selectCreationConfig
     }
 }
 
+// Toda sección nueva debe decir si es de prenda superior, inferior o ambas (antes nacía siempre en "ambos").
+type SectionGarmentType = 'superior' | 'inferior' | 'ambos';
+const sectionGarmentDialogOpen = ref(false);
+const sectionGarmentDialogName = ref('');
+let sectionGarmentDialogResolve: ((type: SectionGarmentType) => void) | null = null;
+let sectionGarmentDialogReject: (() => void) | null = null;
+
+function requestSectionGarmentType(name: string): Promise<SectionGarmentType> {
+    sectionGarmentDialogName.value = name;
+    sectionGarmentDialogOpen.value = true;
+
+    return new Promise((resolve, reject) => {
+        sectionGarmentDialogResolve = resolve;
+        sectionGarmentDialogReject = reject;
+    });
+}
+
+function confirmSectionGarmentType(type: SectionGarmentType) {
+    sectionGarmentDialogOpen.value = false;
+    sectionGarmentDialogResolve?.(type);
+    sectionGarmentDialogResolve = null;
+    sectionGarmentDialogReject = null;
+}
+
+function cancelSectionGarmentType() {
+    sectionGarmentDialogOpen.value = false;
+    sectionGarmentDialogReject?.();
+    sectionGarmentDialogResolve = null;
+    sectionGarmentDialogReject = null;
+}
+
 async function onCreateSection(name: string): Promise<Option> {
-    await createCatalogOption('sections', name);
+    const allowedGarmentType = await requestSectionGarmentType(name);
+    await createCatalogOption('sections', name, { allowed_garment_type: allowedGarmentType });
     const created = sectionOptions.value.find((o) => String(o.name).trim().toLowerCase() === name.trim().toLowerCase());
     if (!created) throw new Error('No se pudo crear la sección');
     return { id: String(created.id), name: String(created.name) };
@@ -950,16 +999,10 @@ const checkingSampleOperationalList = ref(false);
 
 const sizeGroups = ref<Record<string, string[]>>(buildSizeGroupsFromNames(DEFAULT_SIZE_OPTIONS));
 
-const parsedSizes = computed<Record<string, boolean>>(() => parseBooleanRecord(form.value.sizes));
 
 const currentProductSheetId = computed<number | null>(() => {
     const id = props.productSheet?.id ?? form.value.id;
     return typeof id === 'number' && id > 0 ? id : null;
-});
-
-const overallStatus = computed<boolean>(() => {
-    const hasSelectedSize = Object.values(parsedSizes.value).some((value) => value === true);
-    return Boolean(form.value.reference) && Boolean(form.value.selling_price) && hasSelectedSize;
 });
 
 // Alineado con config/product-sheet.php (batch_control_processes)
@@ -1120,13 +1163,26 @@ const autoDescription = computed(() => {
     return [section, world].filter(Boolean).join(' ').toUpperCase();
 });
 
+// Sugerencia de "Sección + Mundo" solo en creación y solo mientras el usuario
+// no haya escrito su propio nombre — una vez que lo edita, el campo queda
+// 100% en sus manos (ver descriptionModel más abajo).
 watch(
     autoDescription,
     (val) => {
-        form.value.description = val;
+        if (isCreateMode.value && !hasUserEditedDescription.value) {
+            form.value.description = val;
+        }
     },
     { immediate: true },
 );
+
+const descriptionModel = computed({
+    get: () => form.value.description,
+    set: (val: string) => {
+        hasUserEditedDescription.value = true;
+        form.value.description = val;
+    },
+});
 
 watch(
     () => form.value.woven_product,
@@ -1281,6 +1337,9 @@ watch(
             resetForm();
         } else {
             errorMessage.value = '';
+            // El diálogo queda montado en la página: sin esto las sábanas creadas después de abrirlo la primera vez
+            // no aparecían en "Plantilla" hasta recargar.
+            templatesLoaded.value = false;
             void initializeDialog();
         }
     },
@@ -1411,8 +1470,12 @@ async function submitConvertDialog(productReference: string) {
     }
 }
 
+/**
+ * El estado lo decide el servidor al guardar (referencia, precio, tallas, foto y listado operacional completo);
+ * aquí solo se conserva el que ya tiene la ficha.
+ */
 function determineStatus() {
-    form.value.status = overallStatus.value ? 'complete' : 'incomplete';
+    form.value.status = props.productSheet?.status === 'complete' ? 'complete' : 'incomplete';
 }
 
 function appendField(formData: FormData, key: string, value: unknown) {
@@ -1575,6 +1638,7 @@ function resetForm() {
     localCuttingPieces.value = [];
     closeConvertDialog();
     hasAppliedDefaultSampleProcess.value = false;
+    hasUserEditedDescription.value = false;
     hasSampleOperationalList.value = true;
     checkingSampleOperationalList.value = false;
     selectedTemplateId.value = null;
@@ -1617,7 +1681,7 @@ function handleClose() {
                 <DialogHeader class="shrink-0 border-b px-6 py-4 pr-12 text-left">
                     <div class="flex items-start justify-between gap-4">
                         <div class="min-w-0 flex-1">
-                            <DialogTitle> {{ isViewMode ? 'Ver' : isEditMode ? 'Editar' : 'Crear' }} Sabana de Productos </DialogTitle>
+                            <DialogTitle> {{ isViewMode ? 'Ver' : isEditMode ? 'Editar' : 'Crear' }} Sábana de Productos </DialogTitle>
                             <DialogDescription>
                                 {{
                                     isViewMode
@@ -1638,7 +1702,7 @@ function handleClose() {
                             <SelectField
                                 v-model="selectedTemplateId"
                                 label=""
-                                :options="templateOptions"
+                                :options="sortedTemplateOptions"
                                 placeholder="Sin plantilla (nuevo)"
                                 :disabled="isCatalogBootstrapLoading"
                                 :loading="loadingTemplateSelect"
@@ -1744,14 +1808,14 @@ function handleClose() {
                                     <div class="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-5">
                                         <div class="flex flex-col gap-1">
                                             <div class="flex items-center gap-2">
-                                                <Label class="text-sm font-medium">Seccion<span class="text-red-500">*</span></Label>
-                                                <HelpTooltip :text="tooltips.section" aria-label="Ayuda sobre Seccion" />
+                                                <Label class="text-sm font-medium">Sección<span class="text-red-500">*</span></Label>
+                                                <HelpTooltip :text="tooltips.section" aria-label="Ayuda sobre Sección" />
                                             </div>
                                             <CreatableSelectField
                                                 ref="sectionSelectRef"
                                                 v-model="form.section_id"
                                                 label=""
-                                                :options="sectionOptions"
+                                                :options="sortedSectionOptions"
                                                 :loading="loadingSectionSelect"
                                                 required
                                                 placeholder="Seleccione sección"
@@ -1777,7 +1841,7 @@ function handleClose() {
                                                 ref="groupSelectRef"
                                                 v-model="form.group_id"
                                                 label=""
-                                                :options="groupOptions"
+                                                :options="sortedGroupOptions"
                                                 :loading="loadingGroupSelect"
                                                 required
                                                 placeholder="Seleccione grupo"
@@ -1802,7 +1866,7 @@ function handleClose() {
                                                 ref="brandSelectRef"
                                                 v-model="form.brand_id"
                                                 label=""
-                                                :options="brandOptions"
+                                                :options="sortedBrandOptions"
                                                 :loading="loadingBrandSelect"
                                                 required
                                                 placeholder="Seleccione marca"
@@ -1829,7 +1893,7 @@ function handleClose() {
                                                 class="w-full"
                                                 v-model="form.world_id"
                                                 label=""
-                                                :options="worldOptions"
+                                                :options="sortedWorldOptions"
                                                 :loading="loadingWorldSelect"
                                                 required
                                                 placeholder="Seleccione mundo"
@@ -1945,7 +2009,7 @@ function handleClose() {
                                                 class="w-full"
                                                 v-model="form.yarn_base_id"
                                                 label=""
-                                                :options="yarnBaseOptions"
+                                                :options="sortedYarnBaseOptions"
                                                 :loading="loadingYarnBaseSelect"
                                                 required
                                                 placeholder="Seleccione base hilaza"
@@ -2050,7 +2114,7 @@ function handleClose() {
                                     <div class="grid grid-cols-1 gap-4 md:grid-cols-3">
                                         <div class="flex flex-col gap-1">
                                             <div class="flex items-center gap-2">
-                                                <Label class="text-sm font-medium">Precio facturacion</Label>
+                                                <Label class="text-sm font-medium">Precio facturación</Label>
                                             </div>
                                             <InputField
                                                 v-model="form.billing_price"
@@ -2093,9 +2157,10 @@ function handleClose() {
                                         @error="setError"
                                     />
 
-                                    <!-- Nombre del producto (auto-generado: sección + mundo) — se
-                                    muestra aquí, junto a la imagen, como una vista previa de lo
-                                    que resulta de la Clasificación elegida a la izquierda. -->
+                                    <!-- Nombre del producto: en creación se sugiere "Sección + Mundo"
+                                    como punto de partida, pero es editable — apenas el usuario
+                                    escribe encima, el campo queda en sus manos y ya no se
+                                    sobreescribe (ver descriptionModel/hasUserEditedDescription). -->
                                     <div class="flex flex-col gap-1">
                                         <div class="flex items-center gap-2">
                                             <Label class="text-sm font-medium">Nombre del producto<span class="text-red-500">*</span></Label>
@@ -2107,11 +2172,11 @@ function handleClose() {
                                             </span>
                                         </div>
                                         <InputField
-                                            v-model="form.description"
+                                            v-model="descriptionModel"
                                             label=""
                                             type="text"
-                                            placeholder="Se genera automáticamente"
-                                            :disabled="true"
+                                            placeholder="Escribe el nombre del producto"
+                                            :disabled="isReadonly"
                                             :error="showFieldErrors ? fieldErrors.description : undefined"
                                         />
                                     </div>
@@ -2119,7 +2184,7 @@ function handleClose() {
                                     <!-- Observaciones -->
                                     <div class="flex flex-col gap-1">
                                         <Label class="text-sm font-medium">Observaciones</Label>
-                                        <TextareaField
+                                        <TextareaField data-no-uppercase
                                             v-model="form.observaciones"
                                             label=""
                                             placeholder="Observaciones internas del producto..."
@@ -2135,7 +2200,7 @@ function handleClose() {
                                             ref="collectionSelectRef"
                                             v-model="form.collection_id"
                                             label=""
-                                            :options="collectionOptions"
+                                            :options="sortedCollectionOptions"
                                             :loading="loadingCollectionSelect || creatingCollection"
                                             placeholder="Sin colección"
                                             :disabled="isReadonly"
@@ -2230,6 +2295,30 @@ function handleClose() {
             <DialogFooter class="flex flex-wrap items-center justify-end gap-2 border-t px-6 py-4">
                 <Button variant="outline" size="sm" @click="cancelFabricBaseFactorDialog">Cancelar</Button>
                 <Button size="sm" @click="confirmFabricBaseFactorDialog">Crear</Button>
+            </DialogFooter>
+        </FormDialogContent>
+    </Dialog>
+
+    <Dialog
+        :open="sectionGarmentDialogOpen"
+        @update:open="
+            (value) => {
+                if (!value) cancelSectionGarmentType();
+            }
+        "
+    >
+        <FormDialogContent size="lg" class="max-w-xl overflow-hidden p-0">
+            <DialogHeader class="border-b px-6 py-4 text-left">
+                <DialogTitle>Nueva sección: {{ sectionGarmentDialogName }}</DialogTitle>
+                <DialogDescription>
+                    ¿Es de prenda superior, inferior o ambas? Superior o inferior fija el tipo de prenda en la sábana; "Ambos" deja elegirlo.
+                </DialogDescription>
+            </DialogHeader>
+            <DialogFooter class="flex flex-wrap items-center justify-end gap-2 px-6 py-4">
+                <Button variant="outline" size="sm" @click="cancelSectionGarmentType">Cancelar</Button>
+                <Button size="sm" @click="confirmSectionGarmentType('superior')">Superior</Button>
+                <Button size="sm" @click="confirmSectionGarmentType('inferior')">Inferior</Button>
+                <Button size="sm" variant="secondary" @click="confirmSectionGarmentType('ambos')">Ambos</Button>
             </DialogFooter>
         </FormDialogContent>
     </Dialog>

@@ -57,16 +57,6 @@ function formatDate(value: string | null | undefined): string {
     return parsed.toLocaleDateString('es-CO', { day: '2-digit', month: '2-digit', year: 'numeric' });
 }
 
-function formatCurrency(value: number | null | undefined): string {
-    if (value === null || value === undefined) return '-';
-    return new Intl.NumberFormat('es-CO', {
-        style: 'currency',
-        currency: 'COP',
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-    }).format(value);
-}
-
 function formatNumber(value: number | null | undefined, decimals = 2): string {
     if (value === null || value === undefined || Number.isNaN(Number(value))) return '-';
     return Number(value).toLocaleString('es-CO', { minimumFractionDigits: decimals, maximumFractionDigits: decimals });
@@ -98,7 +88,6 @@ const cutPieces = computed(() => {
 });
 
 const suppliesConf = computed(() => props.supplies.filter((s) => String(s.stage ?? '').toUpperCase().includes('CONF')));
-const suppliesTerm = computed(() => props.supplies.filter((s) => String(s.stage ?? '').toUpperCase().includes('TERM')));
 const suppliesOther = computed(() =>
     props.supplies.filter((s) => {
         const stage = String(s.stage ?? '').toUpperCase();
@@ -203,8 +192,8 @@ const unitsReportTotal = computed(() => {
 
 function stageLabel(stage: string | null | undefined): string {
     const value = String(stage ?? '').toUpperCase();
-    if (value === 'CONFECCION') return 'Confeccion';
-    if (value === 'TERMINACION') return 'Terminacion';
+    if (value === 'CONFECCION') return 'Confección';
+    if (value === 'TERMINACION') return 'Terminación';
     if (value === 'CORTE') return 'Corte';
     if (value === 'GENERAL') return 'General';
     return value ? value.charAt(0) + value.slice(1).toLowerCase() : '-';
@@ -213,7 +202,7 @@ function stageLabel(stage: string | null | undefined): string {
 function modaLineaLabel(value: string | null | undefined): string {
     const val = String(value ?? '').toUpperCase();
     if (val === 'MODA') return 'Moda';
-    if (val === 'LINEA') return 'Linea';
+    if (val === 'LINEA') return 'Línea';
     return '-';
 }
 
@@ -234,7 +223,7 @@ function parseStampNotes(raw: string | null | undefined): { procesos: string | n
         <div class="hdr">
             <div class="hdr-logo">OLAMTEX</div>
             <div class="hdr-center">
-                <div class="hdr-title">Ficha Tecnica</div>
+                <div class="hdr-title">Ficha Técnica</div>
                 <div class="hdr-sub">{{ op.opCode }} — {{ op.reference }}</div>
             </div>
             <div class="hdr-meta">
@@ -249,13 +238,13 @@ function parseStampNotes(raw: string | null | undefined): { procesos: string | n
                 <table class="info-cards">
                     <tbody>
                         <tr>
-                            <td><span class="ic-lbl">Orden produccion</span><span class="ic-val b">{{ op.opCode || '-' }}</span></td>
+                            <td><span class="ic-lbl">Orden producción</span><span class="ic-val b">{{ op.opCode || '-' }}</span></td>
                             <td><span class="ic-lbl">Referencia</span><span class="ic-val">{{ op.reference || '-' }}</span></td>
                             <td><span class="ic-lbl">Fecha</span><span class="ic-val">{{ formatDate(op.deliveryDate) }}</span></td>
                         </tr>
                         <tr>
                             <td><span class="ic-lbl">Destino</span><span class="ic-val">{{ op.destination || '-' }}</span></td>
-                            <td><span class="ic-lbl">Seccion</span><span class="ic-val">{{ op.section || '-' }}</span></td>
+                            <td><span class="ic-lbl">Sección</span><span class="ic-val">{{ op.section || '-' }}</span></td>
                             <td><span class="ic-lbl">Grupo</span><span class="ic-val">{{ op.group || '-' }}</span></td>
                         </tr>
                         <tr>
@@ -271,7 +260,7 @@ function parseStampNotes(raw: string | null | undefined): { procesos: string | n
                         <tr>
                             <td><span class="ic-lbl">Base tela</span><span class="ic-val">{{ op.base || '-' }}</span></td>
                             <td><span class="ic-lbl">Base hilaza</span><span class="ic-val">{{ op.baseYarn || '-' }}</span></td>
-                            <td><span class="ic-lbl">Descripcion</span><span class="ic-val">{{ op.description || '-' }}</span></td>
+                            <td><span class="ic-lbl">Descripción</span><span class="ic-val">{{ op.description || '-' }}</span></td>
                         </tr>
                         <tr v-if="cutSizes.length > 0">
                             <td colspan="3">
@@ -388,7 +377,7 @@ function parseStampNotes(raw: string | null | undefined): { procesos: string | n
                     <span> | {{ group.lines.length }} rollo{{ group.lines.length !== 1 ? 's' : '' }}</span>
                     <span v-if="group.meta.prom_trazo"> | Prom. Trazo: {{ formatNumber(group.meta.prom_trazo, 3) }} m</span>
                     <span v-if="group.meta.largo_trazo"> | Largo de Trazo: {{ formatNumber(group.meta.largo_trazo, 3) }} m</span>
-                    <span v-if="group.meta.largo_liq"> | Largo Liquidacion: {{ formatNumber(group.meta.largo_liq, 3) }} m</span>
+                    <span v-if="group.meta.largo_liq"> | Largo Liquidación: {{ formatNumber(group.meta.largo_liq, 3) }} m</span>
                 </div>
                 <table class="dt">
                     <thead>
@@ -400,7 +389,7 @@ function parseStampNotes(raw: string | null | undefined): { procesos: string | n
                             <th class="tr">Total Metros</th>
                             <th class="tr">Metros a Usar</th>
                             <th class="tc">Capa Principal</th>
-                            <th class="tc">Capa Liquidacion</th>
+                            <th class="tc">Capa Liquidación</th>
                             <th class="tc">Capa Espiga</th>
                             <th class="tr">Retazo</th>
                             <th class="tr">Consumo</th>
@@ -459,7 +448,7 @@ function parseStampNotes(raw: string | null | undefined): { procesos: string | n
                             <td class="tc b">{{ sizeCurves.reduce((acc, s) => acc + Number(s.trazoPrincipal ?? 0), 0) }}</td>
                         </tr>
                         <tr>
-                            <td class="b">Liquidacion</td>
+                            <td class="b">Liquidación</td>
                             <td v-for="sz in sizeCurves" :key="sz.size" class="tc">{{ sz.liquidacion ?? 0 }}</td>
                             <td class="tc b">{{ sizeCurves.reduce((acc, s) => acc + Number(s.liquidacion ?? 0), 0) }}</td>
                         </tr>
@@ -529,7 +518,7 @@ function parseStampNotes(raw: string | null | undefined): { procesos: string | n
                     <th class="tc">Calibre</th>
                     <th>Marca</th>
                     <th class="tc">Puntada x Pulgada</th>
-                    <th class="tc">Codigo Color</th>
+                    <th class="tc">Código Color</th>
                 </tr>
             </thead>
             <tbody>
@@ -582,20 +571,20 @@ function parseStampNotes(raw: string | null | undefined): { procesos: string | n
                 <tr>
                     <td><span class="ic-lbl">Espiga largo</span><span class="ic-val">{{ cuttingInfo.espigaLength ?? '-' }}</span></td>
                     <td><span class="ic-lbl">Espiga curva</span><span class="ic-val">{{ cuttingInfo.espigaCurve ?? '-' }}</span></td>
-                    <td><span class="ic-lbl">Liquidacion largo</span><span class="ic-val">{{ cuttingInfo.liqLength ?? '-' }}</span></td>
-                    <td><span class="ic-lbl">Liquidacion curva</span><span class="ic-val">{{ cuttingInfo.liqCurve ?? '-' }}</span></td>
+                    <td><span class="ic-lbl">Liquidación largo</span><span class="ic-val">{{ cuttingInfo.liqLength ?? '-' }}</span></td>
+                    <td><span class="ic-lbl">Liquidación curva</span><span class="ic-val">{{ cuttingInfo.liqCurve ?? '-' }}</span></td>
                 </tr>
             </tbody>
         </table>
         <div class="note" v-if="cuttingInfo.generalNotes"><strong>Observaciones:</strong> {{ cuttingInfo.generalNotes }}</div>
 
-        <div class="sec-title">Listado Operacional de Confeccion</div>
+        <div class="sec-title">Listado Operacional de Confección</div>
         <table class="dt">
             <thead>
                 <tr>
                     <th class="tc">#</th>
-                    <th>Operacion / Proceso</th>
-                    <th>Descripcion</th>
+                    <th>Operación / Proceso</th>
+                    <th>Descripción</th>
                     <th class="tc">Min.</th>
                 </tr>
             </thead>
@@ -612,7 +601,7 @@ function parseStampNotes(raw: string | null | undefined): { procesos: string | n
             </tbody>
         </table>
 
-        <div class="sec-title">Distribucion Colores x Tallas</div>
+        <div class="sec-title">Distribución Colores x Tallas</div>
         <table class="dt">
             <thead>
                 <tr>
@@ -639,7 +628,7 @@ function parseStampNotes(raw: string | null | undefined): { procesos: string | n
                 <tr>
                     <th>Tipo de insumo</th>
                     <th>Insumo</th>
-                    <th class="tc">Moda/Linea</th>
+                    <th class="tc">Moda/Línea</th>
                     <th class="tc">Cantidad</th>
                     <th class="tc">Imagen</th>
                 </tr>
@@ -661,7 +650,7 @@ function parseStampNotes(raw: string | null | undefined): { procesos: string | n
             </tbody>
         </table>
 
-        <div class="sec-title">Tabla de Medidas — Insumos de Confeccion</div>
+        <div class="sec-title">Tabla de Medidas — Insumos de Confección</div>
         <table class="dt">
             <thead>
                 <tr>
@@ -694,7 +683,7 @@ function parseStampNotes(raw: string | null | undefined): { procesos: string | n
                         </td>
                     </tr>
                     <tr>
-                        <td class="b">Medida Terminacion</td>
+                        <td class="b">Medida Terminación</td>
                         <td v-for="sz in measSizes" :key="sz" class="tc">
                             {{ s.sizeMeasurements?.[sz]?.termi != null ? formatNumber(s.sizeMeasurements?.[sz]?.termi, 2) : '-' }}
                         </td>
@@ -715,13 +704,13 @@ function parseStampNotes(raw: string | null | undefined): { procesos: string | n
                         <strong>Procesos:</strong> {{ parseStampNotes(additionalInfo?.stamping?.designNotes).procesos }}
                     </div>
                     <div class="note" v-if="parseStampNotes(additionalInfo?.stamping?.designNotes).observacion">
-                        <strong>Observacion:</strong> {{ parseStampNotes(additionalInfo?.stamping?.designNotes).observacion }}
+                        <strong>Observación:</strong> {{ parseStampNotes(additionalInfo?.stamping?.designNotes).observacion }}
                     </div>
                     <div class="sec-sub">Imagenes de Estampado</div>
                     <div class="img-grid">
                         <img v-for="att in additionalInfo?.stamping?.attachments ?? []" :key="att.id" :src="att.url" alt="Estampado" />
                     </div>
-                    <div class="sec-sub">Dibujos Tecnicos de Estampado</div>
+                    <div class="sec-sub">Dibujos Técnicos de Estampado</div>
                     <div class="img-grid">
                         <img v-for="att in additionalInfo?.stamping?.drawingAttachments ?? []" :key="att.id" :src="att.url" alt="Dibujo" />
                     </div>
@@ -729,13 +718,13 @@ function parseStampNotes(raw: string | null | undefined): { procesos: string | n
                 <div v-else class="mut">-</div>
             </div>
             <div>
-                <div class="sec-title">Lavanderia</div>
+                <div class="sec-title">Lavandería</div>
                 <div v-if="additionalInfo?.laundry">
                     <div class="note" v-if="additionalInfo?.laundry?.type"><strong>Tipo:</strong> {{ additionalInfo?.laundry?.type }}</div>
                     <div class="note" v-if="additionalInfo?.laundry?.instructions">
-                        <strong>Observacion:</strong> {{ additionalInfo?.laundry?.instructions }}
+                        <strong>Observación:</strong> {{ additionalInfo?.laundry?.instructions }}
                     </div>
-                    <div class="sec-sub">Imagen de Lavanderia</div>
+                    <div class="sec-sub">Imagen de Lavandería</div>
                     <div class="img-grid">
                         <img v-for="att in additionalInfo?.laundry?.attachments ?? []" :key="att.id" :src="att.url" alt="Lavanderia" />
                     </div>

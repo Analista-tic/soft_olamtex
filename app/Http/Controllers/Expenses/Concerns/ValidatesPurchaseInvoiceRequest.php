@@ -33,9 +33,9 @@ trait ValidatesPurchaseInvoiceRequest
             'items' => 'array',
             'items.*.id' => $itemIdRule,
             'items.*.item_id' => 'required|exists:items,id',
-            'items.*.price' => 'required|numeric',
+            'items.*.price' => 'required|numeric|decimal:0,2',
             'items.*.tax' => 'nullable|numeric',
-            'items.*.quantity' => 'required|numeric',
+            'items.*.quantity' => 'required|numeric|decimal:0,2',
             'items.*.description' => 'nullable|string',
             'items.*.supplier_code' => 'nullable|string',
             'items.*.supplier_color' => 'nullable|string',
@@ -55,7 +55,44 @@ trait ValidatesPurchaseInvoiceRequest
             ?? null;
         unset($validated['purchase_order_id']);
 
+        $this->ensureFabricItemsHaveSupplierData($validated['items'] ?? []);
+        $this->ensureSupplierInvoiceNumberIsUnique($request, $validated);
+
         return $validated;
+    }
+
+    /**
+     * El número de factura del proveedor no puede repetirse para el mismo proveedor (facturas normales y de tela,
+     * sin contar las eliminadas). Al editar se ignora la propia factura y se completan los datos que no vengan.
+     */
+    protected function ensureSupplierInvoiceNumberIsUnique(Request $request, array $validated): void
+    {
+        if (! array_key_exists('supplier_invoice_number', $validated) && ! array_key_exists('contact_id', $validated)) {
+            return;
+        }
+
+        $current = $request->route('purchaseInvoice') ?? $request->route('purchaseDocument');
+        $current = $current instanceof PurchaseDocument ? $current : null;
+
+        $number = trim((string) ($validated['supplier_invoice_number'] ?? $current?->supplier_invoice_number ?? ''));
+        $contactId = $validated['contact_id'] ?? $current?->contact_id;
+
+        if ($number === '' || $contactId === null) {
+            return;
+        }
+
+        $duplicate = PurchaseDocument::query()
+            ->where('document_type', PurchaseDocument::TYPE_INVOICE)
+            ->where('contact_id', $contactId)
+            ->whereRaw('LOWER(TRIM(supplier_invoice_number)) = ?', [mb_strtolower($number)])
+            ->when($current, fn ($query) => $query->where('id', '!=', $current->id))
+            ->first(['id', 'document_number']);
+
+        if ($duplicate) {
+            throw ValidationException::withMessages([
+                'supplier_invoice_number' => ["Este proveedor ya tiene registrada una factura con el número {$number} ({$duplicate->document_number})."],
+            ]);
+        }
     }
 
     /**

@@ -19,6 +19,12 @@ class PurchaseInvoiceController extends PurchaseDocumentController
 
     protected PurchaseDocumentInvoiceService $invoiceService;
 
+    /** Fechas del recorrido solicitud → orden → recepción → factura, solo lectura. */
+    public function traceability(PurchaseDocument $purchaseDocument)
+    {
+        return $this->traceabilityResponse($purchaseDocument);
+    }
+
     /**
      * Marcar factura como recibida (NO tela)
      */
@@ -39,6 +45,9 @@ class PurchaseInvoiceController extends PurchaseDocumentController
     {
         $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
         $purchaseDocument = $this->service->findAccessibleDocumentOrFail($purchaseDocument, $request->user());
+        if (in_array($purchaseDocument->status, ['received', 'approved', 'rejected'], true)) {
+            return response()->json(['message' => 'Solo se puede rechazar una factura pendiente de recepción.'], 422);
+        }
         $validated = $request->validate([
             'rejection_reason' => 'required|string',
             'rejection_notes' => 'nullable|string',
@@ -49,7 +58,27 @@ class PurchaseInvoiceController extends PurchaseDocumentController
         $purchaseDocument->rejected_by_user_id = Auth::id();
         $purchaseDocument->rejected_at = now();
         $purchaseDocument->save();
-        // Aquí podrías disparar eventos, auditoría, etc.
+
+        $number = $purchaseDocument->document_number ?? (string) $purchaseDocument->id;
+        app(\App\Services\Settings\NotificationDispatcher::class)->dispatch(
+            'purchase_invoice_rejected',
+            new \App\Notifications\GenericEventNotification(
+                'purchase_invoice_rejected',
+                'Gastos',
+                "Factura #{$number} rechazada",
+                "La factura {$number} fue rechazada. Motivo: {$validated['rejection_reason']}.",
+                '/gastos/facturas-compra'
+            ),
+            ['actor' => $request->user(), 'creator' => $purchaseDocument->creator]
+        );
+
+        // Una factura rechazada deja de contar como facturado en su orden.
+        if ($purchaseDocument->parent_document_id) {
+            $parentOrder = PurchaseDocument::find($purchaseDocument->parent_document_id);
+            if ($parentOrder) {
+                $this->service->recalculateOrderStatus($parentOrder);
+            }
+        }
         return response()->json(['data' => $purchaseDocument]);
     }
     public function __construct(PurchaseDocumentInvoiceService $service)
@@ -74,10 +103,14 @@ class PurchaseInvoiceController extends PurchaseDocumentController
     {
         $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
         $purchaseDocument = $this->service->findAccessibleDocumentOrFail($purchaseDocument, request()->user());
-        $invoice = $this->service->loadWithRelations($purchaseDocument);
+
+        if (! $purchaseDocument->canEditInvoice()) {
+            abort(403, PurchaseDocument::INVOICE_LOCKED_MESSAGE);
+        }
+
         return Inertia::render('Expenses/PurchaseInvoices/PurchaseInvoiceForm', [
             'mode' => 'edit',
-            'form' => $invoice,
+            'form' => $purchaseDocument,
         ]);
     }
 
@@ -144,11 +177,8 @@ class PurchaseInvoiceController extends PurchaseDocumentController
     {
         $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
 
-        if ($purchaseDocument->approval_status === PurchaseDocument::APPROVAL_APPROVED
-            || $purchaseDocument->status === 'received') {
-            return response()->json([
-                'message' => 'No se puede editar una factura aprobada o recibida.'
-            ], 422);
+        if (! $purchaseDocument->canEditInvoice()) {
+            return response()->json(['message' => PurchaseDocument::INVOICE_LOCKED_MESSAGE], 422);
         }
 
         return $this->updateGeneric(
@@ -163,11 +193,8 @@ class PurchaseInvoiceController extends PurchaseDocumentController
     {
         $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_INVOICE);
 
-        if ($purchaseDocument->approval_status === PurchaseDocument::APPROVAL_APPROVED
-            || $purchaseDocument->status === 'received') {
-            return response()->json([
-                'message' => 'No se puede eliminar una factura aprobada o recibida.'
-            ], 422);
+        if (! $purchaseDocument->canDeleteInvoice()) {
+            return response()->json(['message' => PurchaseDocument::INVOICE_LOCKED_MESSAGE], 422);
         }
 
         return $this->destroyGeneric(
@@ -237,6 +264,10 @@ class PurchaseInvoiceController extends PurchaseDocumentController
         $purchaseDocument = $this->service->findAccessibleDocumentOrFail($purchaseDocument, request()->user());
 
         try {
+            if (! $purchaseDocument->canSendInvoiceByEmail()) {
+                throw new \RuntimeException('Una factura rechazada no se puede enviar por correo.');
+            }
+
             $invoice = $this->service->loadWithRelations($purchaseDocument);
             $email = $invoice->supplier?->email;
 
@@ -276,7 +307,7 @@ class PurchaseInvoiceController extends PurchaseDocumentController
 
     protected function buildFilters(Request $request): array
     {
-        $filters = $request->only(['search', 'date_from', 'date_to', 'status', 'provider_id', 'contact_id', 'approval_status', 'exclude_difference_rejected']);
+        $filters = $request->only(['search', 'date_from', 'date_to', 'status', 'provider_id', 'contact_id', 'approval_status', 'invoice_status', 'exclude_difference_rejected']);
 
         $contactId = (int) ($request->input('contact_id') ?? 0);
         if ($contactId > 0) {

@@ -123,11 +123,6 @@ function toCOP(value: number): string {
     }).format(Number(value || 0));
 }
 
-function toCOPOrEmpty(value: number): string {
-    const amount = Number(value || 0);
-    return amount > 0 ? toCOP(amount) : '';
-}
-
 function normalizeText(value: string | null | undefined): string | null {
     const text = String(value ?? '').trim();
     return text !== '' ? text : null;
@@ -227,10 +222,12 @@ const isDirty = computed(() => {
 const canSave = computed(() => !isSaving.value && isDirty.value && !props.readonly);
 
 const itemOptions = computed<Option[]>(() => {
-    return catalogItems.value.map((item) => ({
-        id: item.id,
-        name: item.label,
-    }));
+    return catalogItems.value
+        .map((item) => ({
+            id: item.id,
+            name: item.label,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
 });
 
 function getItemOptions(row: LocalSupplyRow): Option[] {
@@ -480,7 +477,7 @@ async function loadSupplies(): Promise<void> {
         });
     } catch (err) {
         console.error('Error al cargar insumos:', err);
-        setError('No se pudo cargar la informacion de insumos.');
+        setError('No se pudo cargar la información de insumos.');
         stageOptions.value = [...BASE_STAGE_OPTIONS];
         rows.value = [createRow('CONFECCION')];
         snapshot.value = JSON.stringify(buildSavePayload(rows.value));
@@ -984,7 +981,7 @@ watch(
                                 <TableHead class="w-[140px] min-w-[110px] text-right">Precio</TableHead>
                                 <TableHead class="w-[120px] text-right">Costo prenda</TableHead>
                                 <TableHead class="w-[70px] text-center">Imagen</TableHead>
-                                <TableHead class="w-[100px] text-center">Accion</TableHead>
+                                <TableHead class="w-[100px] text-center">Acción</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>

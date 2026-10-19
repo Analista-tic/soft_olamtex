@@ -9,7 +9,11 @@ use App\Models\Settings\User;
 use App\Enums\PurchaseRequestStatus;
 use App\Notifications\PurchaseRequestSubmittedNotification;
 use App\Notifications\PurchaseRequestRespondedNotification;
+use App\Services\Settings\NotificationDispatcher;
+use App\Services\Settings\NotificationRuleService;
+use App\Support\DocumentSequence;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Auth\Access\AuthorizationException;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -30,9 +34,11 @@ class PurchaseRequestService
         $normalizedSearch = trim($search);
 
         $query = PurchaseRequest::query()
-            ->select(['purchase_requests.id', 'purchase_requests.request_number', 'purchase_requests.provider_name', 'purchase_requests.created_at', 'purchase_requests.requester_user_id'])
+            ->select(['purchase_requests.id', 'purchase_requests.request_number', 'purchase_requests.provider_name', 'purchase_requests.created_at', 'purchase_requests.requester_user_id', 'purchase_requests.buyer_user_id'])
             ->leftJoin('users', 'users.id', '=', 'purchase_requests.requester_user_id')
+            ->leftJoin('users as buyer_users', 'buyer_users.id', '=', 'purchase_requests.buyer_user_id')
             ->addSelect('users.name as requester_name')
+            ->addSelect('buyer_users.name as buyer_name')
             ->where('purchase_requests.status', PurchaseRequestStatus::APPROVED->value)
             ->whereNotExists(function ($subQuery) {
                 $subQuery->selectRaw('1')
@@ -43,11 +49,10 @@ class PurchaseRequestService
                     ->whereNull('pd.deleted_at');
             });
 
-        ScopeHelper::apply($query, $user, 'ver propios solicitudes compra', 'ver area solicitudes compra', 'ver todos solicitudes compra', 'purchase_requests.requester_user_id');
-        $this->applySolicitedToFilter($query, $user);
+        $this->applyScope($query, $user, 'purchase_requests');
 
         if ($myRequestsOnly && $user !== null) {
-            $query->where('purchase_requests.buyer_user_id', $user->id);
+            $query->where('purchase_requests.requester_user_id', $user->id);
         }
 
         if ($normalizedSearch !== '') {
@@ -70,6 +75,7 @@ class PurchaseRequestService
                 'request_number' => $request->request_number,
                 'provider_name' => $request->provider_name,
                 'requester_name' => $request->requester_name ?? null,
+                'buyer_name' => $request->buyer_name ?? null,
                 'created_at' => $request->created_at?->toISOString(),
                 'status' => PurchaseRequestStatus::APPROVED->value,
             ];
@@ -80,14 +86,13 @@ class PurchaseRequestService
     {
         $minimal = !empty($filters['minimal']);
 
-        $query = PurchaseRequest::with($minimal ? [] : ['requester']);
+        $query = PurchaseRequest::with($minimal ? [] : ['requester', 'buyer']);
 
         if ($minimal) {
             $query->select(['id', 'request_number', 'provider_name', 'date', 'status', 'description', 'estimated_amount', 'requester_user_id']);
         }
 
-        ScopeHelper::apply($query, $user, 'ver propios solicitudes compra', 'ver area solicitudes compra', 'ver todos solicitudes compra', 'requester_user_id');
-        $this->applySolicitedToFilter($query, $user);
+        $this->applyVisibility($query, $user);
 
         if (!empty($filters['search'])) {
             $search = $filters['search'];
@@ -121,7 +126,7 @@ class PurchaseRequestService
         if (!empty($filters['exclude_with_orders']) && $filters['exclude_with_orders']) {
             $query->whereDoesntHave('orders', function ($orderQuery) {
                 $orderQuery->where('document_type', \App\Models\Expenses\PurchaseDocument::TYPE_ORDER)
-                    ->where('status', '!=', 'pending')
+                    ->whereNotIn('status', ['pending', 'rejected'])
                     ->whereNull('deleted_at');
             })->where('status', '!=', \App\Enums\PurchaseRequestStatus::PROCESSED->value);
         }
@@ -158,8 +163,12 @@ class PurchaseRequestService
 
     public function create(array $data): PurchaseRequest
     {
-        $payload = $this->prepareData($data);
-        return PurchaseRequest::create($payload)->load('requester');
+        // Una sola transacción: el bloqueo del consecutivo se mantiene hasta que la solicitud queda guardada.
+        return DB::transaction(function () use ($data) {
+            $payload = $this->prepareData($data);
+
+            return PurchaseRequest::create($payload)->load('requester');
+        });
     }
 
     public function update(PurchaseRequest $purchaseRequest, array $data): PurchaseRequest
@@ -180,14 +189,13 @@ class PurchaseRequestService
 
     public function loadWithRelations(PurchaseRequest $purchaseRequest): PurchaseRequest
     {
-        return $purchaseRequest->load(['requester', 'approvedBy', 'rejectedBy', 'processor']);
+        return $purchaseRequest->load(['requester', 'buyer', 'approvedBy', 'rejectedBy', 'processor']);
     }
 
     public function findAccessibleOrFail(PurchaseRequest $purchaseRequest, ?User $user): PurchaseRequest
     {
         $query = PurchaseRequest::query()->whereKey($purchaseRequest->getKey());
-        ScopeHelper::apply($query, $user, 'ver propios solicitudes compra', 'ver area solicitudes compra', 'ver todos solicitudes compra', 'requester_user_id');
-        $this->applySolicitedToFilter($query, $user);
+        $this->applyVisibility($query, $user);
 
         if (!$query->exists()) {
             throw new AuthorizationException('No tienes permisos para acceder a esta solicitud de compra.');
@@ -269,8 +277,16 @@ class PurchaseRequestService
             $data['request_number'] = $this->generateRequestNumber();
         }
 
-        $data['status'] = $data['status'] ?? 'draft';
-        $data['requester_user_id'] = $data['requester_user_id'] ?? Auth::id();
+        if ($isUpdate) {
+            unset($data['status']); // el estado solo cambia por las transiciones
+        } else {
+            $data['status'] = $data['status'] ?? 'draft';
+        }
+        // El solicitante es siempre quien crea la solicitud; se ignora cualquier valor enviado por el cliente.
+        unset($data['requester_user_id']);
+        if (!$isUpdate) {
+            $data['requester_user_id'] = Auth::id();
+        }
 
         $items = null;
         if (isset($data['items'])) {
@@ -336,10 +352,18 @@ class PurchaseRequestService
         }
     }
 
+    /**
+     * Consecutivo atómico (bloqueo de fila): se asigna al guardar, nunca al abrir el formulario, y no se reutiliza
+     * el de una solicitud eliminada. Basar el número en `max(id)` repetía el mismo número con dos usuarios a la vez.
+     */
     protected function generateRequestNumber(): string
     {
-        $nextId = (int) PurchaseRequest::withTrashed()->max('id') + 1;
-        return sprintf('SOL-%03d', $nextId);
+        $next = DocumentSequence::next(
+            'purchase_requests:SOL',
+            fn () => DocumentSequence::maxFromNumbers(PurchaseRequest::withTrashed()->pluck('request_number'), 'SOL')
+        );
+
+        return sprintf('SOL-%03d', $next);
     }
 
     protected function extractItems(mixed $items): array
@@ -444,93 +468,116 @@ class PurchaseRequestService
         return $this->orderService->createOrder($data, $orderItems);
     }
 
-    private function applySolicitedToFilter(Builder $query, ?User $user): void
+    /**
+     * Reglas de visibilidad (ver docs/compras/solicitudes-visibilidad.md):
+     *  1. Alcance por permisos (propios / area / todos). "Ver todos" ve todo.
+     *  2. El destino "solicitado a" SUMA visibilidad: "ver solicitudes compra a X"
+     *     agrega las dirigidas a X a lo que el usuario ya ve (SOLICITED_TO_PERMISSIONS).
+     *  3. Los borradores solo los ve su solicitante (quien la creó).
+     */
+    public function applyVisibility(Builder $query, ?User $user): void
     {
-        if ($user === null) {
+        $this->applyScope($query, $user);
+
+        $userId = $user?->id ?? -1;
+        $query->where(function (Builder $q) use ($userId) {
+            $q->where('status', '!=', 'draft')->orWhere('requester_user_id', $userId);
+        });
+    }
+
+    /** Destino ("solicitado a") => permiso que habilita ver las solicitudes dirigidas a él. */
+    public const SOLICITED_TO_PERMISSIONS = [
+        'gerencia' => 'ver solicitudes compra a gerencia',
+        'logistica' => 'ver solicitudes compra a logistica',
+    ];
+
+    /**
+     * Alcance (propios / área / todos) OR destinos permitidos.
+     * Con "ver todos" no se restringe; los permisos de destino nunca restan.
+     */
+    private function applyScope(Builder $query, ?User $user, string $table = ''): void
+    {
+        if ($user !== null && $this->userCan($user, 'ver todos solicitudes compra')) {
             return;
         }
 
-        try {
-            if (!$user->hasPermissionTo('ver todos solicitudes compra')) {
-                return;
+        $prefix = $table !== '' ? "{$table}." : '';
+        $destinations = $user === null ? [] : array_keys(array_filter(
+            self::SOLICITED_TO_PERMISSIONS,
+            fn (string $permission) => $this->userCan($user, $permission),
+        ));
+
+        $query->where(function (Builder $q) use ($user, $destinations, $prefix) {
+            $q->where(function (Builder $scope) use ($user, $prefix) {
+                ScopeHelper::apply($scope, $user, 'ver propios solicitudes compra', 'ver area solicitudes compra', 'ver todos solicitudes compra', "{$prefix}requester_user_id");
+            });
+
+            if ($destinations !== []) {
+                $q->orWhereIn("{$prefix}solicited_to", $destinations);
             }
+        });
+    }
+
+    private function userCan(User $user, string $permission): bool
+    {
+        try {
+            return $user->hasPermissionTo($permission);
         } catch (\Spatie\Permission\Exceptions\PermissionDoesNotExist) {
-            return;
-        }
-
-        $userId = $user->id;
-
-        if ($user->hasRole('logistica')) {
-            $query->where(function (Builder $q) use ($userId) {
-                // Siempre ve las propias (cualquier estado)
-                $q->where('requester_user_id', $userId)
-                // O las dirigidas a logistica de otros, solo si no son borrador
-                  ->orWhere(function (Builder $sub) use ($userId) {
-                      $sub->where('requester_user_id', '!=', $userId)
-                          ->where(function (Builder $s) {
-                              $s->where('solicited_to', 'logistica')->orWhereNull('solicited_to');
-                          })
-                          ->where('status', '!=', 'draft');
-                  });
-            });
-        } elseif ($user->hasRole('admin')) {
-            $query->where(function (Builder $q) use ($userId) {
-                // Siempre ve las propias (cualquier estado)
-                $q->where('requester_user_id', $userId)
-                // O las dirigidas a gerencia de otros, solo si no son borrador
-                  ->orWhere(function (Builder $sub) use ($userId) {
-                      $sub->where('requester_user_id', '!=', $userId)
-                          ->where(function (Builder $s) {
-                              $s->where('solicited_to', 'gerencia')->orWhereNull('solicited_to');
-                          })
-                          ->where('status', '!=', 'draft');
-                  });
-            });
+            return false;
         }
     }
 
     protected function notifySubmitted(PurchaseRequest $purchaseRequest): void
     {
-        $solicitedTo = $purchaseRequest->solicited_to;
-        if (!$solicitedTo) {
-            return;
+        $requesterName = $purchaseRequest->requester?->name ?? Auth::user()?->name;
+
+        app(NotificationDispatcher::class)->dispatch(
+            'purchase_request_submitted',
+            new PurchaseRequestSubmittedNotification($purchaseRequest, $requesterName),
+            $this->submittedContext($purchaseRequest),
+        );
+    }
+
+    /**
+     * Destinatarios al enviar a aprobación según la configuración del evento
+     * 'purchase_request_submitted' (por defecto: quienes pueden aprobar en el área destino).
+     *
+     * @return Collection<int, User>
+     */
+    public function resolveSubmittedRecipients(PurchaseRequest $purchaseRequest): Collection
+    {
+        $event = app(NotificationRuleService::class)->eventFor('purchase_request_submitted');
+        if (! $event) {
+            return collect();
         }
+
+        return app(NotificationDispatcher::class)->resolveRecipients($event, $this->submittedContext($purchaseRequest));
+    }
+
+    /** @return array<string, mixed> */
+    private function submittedContext(PurchaseRequest $purchaseRequest): array
+    {
+        $context = ['actor' => $purchaseRequest->requester_user_id];
 
         // 'gerencia' no existe como rol Spatie; los gerentes están en 'admin'
-        $roleName = $solicitedTo === 'gerencia' ? 'admin' : $solicitedTo;
-
-        try {
-            $recipients = User::role($roleName)->get();
-        } catch (\Throwable $e) {
-            \Log::warning('notifySubmitted: rol no encontrado', ['role' => $roleName, 'error' => $e->getMessage()]);
-            return;
+        $solicitedTo = $purchaseRequest->solicited_to;
+        if ($solicitedTo) {
+            $context['request_target_role'] = $solicitedTo === 'gerencia' ? 'admin' : $solicitedTo;
         }
 
-        if ($recipients->isEmpty()) {
-            return;
-        }
-
-        $requesterName = $purchaseRequest->requester?->name ?? Auth::user()?->name;
-        Notification::send($recipients, new PurchaseRequestSubmittedNotification($purchaseRequest, $requesterName));
+        return $context;
     }
 
     protected function notifyResponded(PurchaseRequest $purchaseRequest, string $action, ?User $responder, ?string $reason): void
     {
-        $requesterId = $purchaseRequest->requester_user_id;
-        if (!$requesterId) {
-            return;
-        }
-
-        $requester = User::find($requesterId);
-        if (!$requester) {
-            return;
-        }
-
-        // No notificar si quien responde es el mismo que creó la solicitud
-        if ($responder && $responder->id === $requesterId) {
-            return;
-        }
-
-        $requester->notify(new PurchaseRequestRespondedNotification($purchaseRequest, $action, $responder?->name, $reason));
+        app(NotificationDispatcher::class)->dispatch(
+            'purchase_request_responded',
+            new PurchaseRequestRespondedNotification($purchaseRequest, $action, $responder?->name, $reason),
+            [
+                'actor' => $responder,
+                'requester' => $purchaseRequest->requester_user_id ? User::find($purchaseRequest->requester_user_id) : null,
+                'buyer' => $purchaseRequest->buyer_user_id ? User::find($purchaseRequest->buyer_user_id) : null,
+            ],
+        );
     }
 }

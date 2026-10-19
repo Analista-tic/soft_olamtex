@@ -294,7 +294,7 @@ const updateData = () => {
 
                         <TableCell class="px-4 py-1.5">
                             <span v-if="readonly" class="text-foreground">{{ piece.notes || '-' }}</span>
-                            <Input
+                            <Input data-no-uppercase
                                 v-else
                                 v-model="piece.notes"
                                 @update:model-value="updateData"

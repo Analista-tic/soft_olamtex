@@ -122,10 +122,21 @@ class ProductOperationList extends Model
         return $samBase * $sup * $fabric * $op;
     }
 
+    /** SAM de la operación completa: el SAM unitario por las repeticiones por pieza (`operations.quantity`). */
     public function calculateSamTotalOperacion(): float
     {
-        // quantity es solo informativo, no multiplica el SAM
-        return $this->calculateSamTotalUnitario();
+        // Sin cargar la relación de forma perezosa: el modo estricto contra N+1 lo convierte en error al guardar en lote.
+        $quantity = $this->relationLoaded('operation')
+            ? $this->operation?->quantity
+            : ($this->operation_id ? Operation::query()->whereKey($this->operation_id)->value('quantity') : null);
+
+        return round($this->calculateSamTotalUnitario() * self::quantityOf($quantity), 4);
+    }
+
+    /** Repeticiones por pieza: mínimo 1 (vacío o 0 se tratan como una). */
+    public static function quantityOf(int|float|string|null $quantity): int
+    {
+        return max(1, (int) $quantity);
     }
 
     /**

@@ -17,15 +17,15 @@ class ReportPdfService
     {
         $query = FabricRoll::query()->with(['item'])->select([
             'id', 'roll_number', 'item_id', 'internal_color_name',
-            'quantity', 'actual_output', 'approval_status', 'entry_date', 'batch', 'location', 'updated_at',
+            'quantity', 'length_adjustment_meters', 'actual_output', 'approval_status', 'entry_date', 'batch', 'location', 'updated_at',
         ]);
 
         $report = $filters['report'] ?? 'disponibilidad';
 
         if ($report === 'sin_movimiento') {
-            $query->whereRaw('(quantity - actual_output) > 0')->where('updated_at', '<', now()->subDays(30));
+            $query->whereRaw('(quantity + length_adjustment_meters - actual_output) > 0')->where('updated_at', '<', now()->subDays(30));
         } elseif ($report === 'agotados') {
-            $query->whereRaw('(quantity - actual_output) <= 0');
+            $query->whereRaw('(quantity + length_adjustment_meters - actual_output) <= 0');
         }
 
         if (!empty($filters['search'])) {
@@ -40,8 +40,8 @@ class ReportPdfService
 
         $rolls = $query->orderByDesc('id')->limit(self::PDF_LIMIT)->get();
 
-        $totalMeters = (float) FabricRoll::selectRaw('SUM(quantity - actual_output) as total')
-            ->whereRaw('(quantity - actual_output) > 0')->value('total');
+        $totalMeters = (float) FabricRoll::selectRaw('SUM(quantity + length_adjustment_meters - actual_output) as total')
+            ->whereRaw('(quantity + length_adjustment_meters - actual_output) > 0')->value('total');
 
         $reportLabels = [
             'disponibilidad' => 'Disponibilidad de Rollos',

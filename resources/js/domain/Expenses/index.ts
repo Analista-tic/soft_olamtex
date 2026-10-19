@@ -1,4 +1,6 @@
 export type {
+    PurchaseChainLink,
+    PurchaseDocumentChain,
     PurchaseInvoice,
     PurchaseInvoiceItem,
     PurchaseInvoiceWithholding,

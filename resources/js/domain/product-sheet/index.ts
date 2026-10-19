@@ -9,11 +9,13 @@ export {
     stringifyJsonRecord,
 } from './helpers';
 export { mapProductSheetDto, mapProductionOrderDto, mapProgrammerDto } from './mappers';
+export { compareSizes, sortSizeEntries, sortSizes } from './sizeOrder';
 export { normalizeSizes, sizesToLabel, sizesToList, type SizesValue } from './sizes';
 export type {
     CostParameters,
     FabricBaseOption,
     MachineOption,
+    OperationBaseChangeEntry,
     ProductOperationDialogInitialData,
     ProductOperationDialogRow,
     ProductOperationDialogRowInput,
@@ -21,6 +23,7 @@ export type {
     ProductOperationGroupedRow,
     ProductOperationHistoryEntry,
     ProductOperationListSummary,
+    ProductOperationSaveOptions,
     ProductOperationSectionInfo,
     ProductOperationViewCostParameters,
     ProductOperationViewEntry,

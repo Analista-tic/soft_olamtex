@@ -130,7 +130,7 @@ it('preserves extra_fields._legacy when the item is edited from the form afterwa
     // oculta), así que reenvía extra_fields sin ella en cualquier edición normal.
     // Sin el merge explícito en ItemService, el histórico se perdería aquí.
     $user = App\Models\Settings\User::factory()->create();
-    foreach (['ver inventario telas', 'crear inventario telas', 'editar inventario telas'] as $permission) {
+    foreach (['ver catalogo items', 'crear items', 'editar items'] as $permission) {
         $user->givePermissionTo(Spatie\Permission\Models\Permission::findOrCreate($permission, 'web'));
     }
     $this->actingAs($user);
@@ -150,6 +150,7 @@ it('preserves extra_fields._legacy when the item is edited from the form afterwa
     // lo mostró ni lo cargó en su estado.
     $response = $this->putJson(route('item.update', ['id' => $item->id]), [
         'category_sub_group_id' => $this->subGroup->id,
+        'color_id' => \App\Models\MasterData\Color::firstOrCreate(['name' => 'COLOR MIGRACION MATERIAL TEST'])->id,
         'fabric_name_id' => $this->fabricName->id,
         'reference' => $item->reference,
         'description' => 'Item de prueba editado',

@@ -1,6 +1,6 @@
 # Módulo de Gastos
 
-**Última actualización:** 2026-06-12
+**Última actualización:** 2026-09-25
 **Propósito:** Explicar qué hace el módulo de Gastos, cómo funciona, qué datos maneja y cómo se conecta con el resto del sistema.
 
 ---
@@ -121,6 +121,39 @@ Datos principales:
 - Razón de rechazo e imagen de evidencia si aplica
 - Pagos realizados
 
+**Cómo se crea y edita:** siempre desde un diálogo en el listado (no hay páginas `crear`/`editar`). Hay dos diálogos, uno por tipo de factura:
+- `PurchaseInvoiceDialog.vue`: factura de compra normal (listado `PurchaseInvoices/Index.vue`).
+- `PurchaseInvoiceDialogTelas.vue`: factura de tela (listado `PurchaseInvoices/IndexFabric.vue`), con sus campos propios (código, color y ancho del proveedor; longitud en metros).
+
+Cada listado usa el mismo diálogo para crear, editar y ver (solo lectura). Al facturar desde una orden de compra, el listado se abre con `?orden=ID` y el diálogo carga esa orden con las cantidades pendientes.
+
+La lógica que es igual en ambos tipos está compartida y no debe copiarse de nuevo:
+
+| Pieza | ¿Qué resuelve? |
+|-------|----------------|
+| `composables/usePurchaseInvoiceTotals.ts` | Subtotal, IVA, retenciones, total y total a pagar |
+| `domain/Expenses/withholdings.ts` | Base y valor de cada retención (debe coincidir con `PurchaseWithholdingCalculator` del backend) |
+| `composables/usePurchaseOrderDifference.ts` | Si la factura difiere de su orden (precio, cantidad pendiente, total) |
+| `composables/useSupplierContacts.ts` | Proveedores paginados de 30 en 30 para el selector |
+| `PurchaseInvoiceFooter.vue` | Parte inferior común, siempre en este orden: detalle → retenciones → totales → observación |
+| `PurchaseInvoiceSummary.vue` | Cuadro de totales (Subtotal, IVA, Total factura, retenciones, Total retenciones, Total a pagar); también lo usa la pantalla de Recepción |
+| `PurchaseInvoiceWithholdingsTable.vue` | Tabla de retenciones (la base vacía se sugiere como valor gris y se recalcula sola) |
+| `lib/date.ts` | Lectura y formato de fechas (el servidor envía fechas ISO largas) |
+
+**Estados de la factura y su recepción**
+
+| Estado (`status`) | Etiqueta | Cuándo |
+|-------------------|----------|--------|
+| `pending_receipt` | Pendiente de recepción | Al crearla |
+| `received` / `approved` | Recepcionada | Recepción cerrada. `received` es la factura normal y `approved` la de tela; ambas se muestran igual |
+| `rejected` | Rechazada | Se rechazó la recepción |
+
+Además `approval_status` controla las diferencias: `pending_difference_approval` (falta aprobar la diferencia), `approved` y `difference_rejected`.
+
+**Rechazo de la recepción:** el motivo es obligatorio y queda guardado con quién y cuándo (`rejection_reason`, `rejection_notes`, `rejected_by_user_id`, `rejected_at`). Solo se puede rechazar una factura pendiente de recepción. Una factura rechazada no admite registrar rollos, recepción general, reportar diferencias ni aprobar, aunque el usuario tenga permiso de ajustar rollos.
+
+**Pantalla de recepción:** es una sola (`/kardex-telas/recepcion`) con selector Todas / Facturas de compra / Telas (`?scope=`). Desde los listados de facturas se entra con el tipo ya elegido y "Volver" regresa al origen (`return_to`) o a la misma vista.
+
 ### 6.4 Comprobante de egreso (`finance_expense_vouchers`)
 Para gastos menores o pagos directos que no pasan por el flujo de solicitud/orden.
 
@@ -209,6 +242,9 @@ Datos principales:
 | `app/Http/Controllers/Expenses/PurchaseRequestController.php` | Lógica de solicitudes |
 | `app/Http/Controllers/Expenses/PurchaseOrderController.php` | Lógica de órdenes de compra |
 | `app/Http/Controllers/Expenses/PurchaseInvoiceController.php` | Lógica de facturas de compra |
+| `app/Http/Controllers/Expenses/PurchaseInvoiceTelaController.php` | Lógica de facturas de tela |
+| `resources/js/pages/Expenses/PurchaseInvoices/PurchaseInvoiceDialog.vue` | Diálogo de factura normal |
+| `resources/js/pages/Expenses/PurchaseInvoices/PurchaseInvoiceDialogTelas.vue` | Diálogo de factura de tela |
 | `app/Http/Controllers/Expenses/ExpenseVoucherController.php` | Lógica de comprobantes de egreso |
 | `resources/js/pages/Expenses/PurchaseRequests/Index.vue` | Pantalla de solicitudes |
 | `resources/js/pages/Expenses/PurchaseOrders/Index.vue` | Pantalla de órdenes |

@@ -13,13 +13,14 @@ import ManualRollProgramDialog from '@/pages/Textil/FabricRollOrders/ManualRollP
 import { useAuthStore } from '@/stores/auth';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
-import { ArrowRight, Plus, Search } from 'lucide-vue-next';
+import { ArrowDownToLine, Plus, Search } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 
 const breadcrumbs = [{ title: 'Descargue de tela por orden', href: '/kardex-telas/descargue-orden' }];
 
 const authStore = useAuthStore();
 const canCreate = computed(() => authStore.can('crear descargue telas orden'));
+const canDischarge = computed(() => authStore.can('descargar telas orden'));
 
 const { successMessage, errorMessage, error, success, clear } = useGlobalAlert();
 
@@ -111,20 +112,21 @@ onMounted(fetchCodes);
                                 <TableHead class="text-right">Rollos</TableHead>
                                 <TableHead class="text-right">Programado</TableHead>
                                 <TableHead class="text-right">Consumido</TableHead>
-                                <TableHead></TableHead>
+                                <TableHead class="text-right">Sobreconsumo</TableHead>
+                                <TableHead class="text-right">Acciones</TableHead>
                             </TableRow>
                         </TableHeader>
 
                         <TableBody>
                             <template v-if="isLoading">
                                 <TableRow v-for="i in 5" :key="`fabric-roll-order-skeleton-${i}`">
-                                    <TableCell v-for="col in 5" :key="`fabric-roll-order-skeleton-${i}-${col}`" class="px-4 py-3">
+                                    <TableCell v-for="col in 6" :key="`fabric-roll-order-skeleton-${i}-${col}`" class="px-4 py-3">
                                         <Skeleton class="h-4 w-full" />
                                     </TableCell>
                                 </TableRow>
                             </template>
                             <TableRow v-else-if="codes.length === 0">
-                                <TableCell colspan="5" class="py-8 text-center text-sm text-muted-foreground">
+                                <TableCell colspan="6" class="py-8 text-center text-sm text-muted-foreground">
                                     Todavía no se han programado rollos por orden de producción.
                                 </TableCell>
                             </TableRow>
@@ -139,8 +141,22 @@ onMounted(fetchCodes);
                                 <TableCell class="text-right">{{ code.rolls_count }}</TableCell>
                                 <TableCell class="text-right">{{ fmtMeters(code.programmed_meters) }}</TableCell>
                                 <TableCell class="text-right">{{ fmtMeters(code.consumed_meters) }}</TableCell>
+                                <TableCell
+                                    class="text-right"
+                                    :class="code.overconsumed_meters > 0 ? 'font-medium text-amber-600 dark:text-amber-400' : 'text-muted-foreground'"
+                                >
+                                    {{ code.overconsumed_meters > 0 ? fmtMeters(code.overconsumed_meters) : '-' }}
+                                </TableCell>
                                 <TableCell class="text-right">
-                                    <ArrowRight class="ml-auto h-4 w-4 text-muted-foreground" />
+                                    <Button
+                                        :variant="canDischarge ? 'default' : 'outline'"
+                                        class="gap-1.5 rounded-full px-4"
+                                        :title="canDischarge ? 'Abrir la orden para descargar sus rollos' : 'Ver los rollos de la orden'"
+                                        @click.stop="openCode(code)"
+                                    >
+                                        <ArrowDownToLine class="h-4 w-4" />
+                                        {{ canDischarge ? 'Descargar' : 'Ver' }}
+                                    </Button>
                                 </TableCell>
                             </TableRow>
                         </TableBody>

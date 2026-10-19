@@ -2,6 +2,7 @@
 import AlertStack from '@/components/common/AlertStack.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import EditButton from '@/components/common/EditButton.vue';
+import ServerPagination from '@/components/common/ServerPagination.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
@@ -9,16 +10,17 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Input from '@/components/ui/input/Input.vue';
-import ServerPagination from '@/components/common/ServerPagination.vue';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { Head } from '@inertiajs/vue3';
-import axios from 'axios';
-import { Mail, MoreVertical, PlusCircle, Printer, ReceiptText, Search } from 'lucide-vue-next';
-import { computed, onMounted, ref, watch } from 'vue';
 import { getInventoryAdjustmentReasonLabel } from '@/lib/inventoryAdjustmentReasons';
 import { uiPatterns } from '@/lib/ui-patterns';
+import { useAuthStore } from '@/stores/auth';
+import { Head } from '@inertiajs/vue3';
+import axios from 'axios';
+import { MoreVertical, PlusCircle, Printer, Search } from 'lucide-vue-next';
+import { computed, onMounted, ref, watch } from 'vue';
 import InventoryAdjustmentForm from './InventoryAdjustmentForm.vue';
 import InventoryAdjustmentPrintDialog from './InventoryAdjustmentPrintDialog.vue';
 
@@ -49,14 +51,17 @@ const adjustmentToDelete = ref<InventoryAdjustment | null>(null);
 const isDeleteDialogOpen = ref(false);
 const successMessage = ref<string>('');
 const errorMessage = ref<string>('');
-const isSendingMail = ref(false);
-const isConverting = ref<number | null>(null);
 const isPrintDialogOpen = ref(false);
 const isLoading = ref(false);
 const adjustmentToPrint = ref<InventoryAdjustment | null>(null);
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isTypeFilterActive = computed(() => typeFilter.value != null);
 const typeButtonClasses = useFilterButtonClasses(isTypeFilterActive);
+
+const authStore = useAuthStore();
+const canCreateAdjustment = computed(() => authStore.can('crear ajustes inventario'));
+const canEditAdjustment = computed(() => authStore.can('editar ajustes inventario'));
+const canDeleteAdjustment = computed(() => authStore.can('eliminar ajustes inventario'));
 
 const currencyFormatter = new Intl.NumberFormat('es-CO', {
     minimumFractionDigits: 2,
@@ -139,10 +144,12 @@ function openEditAdjustment(adjustment: InventoryAdjustment) {
     isAdjustmentFormOpen.value = true;
 }
 
-function handleAdjustmentSaved() {
+function handleAdjustmentSaved(accountingWarning?: string | null) {
     isAdjustmentFormOpen.value = false;
     fetchAdjustments(currentPage.value, searchQuery.value);
-    successMessage.value = dialogType.value === 'create' ? 'El ajuste se creó correctamente.' : 'El ajuste se actualizó correctamente.';
+    const saved = dialogType.value === 'create' ? 'El ajuste se creó correctamente.' : 'El ajuste se actualizó correctamente.';
+    // El kardex quedó actualizado; si faltan cuentas contables se avisa que no hubo asiento.
+    successMessage.value = accountingWarning ? `${saved} ${accountingWarning}` : saved;
     errorMessage.value = '';
 }
 
@@ -179,37 +186,6 @@ async function openPrintDialog(adjustment: InventoryAdjustment) {
     }
 }
 
-async function sendByEmail(adjustment: InventoryAdjustment) {
-    if (isSendingMail.value) return;
-    isSendingMail.value = true;
-    try {
-        await axios.post(`/ajustes-inventario/${adjustment.id}/enviar-correo`);
-        successMessage.value = 'Ajuste enviado por correo correctamente.';
-        errorMessage.value = '';
-    } catch (e: any) {
-        errorMessage.value = e?.response?.data?.message || 'Error al enviar el correo.';
-        successMessage.value = '';
-    } finally {
-        isSendingMail.value = false;
-    }
-}
-
-async function convertToInvoice(adjustment: InventoryAdjustment) {
-    if (isConverting.value !== null) return;
-    isConverting.value = adjustment.id;
-    try {
-        await axios.post(`/ajustes-inventario/${adjustment.id}/convert-to-invoice`);
-        successMessage.value = 'Ajuste convertido en factura correctamente.';
-        errorMessage.value = '';
-        fetchAdjustments(currentPage.value, searchQuery.value);
-    } catch (e: any) {
-        errorMessage.value = e?.response?.data?.message || 'Error al convertir en factura.';
-        successMessage.value = '';
-    } finally {
-        isConverting.value = null;
-    }
-}
-
 onMounted(() => {
     fetchAdjustments();
 });
@@ -237,11 +213,7 @@ onMounted(() => {
                     </p>
                 </div>
 
-                <Button
-                    size="pill"
-                    class="flex items-center gap-1 shadow-sm"
-                    @click="openCreateAdjustment"
-                >
+                <Button v-if="canCreateAdjustment" size="pill" class="flex items-center gap-1 shadow-sm" @click="openCreateAdjustment">
                     <PlusCircle class="h-4 w-4" /> Crear ajuste
                 </Button>
             </div>
@@ -281,10 +253,7 @@ onMounted(() => {
                     <TableHeader>
                         <TableRow>
                             <TableHead>N° Documento</TableHead>
-                            <TableHead
-                                class="cursor-pointer select-none whitespace-nowrap"
-                                @click="toggleSort('date')"
-                            >
+                            <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('date')">
                                 <span class="inline-flex items-center gap-1">
                                     Fecha
                                     <span class="text-muted-foreground">
@@ -299,10 +268,7 @@ onMounted(() => {
                             </TableHead>
                             <TableHead>Tipo</TableHead>
                             <TableHead>Observación</TableHead>
-                            <TableHead
-                                class="cursor-pointer select-none whitespace-nowrap"
-                                @click="toggleSort('total')"
-                            >
+                            <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('total')">
                                 <span class="inline-flex items-center gap-1">
                                     Total
                                     <span class="text-muted-foreground">
@@ -343,8 +309,8 @@ onMounted(() => {
                                 <TableCell>{{ adjustment.observation || '-' }}</TableCell>
                                 <TableCell>{{ formatCurrency(adjustment.total) }}</TableCell>
                                 <TableCell class="flex justify-center gap-1">
-                                    <EditButton :onClick="() => openEditAdjustment(adjustment)" title="Editar ajuste" />
-                                    <DeleteButton @click="confirmDelete(adjustment)" title="Eliminar ajuste" />
+                                    <EditButton v-if="canEditAdjustment" :onClick="() => openEditAdjustment(adjustment)" title="Editar ajuste" />
+                                    <DeleteButton v-if="canDeleteAdjustment" @click="confirmDelete(adjustment)" title="Eliminar ajuste" />
                                     <DropdownMenu>
                                         <DropdownMenuTrigger as-child>
                                             <Button variant="ghost" size="icon" class="h-8 w-8 p-0">
@@ -356,22 +322,6 @@ onMounted(() => {
                                             <DropdownMenuItem class="cursor-pointer gap-2" @click="openPrintDialog(adjustment)">
                                                 <Printer class="h-4 w-4" /> Imprimir
                                             </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                                class="cursor-pointer gap-2"
-                                                :class="isSendingMail ? 'cursor-not-allowed opacity-60' : ''"
-                                                :disabled="isSendingMail"
-                                                @click="sendByEmail(adjustment)"
-                                            >
-                                                <Mail class="h-4 w-4" /> Enviar al correo
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                                class="cursor-pointer gap-2"
-                                                :class="isConverting === adjustment.id ? 'cursor-not-allowed opacity-60' : ''"
-                                                :disabled="isConverting === adjustment.id"
-                                                @click="convertToInvoice(adjustment)"
-                                            >
-                                                <ReceiptText class="h-4 w-4" /> Convertir en factura
-                                            </DropdownMenuItem>
                                         </DropdownMenuContent>
                                     </DropdownMenu>
                                 </TableCell>
@@ -381,12 +331,12 @@ onMounted(() => {
                 </Table>
 
                 <div class="px-4 pb-2">
-                  <ServerPagination
-                    v-model:current-page="currentPage"
-                    v-model:page-size="itemsPerPage"
-                    :total-items="totalItems"
-                    @fetch-data="() => fetchAdjustments(currentPage, searchQuery)"
-                  />
+                    <ServerPagination
+                        v-model:current-page="currentPage"
+                        v-model:page-size="itemsPerPage"
+                        :total-items="totalItems"
+                        @fetch-data="() => fetchAdjustments(currentPage, searchQuery)"
+                    />
                 </div>
             </div>
         </div>
@@ -401,7 +351,7 @@ onMounted(() => {
         <InventoryAdjustmentPrintDialog :is-open="isPrintDialogOpen" :adjustment="adjustmentToPrint" @close="isPrintDialogOpen = false" />
 
         <Dialog v-model:open="isDeleteDialogOpen">
-            <DialogContent class="flex flex-col max-h-[95vh] max-w-[95vw] px-2 py-2">
+            <DialogContent class="flex max-h-[95vh] max-w-[95vw] flex-col px-2 py-2">
                 <DialogHeader class="space-y-1 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
                     <DialogTitle>Confirmar eliminación</DialogTitle>
                     <DialogDescription> ¿Estás seguro de eliminar este ajuste? Esta acción no se puede deshacer. </DialogDescription>

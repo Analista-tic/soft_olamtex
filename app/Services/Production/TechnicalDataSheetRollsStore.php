@@ -92,6 +92,8 @@ class TechnicalDataSheetRollsStore
 
             $sheet->rollProgrammingLines()
                 ->whereNotIn('legacy_uuid', $incomingUuids)
+                ->get()
+                ->each
                 ->delete();
         });
     }
@@ -110,6 +112,7 @@ class TechnicalDataSheetRollsStore
             'consumptionBase' => $line->consumption_base,
             'pricePerMeter' => $line->price_per_meter,
             'programmedMeters' => $line->programmed_meters,
+            'releasedMeters' => (float) $line->released_meters,
             'colors' => $line->color,
             'availableMeters' => $line->available_meters,
             'balanceMeters' => $line->balance_meters,
@@ -130,7 +133,13 @@ class TechnicalDataSheetRollsStore
 
     private function arrayToAttributes(array $line): array
     {
-        return [
+        // released_meters solo lo resuelve FabricRollService::syncSheetReservations() (o el
+        // corte): si la línea no lo trae, se conserva el valor guardado.
+        $released = array_key_exists('releasedMeters', $line) && is_numeric($line['releasedMeters'])
+            ? ['released_meters' => (float) $line['releasedMeters']]
+            : [];
+
+        return $released + [
             'consecutive' => $this->nullableText($line['consecutive'] ?? null),
             'type' => ($line['type'] ?? 'PRINCIPAL') === 'SECUNDARIA' ? 'SECUNDARIA' : 'PRINCIPAL',
             'fabric_roll_id' => $this->nullableIntFromMixed($line['rollId'] ?? null),

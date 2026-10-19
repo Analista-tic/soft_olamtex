@@ -7,7 +7,16 @@ use Illuminate\Database\Eloquent\Model;
 
 class ProductSheet extends Model
 {
-    use HasFactory;
+    use HasFactory, \App\Models\Concerns\NormalizesAttributes;
+
+    /** Reglas de normalización al guardar. type/garment_type/woven_product/sizes/processes quedan fuera. */
+    protected array $normalizedAttributes = [
+        'description' => 'freeText',
+        'observaciones' => 'freeText',
+        'sample_reference' => 'code',
+        'product_reference' => 'code',
+        'product_reference_2' => 'code',
+    ];
 
     protected $table = 'product_sheets';
 
@@ -38,6 +47,8 @@ class ProductSheet extends Model
         'parent_id',
         'garment_type',
         'is_enabled',
+        'operational_list_completed_at',
+        'operational_list_completed_by_user_id',
     ];
 
     protected $guarded = [
@@ -60,6 +71,8 @@ class ProductSheet extends Model
         'garment_type' => 'string',
         'is_enabled' => 'boolean',
         'costo' => 'float',
+        'operational_list_completed_at' => 'datetime',
+        'operational_list_completed_by_user_id' => 'integer',
     ];
 
     // Relaciones eliminadas: section, group, brand, world, yarnBase, fabricBase

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
+import HoverTooltip from '@/components/common/HoverTooltip.vue';
 import ServerPagination from '@/components/common/ServerPagination.vue';
 import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import ConvertSampleToProductDialog from '@/components/ConvertSampleToProductDialog.vue';
@@ -39,7 +40,7 @@ import type { BreadcrumbItem, SharedData } from '@/domain/shared/types';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { uiPatterns } from '@/lib/ui-patterns';
 import { useAuthStore } from '@/stores/auth';
-import { Head } from '@inertiajs/vue3';
+import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { Download, Eye, MoreVertical, Pencil, PlusCircle, Power, Repeat2, Search, Trash, Upload } from 'lucide-vue-next';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
@@ -48,7 +49,7 @@ import ProductSheetDialog from './ProductSheetDialog.vue'; // Usar el componente
 
 const breadcrumbs: BreadcrumbItem[] = [
     {
-        title: 'Sabana de Productos',
+        title: 'Sábana de Productos',
         href: '/sabana-productos',
     },
 ];
@@ -103,8 +104,12 @@ const typeOptions = [
 ];
 const actionButtonClass =
     'inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
-const sectionOptions = computed(() => props.sections);
-const worldOptions = computed(() => props.worlds);
+const sectionOptions = computed(() =>
+    [...props.sections].sort((a, b) => String(a.name).localeCompare(String(b.name), 'es', { sensitivity: 'base' })),
+);
+const worldOptions = computed(() =>
+    [...props.worlds].sort((a, b) => String(a.name).localeCompare(String(b.name), 'es', { sensitivity: 'base' })),
+);
 
 const authStore = useAuthStore();
 
@@ -448,7 +453,17 @@ async function loadProductSheetDialog(product: ProductSheet, mode: 'edit' | 'vie
     }
 }
 
+function reloadProductSheetCatalogs(): Promise<void> {
+    return new Promise((resolve) => {
+        router.reload({
+            only: ['sections', 'groups', 'brands', 'worlds', 'yarnBases', 'fabricBases'],
+            onFinish: () => resolve(),
+        });
+    });
+}
+
 async function openEditDialog(product: ProductSheet) {
+    await reloadProductSheetCatalogs();
     await loadProductSheetDialog(product, 'edit');
 }
 
@@ -456,7 +471,8 @@ async function viewProductSheet(product: ProductSheet) {
     await loadProductSheetDialog(product, 'view');
 }
 
-function openCreateDialog() {
+async function openCreateDialog() {
+    await reloadProductSheetCatalogs();
     editProductSheetData.value = undefined; // Asegurarse de que no haya datos de edición
     isViewMode.value = false; // Desactivar modo de solo lectura
     isEditDialogOpen.value = true; // Usar el mismo estado para abrir el diálogo
@@ -501,7 +517,7 @@ onUnmounted(() => {
 </script>
 
 <template>
-    <Head title="Sabana de Productos" />
+    <Head title="Sábana de Productos" />
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <AlertStack
@@ -512,7 +528,7 @@ onUnmounted(() => {
                 @close-error="clear"
             />
             <div class="flex items-center justify-between">
-                <h1 :class="uiPatterns.typography.pageTitle">Lista Sabana de Productos</h1>
+                <h1 :class="uiPatterns.typography.pageTitle">Lista Sábana de Productos</h1>
                 <div class="flex items-center gap-2">
                     <Button
                         v-if="canView"
@@ -559,8 +575,8 @@ onUnmounted(() => {
                     <FilterField label="Tipo" :active="typeFilter !== null" class="min-w-[220px] max-w-[220px]">
                         <SelectField v-model="typeFilter" :options="typeOptions" placeholder="Tipo" :clearable="true" />
                     </FilterField>
-                    <FilterField label="Seccion" :active="sectionFilter !== null" class="min-w-[220px] max-w-[220px]">
-                        <SelectField v-model="sectionFilter" :options="sectionOptions" placeholder="Filtrar por seccion" :clearable="true" />
+                    <FilterField label="Sección" :active="sectionFilter !== null" class="min-w-[220px] max-w-[220px]">
+                        <SelectField v-model="sectionFilter" :options="sectionOptions" placeholder="Filtrar por sección" :clearable="true" />
                     </FilterField>
                     <FilterField label="Mundo" :active="worldFilter !== null" class="min-w-[220px] max-w-[220px]">
                         <SelectField v-model="worldFilter" :options="worldOptions" placeholder="Filtrar por mundo" :clearable="true" />
@@ -704,10 +720,19 @@ onUnmounted(() => {
                                     <span v-else class="text-muted-foreground">—</span>
                                 </TableCell>
                                 <TableCell>
-                                    <TableStatusBadge
-                                        :label="product.status === 'complete' ? 'Completo' : 'Incompleto'"
-                                        :tone="product.status === 'complete' ? 'green' : 'red'"
-                                    />
+                                    <HoverTooltip
+                                        :text="
+                                            product.status !== 'complete' && product.missing_for_completion?.length
+                                                ? `Falta: ${product.missing_for_completion.join(', ')}`
+                                                : null
+                                        "
+                                        :class="{ 'cursor-help': product.status !== 'complete' && product.missing_for_completion?.length }"
+                                    >
+                                        <TableStatusBadge
+                                            :label="product.status === 'complete' ? 'Completo' : 'Incompleto'"
+                                            :tone="product.status === 'complete' ? 'green' : 'red'"
+                                        />
+                                    </HoverTooltip>
                                 </TableCell>
                                 <TableCell class="text-center">
                                     <div class="flex items-center justify-center gap-1">

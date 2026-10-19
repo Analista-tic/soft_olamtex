@@ -220,7 +220,14 @@ export interface ProductOperationListSummary {
     total_sam_terminacion: number;
     total_cost_product: number;
     is_active: boolean;
+    /** Listado marcado como completo (product_sheets.operational_list_completed_at). */
+    operational_list_completed: boolean;
     search_text: string;
+}
+
+/** Opciones del guardado del dialog de listado operacional. */
+export interface ProductOperationSaveOptions {
+    markComplete: boolean;
 }
 
 export interface ProductOperationViewEntry {
@@ -281,6 +288,17 @@ export interface ProductOperationHistoryEntry {
     motivo?: string;
     created_at?: string;
     usuario?: { id: number; name: string };
+}
+
+/** Cambio de la operación base (tiempo, cantidad, medida…) tomado de su auditoría. */
+export interface OperationBaseChangeEntry {
+    id: number;
+    field_changed: string | null;
+    old_value: string | number | null;
+    new_value: string | number | null;
+    motivo?: string | null;
+    changed_by_user?: { id: number; name: string } | null;
+    created_at?: string;
 }
 
 export interface ProductOperationGroupedRow {

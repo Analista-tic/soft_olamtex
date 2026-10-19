@@ -4,14 +4,13 @@ import CreatableSelectField from '@/components/CreatableSelectField.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
-import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Label from '@/components/ui/label/Label.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import type { CategoryGroup, CategorySubGroup } from '@/domain/MasterData';
 import type { Option } from '@/domain/shared/types';
-import { normalizeTitleCaseWords } from '@/lib/textNormalizer';
+import { normalizeUpperCaseWords } from '@/lib/textNormalizer';
 import axios from 'axios';
 import { nextTick, ref, watch } from 'vue';
 
@@ -33,11 +32,6 @@ const form = ref<Partial<CategorySubGroup>>({ ...props.subGroupData });
 const localGroups = ref<CategoryGroup[]>([...props.groups]);
 const subGroupName = ref('');
 const subGroupValues = ref<string[]>([]);
-const materialKindOptions: Option[] = [
-    { id: 'fabric', name: 'Tela' },
-    { id: 'yarn', name: 'Hilaza' },
-];
-
 watch(
     () => props.isOpen,
     async (newValue) => {
@@ -99,7 +93,7 @@ async function initializeDialog() {
         form.value = { ...props.subGroupData };
         subGroupValues.value = [];
         subGroupName.value = props.dialogType === 'edit'
-            ? normalizeTitleCaseWords(props.subGroupData.name)
+            ? normalizeUpperCaseWords(props.subGroupData.name)
             : '';
     } finally {
         isInitializingDialog.value = false;
@@ -108,7 +102,7 @@ async function initializeDialog() {
 
 function submitForm() {
     if (props.dialogType === 'edit') {
-        emit('submit', { ...form.value, name: normalizeTitleCaseWords(subGroupName.value) });
+        emit('submit', { ...form.value, name: normalizeUpperCaseWords(subGroupName.value) });
         return;
     }
 
@@ -144,7 +138,7 @@ function submitForm() {
                             </div>
                             <CreatableSelectField
                                 label=""
-                                :options="localGroups.map((group: CategoryGroup) => ({ id: group.id, name: group.name }))"
+                                :options="localGroups.map((group: CategoryGroup) => ({ id: group.id, name: group.name })).sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }))"
                                 v-model="form.category_group_id"
                                 required
                                 placeholder="Selecciona un grupo"
@@ -165,7 +159,7 @@ function submitForm() {
                             placeholder="Escribe el nombre del subgrupo"
                             empty-text="Sin subgrupos agregados."
                             :required="true"
-                            case-mode="title-case"
+                            case-mode="upper-case"
                         />
 
                         <InputField
@@ -180,28 +174,13 @@ function submitForm() {
                             <div class="flex items-center gap-2">
                                 <Label class="text-sm font-medium">Código</Label>
                                 <HelpTooltip
-                                    text="2 dígitos, único. Se usa para componer la referencia automática de los ítems de este subgrupo (consecutivo+grupo+subgrupo+color). Déjalo vacío si aún no lo necesitas."
+                                    text="Código de 2 dígitos asignado automáticamente. Se usa para componer la referencia automática de los ítems."
                                     aria-label="Ayuda sobre el código"
                                 />
                             </div>
-                            <InputField v-model="form.code" label="" placeholder="Ej: 01" maxlength="2" />
-                        </div>
-
-                        <div v-if="dialogType === 'edit'" class="flex flex-col gap-1">
-                            <div class="flex items-center gap-2">
-                                <Label class="text-sm font-medium">Tipo de material</Label>
-                                <HelpTooltip
-                                    text="Solo si este subgrupo es Tela o Hilaza: habilita el selector de nombre de material en el formulario de ítem y el factor del SAM. Déjalo vacío para cualquier otro subgrupo."
-                                    aria-label="Ayuda sobre el tipo de material"
-                                />
+                            <div class="rounded-md border bg-muted/50 px-3 py-2 font-mono text-sm text-foreground">
+                                {{ form.code || 'Pendiente de asignación' }}
                             </div>
-                            <SelectField
-                                v-model="form.material_kind"
-                                label=""
-                                :options="materialKindOptions"
-                                placeholder="Ninguno"
-                                clearable
-                            />
                         </div>
                     </div>
                 </div>

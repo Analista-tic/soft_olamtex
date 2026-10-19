@@ -57,7 +57,6 @@ const deliveryRequestId = ref<number | null>(null);
 const isRejectDialogOpen = ref(false);
 const rejectRequestId = ref<number | null>(null);
 
-const DEFAULT_STATUS_FILTER = null;
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isStatusFilterActive = computed(() => statusFilter.value != null);
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
@@ -172,7 +171,7 @@ function openReject(request: InventoryRequestRow) {
 }
 
 function handleSaved(message?: string) {
-    successMessage.value = message || 'Operacion completada.';
+    successMessage.value = message || 'Operación completada.';
     errorMessage.value = '';
     fetchRequests(currentPage.value, searchQuery.value);
 }
@@ -232,7 +231,7 @@ onMounted(() => {
                         <Input
                             id="search_request"
                             v-model="searchQuery"
-                            placeholder="Buscar por numero o observacion"
+                            placeholder="Buscar por número o observación"
                             class="h-10 w-full pl-10"
                             @keyup.enter="handleSearch"
                         />
@@ -287,7 +286,7 @@ onMounted(() => {
                                 </TableHead>
                                 <TableHead>Estado</TableHead>
                                 <TableHead>Solicitante</TableHead>
-                                <TableHead>Observacion</TableHead>
+                                <TableHead>Observación</TableHead>
                                 <TableHead class="w-[160px] text-center">Acciones</TableHead>
                             </TableRow>
                         </TableHeader>
@@ -386,7 +385,7 @@ onMounted(() => {
                         v-model:current-page="currentPage"
                         v-model:page-size="itemsPerPage"
                         :total-items="totalItems"
-                        @fetch-data="() => fetchRequests(currentPage.value, searchQuery.value)"
+                        @fetch-data="() => fetchRequests(currentPage, searchQuery)"
                     />
                 </div>
             </div>

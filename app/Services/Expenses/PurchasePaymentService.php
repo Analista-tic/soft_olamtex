@@ -5,6 +5,7 @@ namespace App\Services\Expenses;
 use App\Enums\PurchaseInvoiceStatus;
 use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchasePayment;
+use App\Services\Textil\FabricRollCreditNoteService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -12,8 +13,10 @@ use Illuminate\Validation\ValidationException;
 
 class PurchasePaymentService
 {
-    public function __construct(private PurchaseDocumentInvoiceService $invoiceService)
-    {
+    public function __construct(
+        private PurchaseDocumentInvoiceService $invoiceService,
+        private FabricRollCreditNoteService $rollCreditNoteService,
+    ) {
     }
 
     public function registerInvoicePayment(array $payload): PurchasePayment
@@ -48,6 +51,21 @@ class PurchasePaymentService
             if ($remaining <= 0) {
                 throw ValidationException::withMessages([
                     'amount' => 'La factura ya no tiene saldo pendiente.',
+                ]);
+            }
+
+            // Retención por rollos rechazados sin nota crédito aprobada: solo se puede pagar el saldo no disputado.
+            $disputed = (float) ($summary['disputed_amount'] ?? 0);
+            $payable = (float) ($summary['payable_balance'] ?? $remaining);
+            if ($disputed > 0 && $amount > ($payable + 0.0001)) {
+                $rolls = (int) ($summary['disputed_rolls_count'] ?? 0);
+                throw ValidationException::withMessages([
+                    'amount' => sprintf(
+                        'El pago supera el saldo pagable; $%s están retenidos por %d %s sin nota crédito aprobada.',
+                        number_format($disputed, 2, '.', ','),
+                        $rolls,
+                        $rolls === 1 ? 'rollo rechazado' : 'rollos rechazados',
+                    ),
                 ]);
             }
 
@@ -107,6 +125,7 @@ class PurchasePaymentService
         $balanceAfterNotes = round((float) ($notesSummary['balance_after_notes'] ?? 0), 2);
         $totalPaid = $this->totalPaidForInvoice((int) $invoice->id);
         $currentBalance = round($balanceAfterNotes - $totalPaid, 2);
+        $disputed = $this->rollCreditNoteService->disputedSummary($invoice);
 
         return [
             'invoice_total' => round((float) ($notesSummary['invoice_total'] ?? 0), 2),
@@ -115,6 +134,10 @@ class PurchasePaymentService
             'balance_after_notes' => $balanceAfterNotes,
             'payments_total' => $totalPaid,
             'current_balance' => $currentBalance,
+            // Monto retenido por rollos rechazados sin nota crédito aprobada; solo se puede pagar el resto.
+            'disputed_amount' => $disputed['amount'],
+            'disputed_rolls_count' => $disputed['rolls'],
+            'payable_balance' => max(0.0, round($currentBalance - $disputed['amount'], 2)),
         ];
     }
 

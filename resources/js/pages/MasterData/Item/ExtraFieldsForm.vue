@@ -20,6 +20,8 @@ const props = withDefaults(
         canCreateAdditionalField?: boolean;
         // Metadata de campos adicionales (vista de AdditionalField)
         additionalFieldsMeta?: AdditionalField[];
+        // Marca en rojo los campos obligatorios vacíos (se activa al intentar guardar).
+        showErrors?: boolean;
     }>(),
     {
         readonly: false,
@@ -27,6 +29,7 @@ const props = withDefaults(
         fieldOptions: () => ({}),
         canCreateAdditionalField: true,
         additionalFieldsMeta: () => [],
+        showErrors: false,
     },
 );
 const emit = defineEmits<{
@@ -120,6 +123,11 @@ function shouldUseTextarea(field: string): boolean {
 function shouldUseDate(field: string): boolean {
     const meta = additionalFieldsMetaMap.value[field];
     return meta?.field_type === 'date';
+}
+
+function isFieldInvalid(field: string): boolean {
+    if (!props.showErrors || !additionalFieldsMetaMap.value[field]?.is_required) return false;
+    return String(localExtraFields.value[field] ?? '').trim() === '';
 }
 
 function resolveInputTypeByMeta(meta?: AdditionalField): 'text' | 'number' | 'date' {
@@ -324,7 +332,7 @@ function isAddDisabled() {
                 <div class="flex-1 space-y-2">
                     <p class="text-xs font-semibold uppercase tracking-wide text-slate-500">
                         {{ field }}
-                        <span v-if="additionalFieldsMetaMap[field]?.is_required" class="text-red-500"> * </span>
+                        <span v-if="additionalFieldsMetaMap[field]?.is_required" class="text-destructive"> * </span>
                     </p>
                     <div>
                         <SelectField
@@ -337,6 +345,7 @@ function isAddDisabled() {
                             placeholder="Selecciona un valor"
                             :disabled="props.readonly"
                             :searchable="false"
+                            :invalid="isFieldInvalid(field)"
                         />
                         <SelectField
                             v-else-if="shouldUseBoolean(field)"
@@ -351,6 +360,7 @@ function isAddDisabled() {
                             placeholder="Selecciona"
                             :disabled="props.readonly"
                             :searchable="false"
+                            :invalid="isFieldInvalid(field)"
                         />
                         <DatePickerField
                             v-else-if="shouldUseDate(field)"
@@ -375,6 +385,7 @@ function isAddDisabled() {
                             placeholder="Ingresa un valor"
                             :readonly="props.readonly"
                             :type="resolveFieldInputType(field)"
+                            :error="isFieldInvalid(field)"
                         />
                     </div>
                 </div>

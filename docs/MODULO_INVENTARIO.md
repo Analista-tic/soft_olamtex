@@ -160,6 +160,26 @@ Datos principales:
 
 > Los movimientos de origen antiguo (antes del sistema) se muestran como "Migración". Los importados por Excel se muestran como "Importación".
 
+#### Salidas de insumos a OP y exportación a Excel
+Las salidas de insumos hacia producción se registran en **Control de Lotes → proceso Logística → "Salida Logística de insumos"** (`BatchControlController::processLogisticsSupplyExit`). Cada línea entregada crea un movimiento con:
+- `type = salida`
+- `source_type = ProductionOrder` y `source_id` = id de la OP
+- `source_reference` = **código de la OP** (por ejemplo `MF-045`). Antes solo quedaba dentro de `notes`; la migración `2026_10_13_100000_backfill_source_reference_on_op_supply_exits` lo completó en los movimientos anteriores.
+- `notes` = `Salida Logística OP <op_code> - <insumo>`
+
+La pantalla **Movimientos de inventario** (`/movimientos-inventario`) tiene estos filtros:
+- **Fecha:** un rango desde/hasta.
+- **Origen:** la opción "Salidas de insumos a OP" deja solo las salidas de Control de Lotes. El consumo de rollos también usa la OP como origen; queda fuera porque su nota es distinta.
+- **OP:** busca por código.
+- **Buscar:** también encuentra el código legacy del ítem.
+
+El botón **Exportar Excel** (`GET /movimientos-inventario/exportar-excel`) descarga lo que se ve con los filtros actuales, sin paginar. Lo genera `InventoryMovementExcelService`.
+
+Columnas del Excel:
+`Fecha · Documento · OP · Código referencia (items.reference) · Código legacy (items.legacy_code) · Ítem · Bodega · Tipo · Cantidad · Costo unitario · Costo total · Usuario · Notas`
+
+Los códigos se escriben como texto para conservar los ceros a la izquierda. Si el sistema anterior necesita un layout fijo de importación, se agrega como otro formato en ese mismo servicio.
+
 ### 6.5 Ajuste de inventario (`inventory_adjustments`)
 Corrección manual del stock cuando hay diferencias entre lo físico y lo que dice el sistema.
 

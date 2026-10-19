@@ -33,6 +33,7 @@ class FabricRollProgrammingLine extends Model
         'price_per_meter',
         'extra_meters',
         'programmed_meters',
+        'released_meters',
         'available_meters',
         'balance_meters',
         'width_cm',
@@ -47,6 +48,7 @@ class FabricRollProgrammingLine extends Model
         'price_per_meter' => 'float',
         'extra_meters' => 'float',
         'programmed_meters' => 'float',
+        'released_meters' => 'float',
         'available_meters' => 'float',
         'balance_meters' => 'float',
         'width_cm' => 'float',
@@ -65,5 +67,11 @@ class FabricRollProgrammingLine extends Model
     public function fabricItem(): BelongsTo
     {
         return $this->belongsTo(Item::class, 'fabric_item_id');
+    }
+
+    /** Reserva que la línea todavía mantiene sobre el rollo: programado menos lo liberado por el corte. */
+    public function getPendingMetersAttribute(): float
+    {
+        return max(0.0, round((float) $this->programmed_meters - (float) $this->released_meters, 2));
     }
 }

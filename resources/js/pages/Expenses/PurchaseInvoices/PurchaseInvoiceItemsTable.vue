@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatQuantity } from '@/domain/Expenses/format';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
@@ -9,16 +10,20 @@ import { useItemsCatalog } from '@/composables/useItemsCatalog';
 import type { PurchaseInvoiceItem } from '@/domain/Expenses';
 import type { Tax } from '@/domain/Finance';
 import type { Item } from '@/domain/MasterData';
+import { formatDecimalInput } from '@/lib/decimalFormat';
+import { broadcastCatalogInvalidated, onCatalogInvalidatedElsewhere } from '@/lib/crossTabSync';
 import { DEFAULT_TAX_LABEL, formatTaxOptionLabel, isDefaultTax } from '@/lib/taxes';
 import TaxDialog from '@/pages/Finance/Taxes/TaxDialog.vue';
 import ItemDialog from '@/pages/MasterData/Item/ItemDialog.vue';
 import axios from 'axios';
 import { AlertTriangle } from 'lucide-vue-next';
-import { computed, onMounted, ref, watch } from 'vue';
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 // Caché de ítems: ver useItemsCatalog.ts (módulo .ts real, compartido entre componentes).
 const itemsCatalogParams = { status: true, per_page: 2000 };
 const { fetch: fetchItemsCatalogData, invalidate: invalidateItemsCatalog } = useItemsCatalog();
+
+const TAXES_CATALOG_KEY = 'taxes';
 
 // Caché de impuestos a nivel de módulo — persiste entre montajes del componente
 let cachedTaxes: Tax[] | null = null;
@@ -30,7 +35,7 @@ const props = defineProps<{
     isReadOnly?: boolean;
     telaMode?: boolean | null;
 }>();
-const emit = defineEmits(['update:items']);
+const emit = defineEmits(['update:items', 'success', 'error']);
 
 const localItems = ref<PurchaseInvoiceItem[]>([]);
 const catalogItems = ref<Item[]>([]);
@@ -62,7 +67,8 @@ const taxOptions = computed(() => [
         .map((tax) => ({
             id: Number(tax.percentage) || 0,
             name: formatTaxOptionLabel(tax),
-        })),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
 ]);
 
 const itemOptions = computed(() => {
@@ -91,7 +97,7 @@ const itemOptions = computed(() => {
             return true;
         });
 
-    return [...synthetic, ...baseOptions];
+    return [...synthetic, ...baseOptions].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
 });
 
 const shouldShowFabricColumns = computed(() => {
@@ -110,14 +116,14 @@ const totalColumns = computed(() => {
 });
 
 const tableClasses = computed(() => [
-    props.telaMode === true ? 'min-w-[1600px] table-auto' : 'min-w-full table-fixed',
+    props.telaMode === true ? 'w-full table-auto' : 'min-w-full table-fixed',
     'border-separate border-spacing-x-2 border-spacing-y-1 text-center',
 ]);
 
 function normalizeOrderWidth(value: string | number | null | undefined) {
     if (value === null || value === undefined) return '';
-    if (typeof value === 'string') return value;
-    return String(value);
+    // El backend serializa decimal:3 ("50.000"); se muestra con coma y dos decimales ("50,00").
+    return formatDecimalInput(value, 2);
 }
 
 function normalizeIncomingItem(item: PurchaseInvoiceItem): PurchaseInvoiceItem {
@@ -163,13 +169,13 @@ watch(
         items.forEach((item) => {
             item.tax = isNaN(Number(item.tax)) ? 0 : Number(item.tax);
 
-                // Enforce positive integer quantities cuando no es modo Tela
+                // Fuera de modo Tela: cantidades positivas con hasta 2 decimales (a futuro dependerá del tipo y la unidad de medida)
                 if (props.telaMode !== true) {
                     const q = Number(item.quantity);
                     if (Number.isFinite(q)) {
-                        const intQ = Math.max(0, Math.floor(q));
-                        if (intQ !== q) {
-                            item.quantity = intQ;
+                        const normalizedQ = Math.max(0, Math.round(q * 100) / 100);
+                        if (normalizedQ !== q) {
+                            item.quantity = normalizedQ;
                         }
                     }
                 } else {
@@ -212,12 +218,12 @@ async function fetchItems() {
     }
 }
 
-async function fetchTaxes() {
-    if (cachedTaxes !== null) {
+async function fetchTaxes(force = false) {
+    if (!force && cachedTaxes !== null) {
         taxes.value = cachedTaxes;
         return;
     }
-    if (taxesFetchPromise) {
+    if (!force && taxesFetchPromise) {
         await taxesFetchPromise;
         if (cachedTaxes !== null) {
             taxes.value = cachedTaxes;
@@ -239,9 +245,19 @@ async function fetchTaxes() {
     await taxesFetchPromise;
 }
 
+// Si se crea/edita un impuesto o un ítem en OTRA pestaña/equipo, esta pestaña lo
+// refresca sola en vez de esperar a que el usuario recargue la página.
+const unsubscribeTaxesSync = onCatalogInvalidatedElsewhere(TAXES_CATALOG_KEY, () => void fetchTaxes(true));
+const unsubscribeItemsSync = onCatalogInvalidatedElsewhere('items', () => void fetchItems());
+
 onMounted(() => {
     fetchItems();
     fetchTaxes();
+});
+
+onBeforeUnmount(() => {
+    unsubscribeTaxesSync();
+    unsubscribeItemsSync();
 });
 
 function openTaxDialog() {
@@ -258,10 +274,14 @@ async function handleTaxDialogSubmit(formData: TaxDialogForm) {
     taxDialogLoading.value = true;
     try {
         await axios.post('/impuestos', formData);
-        await fetchTaxes();
+        await fetchTaxes(true);
+        broadcastCatalogInvalidated(TAXES_CATALOG_KEY);
         isTaxDialogOpen.value = false;
-    } catch (error) {
+        emit('success', 'Impuesto creado correctamente.');
+    } catch (error: any) {
         console.error('Error creando impuesto', error);
+        const errors = error?.response?.data?.errors;
+        emit('error', errors ? Object.values(errors).flat().join(' ') : error?.response?.data?.message || 'No se pudo crear el impuesto.');
     } finally {
         taxDialogLoading.value = false;
     }
@@ -292,7 +312,7 @@ async function handleItemDialogRefresh() {
     pendingItemDialogRefresh.value = null;
 }
 
-async function handleItemDialogSaved(mode: 'create' | 'edit') {
+async function handleItemDialogSaved(mode: 'create' | 'edit', createdId?: number | null) {
     if (mode !== 'create') return;
 
     if (pendingItemDialogRefresh.value) {
@@ -300,6 +320,10 @@ async function handleItemDialogSaved(mode: 'create' | 'edit') {
     } else {
         await handleItemDialogRefresh();
     }
+
+    // El id devuelto por el servidor tiene prioridad sobre la detección por diferencia de catálogo.
+    if (createdId) createdItemCandidateId.value = Number(createdId);
+    emit('success', 'Ítem creado correctamente.');
 
     const rowIdx = itemDialogTargetRowIndex.value;
     if (rowIdx == null || rowIdx < 0 || rowIdx >= localItems.value.length || createdItemCandidateId.value == null) return;
@@ -419,12 +443,7 @@ function setFieldsFromOrder(item: PurchaseInvoiceItem) {
     if (item.original_order_item) {
         item.supplier_code = item.original_order_item.supplier_code || '';
         item.supplier_color = item.original_order_item.supplier_color || '';
-        item.order_width =
-            typeof item.original_order_item.order_width === 'string'
-                ? item.original_order_item.order_width
-                : item.original_order_item.order_width !== undefined && item.original_order_item.order_width !== null
-                  ? String(item.original_order_item.order_width)
-                  : '';
+        item.order_width = normalizeOrderWidth(item.original_order_item.order_width);
     }
 }
 
@@ -497,7 +516,7 @@ function getQuantityDifferenceTooltip(item: PurchaseInvoiceItem): string {
         return 'La cantidad del ítem difiere de la orden de compra.';
     }
 
-    return `${label}: ${Number(suggested).toLocaleString('es-CO')}. Cantidad actual: ${Number(item.quantity || 0).toLocaleString('es-CO')}.`;
+    return `${label}: ${formatQuantity(suggested)}. Cantidad actual: ${formatQuantity(item.quantity || 0)}.`;
 }
 
 defineExpose({ addItem });
@@ -505,39 +524,39 @@ defineExpose({ addItem });
 
 <template>
     <div class="w-full">
-        <div class="overflow-x-auto rounded-lg border border-border">
+        <div class="overflow-x-auto">
             <Table :class="tableClasses">
                 <TableHeader>
                     <TableRow class="border-b border-border/60">
-                        <TableHead :class="[props.telaMode === true ? 'min-w-[220px]' : 'min-w-[150px]', 'text-left']"
-                            >Item <span class="text-red-600">*</span></TableHead
+                        <TableHead :class="[props.telaMode === true ? 'min-w-[170px]' : 'min-w-[150px]', 'text-left']"
+                            >Ítem <span class="text-red-600">*</span></TableHead
                         >
-                        <TableHead :class="[props.telaMode === true ? 'min-w-[150px]' : 'min-w-[120px]', 'text-left']"
+                        <TableHead :class="[props.telaMode === true ? 'min-w-[110px]' : 'min-w-[120px]', 'text-left']"
                             >Precio SIN Impuesto <span class="text-red-600">*</span></TableHead
                         >
-                        <TableHead :class="[props.telaMode === true ? 'min-w-[170px]' : 'min-w-[160px]', 'text-left']">Impuesto (%)</TableHead>
+                        <TableHead :class="[props.telaMode === true ? 'min-w-[110px]' : 'min-w-[160px]', 'text-left']">Impuesto (%)</TableHead>
                         <TableHead class="min-w-[140px] text-left"
                             >{{ props.telaMode ? 'Longitud (mts)' : 'Cantidad' }} <span class="text-red-600">*</span></TableHead
                         >
                         <TableHead v-if="!props.telaMode" class="min-w-[160px] text-left">Descripción</TableHead>
-                        <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left"
+                        <TableHead v-if="shouldShowFabricColumns" class="min-w-[110px] text-left"
                             ><span class="inline-flex items-center gap-1"
                                 >Código proveedor <span class="text-red-600">*</span
                                 ><HelpTooltip
                                     text="Referencia interna del proveedor para identificar esta tela en su catálogo. Aparece en la factura del proveedor." /></span
                         ></TableHead>
-                        <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left"
+                        <TableHead v-if="shouldShowFabricColumns" class="min-w-[110px] text-left"
                             ><span class="inline-flex items-center gap-1"
                                 >Color proveedor <span class="text-red-600">*</span
                                 ><HelpTooltip
                                     text="Nombre o código del color según el proveedor. Puede diferir del nombre interno del sistema." /></span
                         ></TableHead>
-                        <TableHead v-if="shouldShowFabricColumns" class="min-w-[150px] text-left"
+                        <TableHead v-if="shouldShowFabricColumns" class="min-w-[110px] text-left"
                             ><span class="inline-flex items-center gap-1"
                                 >Ancho pedido <span class="text-red-600">*</span
-                                ><HelpTooltip text="Ancho de la tela en centímetros según lo pactado en la orden de compra." /></span
+                                ><HelpTooltip text="Ancho de la tela en metros (ej. 1,50) según lo pactado en la orden de compra." /></span
                         ></TableHead>
-                        <TableHead class="min-w-[90px] text-left">Total</TableHead>
+                        <TableHead class="min-w-[90px] text-left">Subtotal</TableHead>
                         <TableHead v-if="showActionsColumn" class="w-[60px]"></TableHead>
                     </TableRow>
                 </TableHeader>
@@ -545,16 +564,16 @@ defineExpose({ addItem });
                 <TableBody>
                     <TableRow v-for="(item, idx) in localItems" :key="idx" class="items-start">
                         <!-- Item -->
-                        <TableCell :class="[props.telaMode === true ? 'min-w-[220px]' : 'min-w-[150px]', 'p-1 text-left align-top']">
+                        <TableCell :class="[props.telaMode === true ? 'min-w-[170px]' : 'min-w-[150px]', 'p-1 text-left align-top']">
                             <div class="flex flex-col">
                                 <SelectField
                                     v-model="item.item_id"
                                     :options="itemOptions"
                                     label=""
-                                    placeholder="Selecciona item"
-                                    :disabled="isReadOnly"
+                                    placeholder="Selecciona ítem"
+                                    :readonly="isReadOnly"
                                     class="h-10 w-full"
-                                    :action-label="!isReadOnly ? 'Nuevo item' : undefined"
+                                    :action-label="!isReadOnly ? 'Nuevo ítem' : undefined"
                                     :action-disabled="isReadOnly"
                                     @action="() => openItemDialog(idx)"
                                     :dusk="`factura-item-${idx}-item`"
@@ -563,7 +582,7 @@ defineExpose({ addItem });
                             </div>
                         </TableCell>
                         <!-- Precio -->
-                        <TableCell class="p-1 text-left align-top" :style="{ width: props.telaMode === true ? '150px' : '120px' }">
+                        <TableCell class="p-1 text-left align-top" :style="{ width: props.telaMode === true ? '110px' : '120px' }">
                             <div class="flex flex-col">
                                 <div class="relative">
                                     <InputField
@@ -574,7 +593,6 @@ defineExpose({ addItem });
                                         :step="0.01"
                                         :decimals="2"
                                         :readonly="isReadOnly"
-                                        :disabled="isReadOnly"
                                         class="h-10 w-full pr-10"
                                         @input="calcTotals(item)"
                                         :dusk="`factura-item-${idx}-precio`"
@@ -609,14 +627,14 @@ defineExpose({ addItem });
                             </div>
                         </TableCell>
                         <!-- Impuesto -->
-                        <TableCell class="p-1 text-left align-top" :style="{ width: props.telaMode === true ? '170px' : '160px' }">
+                        <TableCell class="p-1 text-left align-top" :style="{ width: props.telaMode === true ? '110px' : '160px' }">
                             <div class="flex flex-col">
                                 <SelectField
                                     v-model="item.tax"
                                     :options="taxOptions"
                                     label=""
                                     class="h-10 w-full"
-                                    :disabled="isReadOnly"
+                                    :readonly="isReadOnly"
                                     :action-label="!isReadOnly ? 'Nuevo impuesto' : undefined"
                                     :action-disabled="isReadOnly"
                                     @action="openTaxDialog"
@@ -637,11 +655,12 @@ defineExpose({ addItem });
                                     <InputField
                                         v-model="item.quantity"
                                         type="number"
+                                        step="0.01"
+                                        min="0"
                                         label=""
                                         class="h-10 w-full pr-10"
                                         @input="calcTotals(item)"
                                         :readonly="isReadOnly"
-                                        :disabled="isReadOnly"
                                         :dusk="`factura-item-${idx}-cantidad`"
                                     />
                                     <Tooltip v-if="isQuantityDifferent(item)">
@@ -662,12 +681,12 @@ defineExpose({ addItem });
                                     <template v-if="getSuggestedQuantity(item) !== null">
                                         <template v-if="Number(item.original_order_item?.already_invoiced_qty) > 0">
                                             <span class="text-amber-600 font-medium">
-                                                Pendiente: {{ Math.max(0, Number(item.original_order_item?.quantity) - Number(item.original_order_item?.already_invoiced_qty)).toLocaleString('es-CO') }} de {{ Number(item.original_order_item?.quantity).toLocaleString('es-CO') }}
+                                                Pendiente: {{ formatQuantity(Math.max(0, Number(item.original_order_item?.quantity) - Number(item.original_order_item?.already_invoiced_qty))) }} de {{ formatQuantity(item.original_order_item?.quantity) }}
                                             </span>
-                                            <span class="ml-1 text-gray-400">(Facturado: {{ Number(item.original_order_item?.already_invoiced_qty).toLocaleString('es-CO') }})</span>
+                                            <span class="ml-1 text-gray-400">(Facturado: {{ formatQuantity(item.original_order_item?.already_invoiced_qty) }})</span>
                                         </template>
                                         <template v-else>
-                                            Cantidad: {{ Number(getSuggestedQuantity(item)).toLocaleString('es-CO') }}
+                                            Cantidad: {{ formatQuantity(getSuggestedQuantity(item)) }}
                                         </template>
                                     </template>
                                 </div>
@@ -677,18 +696,17 @@ defineExpose({ addItem });
                         <TableCell v-if="!props.telaMode" class="p-1 text-left align-top" style="width: 160px">
                             <div class="flex flex-col">
                                 <InputField
-                                    v-model="item.description"
+                                    v-model="item.description" data-no-uppercase
                                     label=""
                                     class="h-10 w-full"
                                     :readonly="isReadOnly"
-                                    :disabled="isReadOnly"
                                     :dusk="`factura-item-${idx}-descripcion`"
                                 />
                                 <div class="min-h-[20px]"></div>
                             </div>
                         </TableCell>
                         <!-- Código proveedor -->
-                        <TableCell v-if="shouldShowFabricColumns" class="p-1 text-left align-top" style="width: 160px">
+                        <TableCell v-if="shouldShowFabricColumns" class="p-1 text-left align-top" :style="{ width: props.telaMode === true ? '110px' : '160px' }">
                             <div class="flex flex-col">
                                 <InputField
                                     v-model="item.supplier_code"
@@ -696,13 +714,14 @@ defineExpose({ addItem });
                                     placeholder="Código proveedor"
                                     class="h-10 w-full"
                                     :readonly="isReadOnly || !isTela(item)"
-                                    :disabled="isReadOnly || !isTela(item)"
+                                    :disabled="!isTela(item)"
+                                    :dusk="`factura-item-${idx}-codigo-proveedor`"
                                 />
                                 <div class="min-h-[20px]"></div>
                             </div>
                         </TableCell>
                         <!-- Color proveedor -->
-                        <TableCell v-if="shouldShowFabricColumns" class="p-1 text-left align-top" style="width: 160px">
+                        <TableCell v-if="shouldShowFabricColumns" class="p-1 text-left align-top" :style="{ width: props.telaMode === true ? '110px' : '160px' }">
                             <div class="flex flex-col">
                                 <InputField
                                     v-model="item.supplier_color"
@@ -710,22 +729,23 @@ defineExpose({ addItem });
                                     placeholder="Color proveedor"
                                     class="h-10 w-full"
                                     :readonly="isReadOnly || !isTela(item)"
-                                    :disabled="isReadOnly || !isTela(item)"
+                                    :disabled="!isTela(item)"
+                                    :dusk="`factura-item-${idx}-color-proveedor`"
                                 />
                                 <div class="min-h-[20px]"></div>
                             </div>
                         </TableCell>
                         <!-- Ancho pedido -->
-                        <TableCell v-if="shouldShowFabricColumns" class="p-1 text-left align-top" style="width: 160px">
+                        <TableCell v-if="shouldShowFabricColumns" class="p-1 text-left align-top" :style="{ width: props.telaMode === true ? '110px' : '160px' }">
                             <div class="flex flex-col">
                                 <InputField
                                     v-model="item.order_width"
                                     type="text"
                                     label=""
-                                    :placeholder="isTela(item) ? 'Ancho (cm) *' : 'Ancho pedido'"
+                                    :placeholder="isTela(item) ? 'Ancho (m) *' : 'Ancho pedido'"
                                     class="h-10 w-full"
                                     :readonly="isReadOnly || !isTela(item)"
-                                    :disabled="isReadOnly || !isTela(item)"
+                                    :disabled="!isTela(item)"
                                     :required="isTela(item)"
                                     :dusk="`factura-item-${idx}-ancho`"
                                 />
@@ -733,7 +753,7 @@ defineExpose({ addItem });
                             </div>
                         </TableCell>
                         <!-- Total -->
-                        <TableCell class="p-1 text-left align-top" :style="{ width: props.telaMode === true ? '120px' : '90px' }">
+                        <TableCell class="p-1 text-left align-top" :style="{ width: props.telaMode === true ? '100px' : '90px' }">
                             <div class="flex flex-col">
                                 <div class="flex h-10 items-center text-sm font-medium">
                                     {{

@@ -5,6 +5,7 @@ namespace App\Services\Inventory;
 use App\Helpers\ScopeHelper;
 use App\Models\Inventory\InventoryRequest;
 use App\Models\Inventory\InventoryRequestItem;
+use App\Support\DocumentSequence;
 use App\Models\Settings\User;
 use App\Notifications\InventoryRequestCreatedNotification;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -91,7 +92,7 @@ class InventoryRequestService
             return $this->findOrFail($request->id);
         });
 
-        // Enviar notificación a usuarios con permiso atender solicitudes insumos
+        // Enviar notificación a usuarios que gestionan solicitudes insumos
         $this->notifyInventoryRequestCreated($inventoryRequest, $user);
 
         return $inventoryRequest;
@@ -102,18 +103,13 @@ class InventoryRequestService
      */
     protected function notifyInventoryRequestCreated(InventoryRequest $request, User $creator): void
     {
-        $recipients = $this->resolveRecipientsForInventoryRequest($creator);
-
-        if ($recipients->isEmpty()) {
-            return;
-        }
-
         $requesterName = $creator->name ?? null;
         $requesterArea = $this->resolveUserArea($creator);
 
-        Notification::send(
-            $recipients,
-            new InventoryRequestCreatedNotification($request, $requesterName, $requesterArea)
+        app(\App\Services\Settings\NotificationDispatcher::class)->dispatch(
+            'inventory_request_created',
+            new InventoryRequestCreatedNotification($request, $requesterName, $requesterArea),
+            ['actor' => $creator]
         );
     }
 
@@ -139,20 +135,7 @@ class InventoryRequestService
             return null;
         }
 
-        $areasSetting = \App\Models\Settings\Setting::query()
-            ->where('kind', 'parameter')
-            ->where('key', 'areas')
-            ->first();
-
-        $areas = is_array($areasSetting?->value) ? $areasSetting->value : [];
-
-        foreach ($areas as $area) {
-            if (is_array($area) && isset($area['id']) && (int) $area['id'] === $user->area_id) {
-                return $area['name'] ?? null;
-            }
-        }
-
-        return null;
+        return \App\Models\Settings\Area::query()->whereKey($user->area_id)->value('name');
     }
 
     /**
@@ -315,9 +298,52 @@ class InventoryRequestService
         return $this->findOrFail($request->id);
     }
 
+    /**
+     * Una solicitud no puede pedir más de lo que hay en inventario (suma de todas las bodegas): lo que falte
+     * se pide por solicitud de compra. Los ítems escritos a mano (sin item_id) no tienen stock que comparar.
+     */
+    protected function assertWithinAvailableStock(array $items): void
+    {
+        $requestedByItem = [];
+        foreach ($items as $item) {
+            $itemId = $item['item_id'] ?? null;
+            $quantity = (float) ($item['quantity'] ?? $item['requested_quantity'] ?? 0);
+            if ($itemId && $quantity > 0) {
+                $requestedByItem[(int) $itemId] = ($requestedByItem[(int) $itemId] ?? 0) + $quantity;
+            }
+        }
+
+        if ($requestedByItem === []) {
+            return;
+        }
+
+        $available = \App\Models\Inventory\WarehouseItem::query()
+            ->whereIn('item_id', array_keys($requestedByItem))
+            ->selectRaw('item_id, SUM(quantity) as total')
+            ->groupBy('item_id')
+            ->pluck('total', 'item_id');
+        $names = \App\Models\MasterData\Item::whereIn('id', array_keys($requestedByItem))->pluck('name', 'id');
+
+        $messages = [];
+        foreach ($requestedByItem as $itemId => $requested) {
+            $stock = (float) ($available[$itemId] ?? 0);
+            if ($requested > $stock + 0.0001) {
+                $messages[] = 'Solo hay '.rtrim(rtrim(number_format($stock, 4, '.', ''), '0'), '.').' disponible de "'.($names[$itemId] ?? "#{$itemId}").'" y pides '
+                    .rtrim(rtrim(number_format($requested, 4, '.', ''), '0'), '.').'. Solicita lo que hay y pide el resto por solicitud de compra.';
+            }
+        }
+
+        if ($messages !== []) {
+            throw ValidationException::withMessages(['items' => $messages]);
+        }
+    }
+
     protected function syncItems(InventoryRequest $request, array $items): void
     {
-        $request->items()->delete();
+        $this->assertWithinAvailableStock($items);
+
+        // Por instancia para que el AuditObserver registre cada línea eliminada.
+        $request->items()->get()->each->delete();
 
         foreach ($items as $item) {
             $itemId = $item['item_id'] ?? null;
@@ -359,28 +385,15 @@ class InventoryRequestService
         }
     }
 
-    public function nextNumber(): string
-    {
-        return $this->generateDocumentNumber();
-    }
-
+    /** Consecutivo atómico (SINT-###): se asigna al guardar; el formulario ya no "sugiere" uno. */
     protected function generateDocumentNumber(): string
     {
-        $prefix = 'SINT';
-        $sequenceLength = 3;
+        $next = DocumentSequence::next(
+            'inventory_requests:SINT',
+            fn () => DocumentSequence::maxInTable('inventory_requests', 'document_number', 'SINT')
+        );
 
-        $lastNumber = InventoryRequest::whereNotNull('document_number')
-            ->orderByDesc('id')
-            ->value('document_number');
-
-        $next = 1;
-        if ($lastNumber && preg_match("/^{$prefix}-(\\d{{$sequenceLength}})$/", $lastNumber, $matches)) {
-            $next = (int) $matches[1] + 1;
-        }
-
-        $sequence = str_pad((string) $next, $sequenceLength, '0', STR_PAD_LEFT);
-
-        return "{$prefix}-{$sequence}";
+        return sprintf('SINT-%03d', $next);
     }
 
     protected function assertPending(InventoryRequest $request): void

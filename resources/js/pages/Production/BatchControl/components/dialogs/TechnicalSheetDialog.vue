@@ -1,15 +1,14 @@
 <script setup lang="ts">
 import FormDialogContent from '@/components/FormDialogContent.vue';
-import FormHeader from '@/components/FormHeader.vue';
 import ImagePreviewDialog from '@/components/ImagePreviewDialog.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogFooter } from '@/components/ui/dialog';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import PillTabs from '@/components/common/PillTabs.vue';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
 import type { OpBasicInfo } from '@/domain/Production/types';
 import { fetchOpBasicInfo, fetchOpRawMaterials } from '@/domain/Production/service';
 import type { ProductOperationPayload } from '@/domain/product-sheet/types';
 import { useListadoOperacionalEdit } from '@/composables/useListadoOperacionalEdit';
-import axios from 'axios';
 import { Box, ChevronDown, ChevronUp, ClipboardList, DollarSign, FilePlus2, Package, Pencil, Volleyball, Workflow } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 import type { BatchControlRow } from '../../types';
@@ -191,7 +190,7 @@ const dialogProductSheets = computed(() => {
         }
     }
 
-    const fallbackFabricBaseId = opDetail.value?.fabric_base_id ?? opsInitialData.value?.operations?.[0]?.fabric_base_id ?? null;
+    const fallbackFabricBaseId = opDetail.value?.fabric_base_id ?? null;
     const isSample = isSampleOp.value;
     const fallbackReference = displayedSecondReference.value || '-';
 
@@ -440,21 +439,7 @@ watch(
 
                 <!-- ── Tabs ── -->
                 <Tabs v-model="activeTab" default-value="lista_operacional" class="mt-4 flex min-h-0 flex-1 flex-col">
-                    <div class="mb-3 shrink-0 overflow-x-auto scrollbar-none">
-                        <TabsList class="inline-flex w-fit flex-nowrap items-center gap-1 rounded-full border border-border bg-muted/40 p-1">
-                            <TabsTrigger
-                                v-for="tab in tabs"
-                                :key="tab.value"
-                                :value="tab.value"
-                                class="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap rounded-full px-2.5 py-1.5 text-xs font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground data-[state=active]:border data-[state=active]:border-primary/20 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-sm"
-                            >
-                                <span class="inline-flex shrink-0 items-center gap-1.5 whitespace-nowrap">
-                                    <component :is="tab.icon" class="h-3.5 w-3.5 shrink-0" />
-                                    <span class="shrink-0">{{ tab.label }}</span>
-                                </span>
-                            </TabsTrigger>
-                        </TabsList>
-                    </div>
+                    <PillTabs :tabs="tabs" size="sm" />
 
                     <div class="min-h-0 flex-1 overflow-y-auto pb-2">
                         <TabsContent value="lista_operacional" class="mt-0">

@@ -5,7 +5,7 @@ import { cn } from '@/lib/utils';
 import { MoreVertical } from 'lucide-vue-next';
 import type { HTMLAttributes } from 'vue';
 
-const props = withDefaults(
+withDefaults(
     defineProps<{
         title?: string;
         triggerClass?: HTMLAttributes['class'];
@@ -34,7 +34,7 @@ const props = withDefaults(
                 :title="title"
                 :class="
                     cn(
-                        'inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground/80 transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
+                        'inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground/80 transition hover:bg-accent/20 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2',
                         triggerClass,
                     )
                 "

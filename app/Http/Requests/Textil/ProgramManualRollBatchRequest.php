@@ -11,7 +11,7 @@ class ProgramManualRollBatchRequest extends \App\Http\Requests\Inventory\Invento
             'notes' => ['nullable', 'string', 'max:500'],
             'lines' => ['required', 'array', 'min:1'],
             'lines.*.fabric_roll_id' => ['required', 'integer', 'distinct', 'exists:fabric_rolls,id'],
-            'lines.*.programmed_meters' => ['required', 'numeric', 'min:0.01'],
+            'lines.*.programmed_meters' => ['required', 'numeric', 'min:0.01', 'decimal:0,2'],
         ];
     }
 

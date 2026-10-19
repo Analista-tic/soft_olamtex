@@ -3,10 +3,39 @@
 namespace App\Services\Settings;
 
 use App\Models\Settings\User;
+use App\Services\Audit\AuditLogService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Pagination\LengthAwarePaginator;
 class UserService
 {
+    public function __construct(
+        protected AuditLogService $auditLog
+    ) {}
+
+    private function syncRolesAudited(User $user, array $roles): void
+    {
+        $before = $user->roles()->pluck('name')->sort()->values()->all();
+        $user->syncRoles($roles);
+        $after = $user->roles()->pluck('name')->sort()->values()->all();
+
+        if ($before === $after) {
+            return;
+        }
+
+        $this->auditLog->logEvent(
+            action: 'updated',
+            description: sprintf(
+                "Roles del usuario '%s' actualizados: [%s] → [%s].",
+                $user->name,
+                implode(', ', $before),
+                implode(', ', $after)
+            ),
+            subject: $user,
+            old: ['roles' => $before],
+            new: ['roles' => $after],
+        );
+    }
+
     public function findOrFail($id): User
     {
         return User::with('roles.permissions')->findOrFail($id);
@@ -24,7 +53,7 @@ class UserService
 
             $user = User::create($data);
             if (!empty($roles)) {
-                $user->syncRoles($roles);
+                $this->syncRolesAudited($user, $roles);
             }
 
             return $user->fresh();
@@ -48,7 +77,7 @@ class UserService
             $user->update($data);
 
             if ($roles !== null) {
-                $user->syncRoles($roles);
+                $this->syncRolesAudited($user, $roles);
             }
 
             return $user->fresh();

@@ -1,3 +1,5 @@
+import { sortSizes } from '../product-sheet/sizeOrder';
+
 export type NormalizedSizes = string | Record<string, boolean> | null;
 
 function toEnabledSizeRecord(input: unknown[]): Record<string, boolean> {
@@ -12,15 +14,19 @@ function extractSizeKeys(input: NormalizedSizes): string[] {
     if (input == null) return [];
 
     if (typeof input === 'string') {
-        return input
-            .split(',')
-            .map((size) => size.trim())
-            .filter(Boolean);
+        return sortSizes(
+            input
+                .split(',')
+                .map((size) => size.trim())
+                .filter(Boolean),
+        );
     }
 
-    return Object.entries(input)
-        .filter(([, enabled]) => enabled)
-        .map(([size]) => size);
+    return sortSizes(
+        Object.entries(input)
+            .filter(([, enabled]) => enabled)
+            .map(([size]) => size),
+    );
 }
 
 export function normalizeSizes(input: unknown): NormalizedSizes {

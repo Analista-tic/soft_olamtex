@@ -37,6 +37,7 @@ export function useGlobalAlert() {
      * Muestra un mensaje de éxito
      * Auto-cierra después de 4 segundos
      */
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- firma pública conservada
     function success(message: string, title?: string) {
         successMessage.value = message;
         errorMessage.value = '';
@@ -53,6 +54,7 @@ export function useGlobalAlert() {
      * Muestra un mensaje de error, advertencia o información
      * Si el tipo es error, se mantiene visible hasta que se cierre manualmente
      */
+    // eslint-disable-next-line @typescript-eslint/no-unused-vars -- firma pública conservada
     function showAlert(message: string, type: AlertType = 'error', title?: string) {
         errorMessage.value = message;
         errorType.value = type;

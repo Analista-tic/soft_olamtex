@@ -22,7 +22,7 @@ export function useTreasuryVoucher(
                 return;
             }
 
-            if (parsed > Number(doc.pending_balance || 0)) {
+            if (parsed > Number(doc.payable_balance ?? doc.pending_balance ?? 0)) {
                 errors[doc.id] = 'El monto supera el valor por pagar.';
                 return;
             }

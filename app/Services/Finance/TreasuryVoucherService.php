@@ -97,6 +97,9 @@ class TreasuryVoucherService
                     'debit_notes_total' => (float) ($data['debit_notes_total'] ?? 0),
                     'payments_total' => (float) ($data['payments_total'] ?? 0),
                     'current_balance' => (float) ($data['current_balance'] ?? 0),
+                    'disputed_amount' => (float) ($data['disputed_amount'] ?? 0),
+                    'disputed_rolls_count' => (int) ($data['disputed_rolls_count'] ?? 0),
+                    'payable_balance' => (float) ($data['payable_balance'] ?? $data['current_balance'] ?? 0),
                     'debt_status' => $data['debt_status'] ?? null,
                     'debt_status_label' => $data['debt_status_label'] ?? null,
                 ];

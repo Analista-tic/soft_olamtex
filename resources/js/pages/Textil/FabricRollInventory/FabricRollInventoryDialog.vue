@@ -30,24 +30,24 @@ const emit = defineEmits<{
 }>();
 
 // ── Corrección de cantidad ──────────────────────────────────────
-const newQuantity    = ref('');
+const newQuantity = ref('');
 const quantityReason = ref('');
-const isSavingQty   = ref(false);
-const qtyError       = ref('');
+const isSavingQty = ref(false);
+const qtyError = ref('');
 
 // ── Precio por metro ────────────────────────────────────────────
-const newPrice      = ref('');
+const newPrice = ref('');
 const isSavingPrice = ref(false);
-const priceError    = ref('');
+const priceError = ref('');
 
 watch(
     () => props.roll,
     (roll) => {
-        newQuantity.value    = roll?.roll_qty_value != null ? String(roll.roll_qty_value) : '';
+        newQuantity.value = roll?.roll_qty_value != null ? String(roll.roll_qty_value) : '';
         quantityReason.value = '';
-        qtyError.value       = '';
-        newPrice.value       = roll?.price_per_meter != null ? String(roll.price_per_meter) : '';
-        priceError.value     = '';
+        qtyError.value = '';
+        newPrice.value = roll?.price_per_meter != null ? String(roll.price_per_meter) : '';
+        priceError.value = '';
     },
     { immediate: true },
 );
@@ -57,6 +57,12 @@ async function saveQuantityCorrection() {
     const qty = parseFloat(newQuantity.value.replace(',', '.'));
     if (isNaN(qty) || qty <= 0) {
         qtyError.value = 'Ingresa una cantidad válida mayor a 0.';
+        return;
+    }
+    // Mismo piso que el servidor: no puede quedar por debajo de lo consumido más lo reservado.
+    const floor = Number(props.roll.exit_quantity_value ?? 0) + Number(props.roll.partial_output_value ?? 0);
+    if (qty < floor - 0.001) {
+        qtyError.value = `No puede ser menor que lo consumido más lo reservado (${floor.toLocaleString('es-CO')} mts).`;
         return;
     }
     if (!quantityReason.value.trim()) {
@@ -74,9 +80,11 @@ async function saveQuantityCorrection() {
         quantityReason.value = '';
         showAlert(res.data.message || 'Cantidad corregida correctamente.', 'success');
     } catch (err: any) {
-        const msg = err?.response?.data?.errors?.new_quantity?.[0]
-            ?? err?.response?.data?.message
-            ?? 'No se pudo corregir la cantidad.';
+        const msg =
+            err?.response?.data?.errors?.new_quantity?.[0] ??
+            err?.response?.data?.errors?.general?.[0] ??
+            err?.response?.data?.message ??
+            'No se pudo corregir la cantidad.';
         qtyError.value = msg;
     } finally {
         isSavingQty.value = false;
@@ -99,7 +107,11 @@ async function savePrice() {
         emit('price-updated', { rollId: props.roll.id, pricePerMeter: res.data.price_per_meter });
         showAlert(res.data.message || 'Precio actualizado correctamente.', 'success');
     } catch (err: any) {
-        priceError.value = err?.response?.data?.message ?? 'No se pudo actualizar el precio.';
+        priceError.value =
+            err?.response?.data?.errors?.general?.[0] ??
+            err?.response?.data?.errors?.price_per_meter?.[0] ??
+            err?.response?.data?.message ??
+            'No se pudo actualizar el precio.';
     } finally {
         isSavingPrice.value = false;
     }
@@ -190,10 +202,7 @@ async function fetchFabricOptions() {
             reference: item.reference ?? null,
         }));
 
-        if (
-            props.roll?.fabric_item_id &&
-            !fabricOptions.value.some((option) => option.id === props.roll?.fabric_item_id)
-        ) {
+        if (props.roll?.fabric_item_id && !fabricOptions.value.some((option) => option.id === props.roll?.fabric_item_id)) {
             fabricOptions.value.unshift({
                 id: props.roll.fabric_item_id,
                 name: props.roll.fabric || 'Tela actual',
@@ -248,6 +257,12 @@ const avatarInitials = computed(() => {
     return letters.slice(0, 2).toUpperCase() || 'RL';
 });
 
+/** Con descargues el rollo no se edita directamente: solo ajustes y correcciones trazables. */
+const isLocked = computed(() => Boolean(props.roll?.has_discharges));
+/** El primer vínculo de tela sí se permite con descargues: carga el saldo real al kardex. */
+const canRelinkFabric = computed(() => props.canEditMainFabric && (!isLocked.value || !props.roll?.fabric_item_id));
+const hasLengthReviewPending = computed(() => props.roll?.length_review_status === 'pending');
+
 const statusLabel = computed(() => (props.roll?.status === 'available' ? 'Disponible' : 'Agotado'));
 const statusVariant = computed(() => (props.roll?.status === 'available' ? 'default' : 'destructive'));
 
@@ -265,9 +280,22 @@ const infoRows = computed(() => {
 
 const metricCards = computed(() => {
     if (!props.roll) return [];
+    const received = props.roll.received_quantity_value;
+    const receivedDiffers = received != null && props.roll.roll_qty_value != null && Math.abs(received - props.roll.roll_qty_value) > 0.001;
+    const lengthAdjustment = Number(props.roll.length_adjustment_meters ?? 0);
     return [
         { label: 'Ancho', value: props.roll.width },
-        { label: 'Cant. rollo', value: props.roll.roll_qty },
+        { label: receivedDiffers ? 'Cant. vigente' : 'Cant. rollo', value: props.roll.roll_qty },
+        ...(receivedDiffers ? [{ label: 'Recibido', value: `${received!.toLocaleString('es-CO')} m` }] : []),
+        // El sobrante/faltante de metraje va aparte: la cantidad del rollo no cambia al descargar.
+        ...(Math.abs(lengthAdjustment) > 0.001
+            ? [
+                  {
+                      label: lengthAdjustment > 0 ? 'Sobrante de metraje' : 'Faltante de metraje',
+                      value: `${Math.abs(lengthAdjustment).toLocaleString('es-CO')} m`,
+                  },
+              ]
+            : []),
         { label: 'Salida parcial', value: props.roll.partial_output },
         { label: 'Disp. parcial', value: props.roll.partial_availability },
         { label: 'Cant. salida', value: props.roll.exit_quantity },
@@ -299,6 +327,14 @@ const metricCards = computed(() => {
                             <Badge :variant="statusVariant" class="shrink-0 text-[11px]">
                                 {{ statusLabel }}
                             </Badge>
+                            <Badge v-if="isLocked" variant="outline" class="shrink-0 text-[11px]">Con descargues</Badge>
+                            <Badge
+                                v-if="hasLengthReviewPending"
+                                variant="outline"
+                                class="shrink-0 border-amber-400 text-[11px] text-amber-700 dark:text-amber-300"
+                            >
+                                Metraje en revisión
+                            </Badge>
                         </div>
                         <DialogDescription class="truncate text-xs text-muted-foreground">
                             {{ props.roll?.fabric ?? 'Sin tela asignada' }}
@@ -309,10 +345,7 @@ const metricCards = computed(() => {
 
             <!-- Cuerpo scrollable -->
             <div class="flex-1 overflow-y-auto scroll-smooth px-5 py-5" style="scrollbar-width: thin">
-                <div
-                    v-if="alertMessage"
-                    class="pointer-events-none fixed left-1/2 top-6 z-[99999] flex -translate-x-1/2 justify-center px-4 sm:px-0"
-                >
+                <div v-if="alertMessage" class="pointer-events-none fixed left-1/2 top-6 z-[99999] flex -translate-x-1/2 justify-center px-4 sm:px-0">
                     <AlertBox
                         :type="alertType"
                         :title="alertType === 'warning' ? 'Advertencia' : alertType === 'success' ? 'Éxito' : 'Error'"
@@ -350,22 +383,24 @@ const metricCards = computed(() => {
                                 v-for="card in metricCards"
                                 :key="card.label"
                                 class="flex flex-col items-center justify-center gap-1 rounded-xl border px-3 py-4 text-center shadow-sm"
-                                :class="
-                                    card.highlight
-                                        ? 'border-primary/30 bg-primary/5 dark:bg-primary/10'
-                                        : 'border-border bg-card'
-                                "
+                                :class="card.highlight ? 'border-primary/30 bg-primary/5 dark:bg-primary/10' : 'border-border bg-card'"
                             >
                                 <span class="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">{{ card.label }}</span>
-                                <span
-                                    class="text-xl font-bold leading-tight"
-                                    :class="card.highlight ? 'text-primary' : 'text-foreground'"
-                                >
+                                <span class="text-xl font-bold leading-tight" :class="card.highlight ? 'text-primary' : 'text-foreground'">
                                     {{ card.value }}
                                 </span>
                             </div>
                         </div>
                     </section>
+
+                    <div
+                        v-if="isLocked"
+                        class="rounded-xl border border-amber-300/70 bg-amber-50 px-4 py-3 text-xs text-amber-900 dark:border-amber-500/40 dark:bg-amber-500/10 dark:text-amber-200"
+                    >
+                        Este rollo ya tiene descargues: su cantidad, precio y tela no se editan directamente. Use
+                        <span class="font-semibold">Ajustar rollo</span> (entrada/salida) o corrija el descargue desde el descargue por orden; ambos
+                        quedan trazados en el historial y en el kardex.
+                    </div>
 
                     <section>
                         <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Tela principal del rollo</p>
@@ -377,7 +412,7 @@ const metricCards = computed(() => {
                                 </p>
                             </div>
 
-                            <div v-if="props.canEditMainFabric" class="space-y-3">
+                            <div v-if="canRelinkFabric" class="space-y-3">
                                 <div class="space-y-1">
                                     <p class="text-xs font-semibold text-muted-foreground">Buscar tela</p>
                                     <Input v-model="fabricSearch" placeholder="Referencia o nombre" class="h-9" />
@@ -387,9 +422,7 @@ const metricCards = computed(() => {
                                     <p class="text-xs font-semibold text-muted-foreground">Nueva tela principal</p>
                                     <Select v-model="selectedFabricItemId">
                                         <SelectTrigger class="h-9">
-                                            <SelectValue
-                                                :placeholder="isLoadingFabricOptions ? 'Cargando telas...' : 'Selecciona una tela'"
-                                            />
+                                            <SelectValue :placeholder="isLoadingFabricOptions ? 'Cargando telas...' : 'Selecciona una tela'" />
                                         </SelectTrigger>
                                         <SelectContent>
                                             <SelectItem v-for="option in fabricOptions" :key="option.id" :value="String(option.id)">
@@ -412,13 +445,17 @@ const metricCards = computed(() => {
                             </div>
 
                             <p v-else class="text-xs text-muted-foreground">
-                                Solo superadmin puede actualizar la relación del rollo con su tela principal.
+                                {{
+                                    props.canEditMainFabric
+                                        ? 'El rollo ya tiene descargues: su tela principal no se cambia.'
+                                        : 'Solo superadmin puede actualizar la relación del rollo con su tela principal.'
+                                }}
                             </p>
                         </div>
                     </section>
 
-                    <!-- Corrección de cantidad (solo usuarios con permiso editar rollos) -->
-                    <section v-if="props.canAdjustRolls">
+                    <!-- Corrección de cantidad (permiso ajustar telas rollos; bloqueada con descargues) -->
+                    <section v-if="props.canAdjustRolls && !isLocked">
                         <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Corrección de cantidad</p>
                         <div class="space-y-3 rounded-xl border border-border bg-card p-4 shadow-sm">
                             <div class="flex items-center justify-between gap-3 text-sm">
@@ -426,19 +463,15 @@ const metricCards = computed(() => {
                                 <span class="font-semibold text-foreground">{{ props.roll?.roll_qty ?? '—' }} mts</span>
                             </div>
                             <div class="space-y-1">
-                                <p class="text-xs font-semibold text-muted-foreground">Nueva cantidad total (mts) <span class="text-destructive">*</span></p>
-                                <Input
-                                    v-model="newQuantity"
-                                    type="number"
-                                    step="0.01"
-                                    min="0.01"
-                                    class="h-9"
-                                    placeholder="Ej: 48.5"
-                                />
+                                <p class="text-xs font-semibold text-muted-foreground">
+                                    Nueva cantidad total (mts) <span class="text-destructive">*</span>
+                                </p>
+                                <Input v-model="newQuantity" type="number" step="0.01" min="0.01" class="h-9" placeholder="Ej: 48.5" />
                             </div>
                             <div class="space-y-1">
                                 <p class="text-xs font-semibold text-muted-foreground">Motivo <span class="text-destructive">*</span></p>
                                 <Input
+                                    data-no-uppercase
                                     v-model="quantityReason"
                                     class="h-9"
                                     placeholder="Ej: Error de medición en recepción"
@@ -447,50 +480,39 @@ const metricCards = computed(() => {
                             </div>
                             <p v-if="qtyError" class="text-xs text-destructive">{{ qtyError }}</p>
                             <div class="flex justify-end">
-                                <Button
-                                    type="button"
-                                    size="pill"
-                                    :disabled="isSavingQty"
-                                    @click="saveQuantityCorrection"
-                                >
+                                <Button type="button" size="pill" :disabled="isSavingQty" @click="saveQuantityCorrection">
                                     {{ isSavingQty ? 'Guardando...' : 'Aplicar corrección' }}
                                 </Button>
                             </div>
                         </div>
                     </section>
 
-                    <!-- Precio por metro (solo usuarios con permiso editar rollos) -->
-                    <section v-if="props.canAdjustRolls">
+                    <!-- Precio por metro (permiso ajustar telas rollos; bloqueado con descargues) -->
+                    <section v-if="props.canAdjustRolls && !isLocked">
                         <p class="mb-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">Precio por metro</p>
                         <div class="space-y-3 rounded-xl border border-border bg-card p-4 shadow-sm">
                             <div class="flex items-center justify-between gap-3 text-sm">
                                 <span class="text-muted-foreground">Precio actual</span>
                                 <span class="font-semibold text-foreground">
-                                    {{ props.roll?.price_per_meter != null
-                                        ? currencyFormatter.format(props.roll.price_per_meter)
-                                        : 'Sin precio definido' }}
+                                    {{
+                                        props.roll?.price_per_meter != null
+                                            ? currencyFormatter.format(props.roll.price_per_meter)
+                                            : 'Sin precio definido'
+                                    }}
                                 </span>
                             </div>
                             <div class="space-y-1">
-                                <p class="text-xs font-semibold text-muted-foreground">Nuevo precio por metro (COP) <span class="text-destructive">*</span></p>
-                                <Input
-                                    v-model="newPrice"
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    class="h-9"
-                                    placeholder="Ej: 12500"
-                                />
-                                <p class="text-xs text-muted-foreground">Este valor se usa como costo unitario en los movimientos de inventario futuros.</p>
+                                <p class="text-xs font-semibold text-muted-foreground">
+                                    Nuevo precio por metro (COP) <span class="text-destructive">*</span>
+                                </p>
+                                <Input v-model="newPrice" type="number" step="0.01" min="0" class="h-9" placeholder="Ej: 12500" />
+                                <p class="text-xs text-muted-foreground">
+                                    Este valor se usa como costo unitario en los movimientos de inventario futuros.
+                                </p>
                             </div>
                             <p v-if="priceError" class="text-xs text-destructive">{{ priceError }}</p>
                             <div class="flex justify-end">
-                                <Button
-                                    type="button"
-                                    size="pill"
-                                    :disabled="isSavingPrice"
-                                    @click="savePrice"
-                                >
+                                <Button type="button" size="pill" :disabled="isSavingPrice" @click="savePrice">
                                     {{ isSavingPrice ? 'Guardando...' : 'Guardar precio' }}
                                 </Button>
                             </div>
@@ -499,17 +521,13 @@ const metricCards = computed(() => {
                 </div>
 
                 <!-- Estado vacío -->
-                <div v-else class="flex h-40 items-center justify-center text-sm text-muted-foreground">
-                    No hay información disponible.
-                </div>
+                <div v-else class="flex h-40 items-center justify-center text-sm text-muted-foreground">No hay información disponible.</div>
             </div>
 
             <!-- Footer -->
             <DialogFooter class="shrink-0 border-t border-border px-5 py-4">
                 <DialogClose as-child>
-                    <Button variant="outline" size="pill" class="mx-auto flex w-full max-w-[140px] justify-center">
-                        Cerrar
-                    </Button>
+                    <Button variant="outline" size="pill" class="mx-auto flex w-full max-w-[140px] justify-center"> Cerrar </Button>
                 </DialogClose>
             </DialogFooter>
         </FormDialogContent>

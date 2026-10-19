@@ -28,7 +28,7 @@ export function mapPurchaseOrderItemDto(dto: PurchaseOrderItemDto): PurchaseOrde
 }
 
 export function mapPurchaseOrderDto(dto: PurchaseOrderDto): PurchaseOrder {
-    const allowed = ['pending', 'approved', 'sent', 'invoiced', 'rejected'];
+    const allowed = ['pending', 'approved', 'partially_invoiced', 'invoiced', 'rejected'];
     const status = typeof dto.status === 'string' && allowed.includes(dto.status) ? (dto.status as PurchaseOrder['status']) : undefined;
 
     return {

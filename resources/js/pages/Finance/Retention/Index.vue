@@ -66,7 +66,7 @@ const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 
 const typeOptions = computed(() => {
     const types = Array.from(new Set(retentions.value.map((item) => item.type).filter(Boolean)));
-    return [...types.map((type) => ({ id: type, name: type }))];
+    return types.map((type) => ({ id: type, name: type })).sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
 });
 
 function openDialog(type: 'create' | 'edit', retention: Retention | null = null) {
@@ -88,7 +88,7 @@ async function deleteRetention() {
     if (!retentionToDelete.value) return;
     if (!retentionToDelete.value.id) {
         errorType.value = 'error';
-        errorMessage.value = 'No se encontro el identificador de la retencion a eliminar.';
+        errorMessage.value = 'No se encontró el identificador de la retención a eliminar.';
         isDeleteDialogOpen.value = false;
         return;
     }
@@ -109,7 +109,7 @@ async function handleDialogSubmit(retentionData: RetentionForm) {
 
     if (dialogType.value === 'edit' && !retentionData.id) {
         errorType.value = 'error';
-        errorMessage.value = 'No se encontro el identificador de la retencion a actualizar.';
+        errorMessage.value = 'No se encontró el identificador de la retención a actualizar.';
         return;
     }
 

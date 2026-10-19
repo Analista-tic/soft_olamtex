@@ -29,9 +29,10 @@ beforeEach(function () {
     $this->color = Color::create(['name' => 'ROJO AUTO REF TEST', 'code' => '77']);
 
     $user = User::factory()->create();
-    foreach (['ver inventario telas', 'crear inventario telas', 'editar inventario telas'] as $permission) {
+    foreach (['ver catalogo items', 'crear items', 'editar items', 'crear referencia manual item'] as $permission) {
         $user->givePermissionTo(Permission::findOrCreate($permission, 'web'));
     }
+    $this->user = $user;
     $this->actingAs($user);
 });
 
@@ -126,8 +127,9 @@ it('rejects an automatic reference when no color was selected', function () {
         'item_type' => 'product',
     ]);
 
-    $response->assertStatus(422);
-    expect($response->json('errors.reference_mode.0'))->toContain('el color');
+    // El color es obligatorio para todo ítem (lo exige la validación antes de generar la referencia).
+    $response->assertStatus(422)->assertJsonValidationErrors('color_id');
+    expect(\App\Models\MasterData\Item::where('description', 'Item sin color')->exists())->toBeFalse();
 });
 
 it('never regenerates the reference on update even if reference_mode=auto is sent', function () {
@@ -154,4 +156,92 @@ it('never regenerates the reference on update even if reference_mode=auto is sen
 
     $response->assertOk();
     expect($item->fresh()->reference)->toBe('REF-YA-EXISTE');
+});
+
+it('generates an automatic reference for an item using a color just created inline (no code sent by the client)', function () {
+    foreach (['ver colores', 'crear colores'] as $permission) {
+        $this->user->givePermissionTo(Permission::findOrCreate($permission, 'web'));
+    }
+
+    $colorResponse = $this->postJson('/colors', [
+        'name' => 'VERDE RECIEN CREADO TEST',
+    ]);
+    $colorResponse->assertCreated();
+    $newColorId = $colorResponse->json('id');
+
+    $response = $this->postJson(route('item.store'), [
+        'category_sub_group_id' => $this->subGroup->id,
+        'color_id' => $newColorId,
+        'reference_mode' => 'auto',
+        'description' => 'Item con color recien creado',
+        'tax' => 0,
+        'negative_movement' => false,
+        'item_type' => 'product',
+    ]);
+
+    $response->assertCreated();
+    $reference = $response->json('reference');
+
+    expect($reference)->toHaveLength(12);
+    expect(substr($reference, 9, 3))->toBe(Color::find($newColorId)->code);
+});
+
+it('rejects a manual reference from a user without the manual-reference permission', function () {
+    $userWithoutPermission = User::factory()->create();
+    foreach (['ver catalogo items', 'crear items'] as $permission) {
+        $userWithoutPermission->givePermissionTo(Permission::findOrCreate($permission, 'web'));
+    }
+    $this->actingAs($userWithoutPermission);
+
+    $response = $this->postJson(route('item.store'), [
+        'category_sub_group_id' => $this->subGroup->id,
+        'color_id' => $this->color->id,
+        'reference' => 'REF-MANUAL-SIN-PERMISO-'.uniqid(),
+        'reference_mode' => 'manual',
+        'description' => 'Item de prueba sin permiso',
+        'tax' => 0,
+        'negative_movement' => false,
+        'item_type' => 'product',
+    ]);
+
+    $response->assertStatus(422);
+    expect($response->json('errors.reference_mode.0'))->toContain('permiso');
+});
+
+it('defaults to automatic reference when reference_mode is omitted, even for a user with manual permission', function () {
+    $response = $this->postJson(route('item.store'), [
+        'category_sub_group_id' => $this->subGroup->id,
+        'color_id' => $this->color->id,
+        'description' => 'Item sin reference_mode explicito',
+        'tax' => 0,
+        'negative_movement' => false,
+        'item_type' => 'product',
+    ]);
+
+    $response->assertCreated();
+    $reference = $response->json('reference');
+
+    expect($reference)->toHaveLength(12)
+        ->and(substr($reference, 5, 2))->toBe('09')
+        ->and(substr($reference, 7, 2))->toBe('05')
+        ->and(substr($reference, 9, 3))->toBe('077');
+});
+
+it('generates an automatic reference for items with the NO APLICA color and leaves it out of the name', function () {
+    $notApplicable = Color::where('code', Color::NOT_APPLICABLE_CODE)->firstOrFail();
+
+    $response = $this->postJson(route('item.store'), [
+        'category_sub_group_id' => $this->subGroup->id,
+        'color_id' => $notApplicable->id,
+        'reference_mode' => 'auto',
+        'description' => 'Item sin color',
+        'tax' => 0,
+        'negative_movement' => false,
+        'item_type' => 'product',
+    ]);
+
+    $response->assertCreated();
+
+    expect(substr($response->json('reference'), 9, 3))->toBe('000')
+        ->and($response->json('name'))->not->toContain('NO APLICA');
 });

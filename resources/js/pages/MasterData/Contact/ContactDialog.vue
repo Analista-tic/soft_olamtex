@@ -5,7 +5,8 @@ import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import DialogDescription from '@/components/ui/dialog/DialogDescription.vue';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import PillTabs from '@/components/common/PillTabs.vue';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
 import type { AdditionalContact, Contact } from '@/domain/MasterData';
 import type { Branch } from '@/domain/shared';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
@@ -105,12 +106,12 @@ watch(
 );
 
 const fieldLabels: Record<string, string> = {
-    email: 'Correo electronico',
-    id_number: 'Numero de identificacion',
+    email: 'Correo electrónico',
+    id_number: 'Número de identificación',
     contact_type: 'Tipo de contacto',
-    groups: 'Categoria proveedor/cliente',
+    groups: 'Categoría proveedor/cliente',
     id_type: 'Tipo de identificacion',
-    full_name: 'Nombre completo o razon social',
+    full_name: 'Nombre completo o razón social',
     person_type: 'Tipo de persona',
     department: 'Departamento',
     municipality: 'Municipio',
@@ -127,8 +128,6 @@ const requiredFieldKeys: (keyof Partial<Contact>)[] = [
     'email',
 ];
 
-const requiredFieldLabels = requiredFieldKeys.map((key) => fieldLabels[key as string] || String(key));
-const emptyFieldsMessage = formatRequiredFieldsMessage('Se debe completar todos los campos obligatorios', requiredFieldLabels);
 
 const resetForm = () => {
     form.value = {
@@ -142,7 +141,7 @@ async function bootstrapCatalogs() {
     isCatalogBootstrapLoading.value = true;
 
     try {
-        await masterDataStore.fetchGroups();
+        await masterDataStore.fetchGroups(true);
 
         if (masterDataStore.groupsError) {
             blockingLoadErrorMessage.value = masterDataStore.groupsError;
@@ -187,19 +186,19 @@ const translateValidationMessage = (field: string, msg: string): string => {
     const label = fieldLabels[field] || 'Campo';
 
     if (lower.includes('email') && lower.includes('already been taken')) {
-        return 'El correo electronico ya esta registrado.';
+        return 'El correo electrónico ya está registrado.';
     }
 
     if ((lower.includes('id') || lower.includes('number')) && lower.includes('already been taken')) {
-        return 'El numero de identificacion ya esta registrado.';
+        return 'El número de identificación ya está registrado.';
     }
 
     if (field === 'email' && lower.includes('unico')) {
-        return 'El correo electronico ya esta registrado.';
+        return 'El correo electrónico ya está registrado.';
     }
 
     if (field === 'id_number' && lower.includes('unico')) {
-        return 'El numero de identificacion ya esta registrado.';
+        return 'El número de identificación ya está registrado.';
     }
 
     if (lower.includes('required')) {
@@ -207,13 +206,13 @@ const translateValidationMessage = (field: string, msg: string): string => {
     }
 
     if (lower.includes('has already been taken')) {
-        return 'Este valor ya esta registrado.';
+        return 'Este valor ya está registrado.';
     }
 
     return msg;
 };
 
-const areRequiredFieldsEmpty = () => {
+const getMissingRequiredFields = () => {
     const isEmptyValue = (value: unknown) => {
         if (Array.isArray(value)) {
             return value.length === 0;
@@ -230,7 +229,13 @@ const areRequiredFieldsEmpty = () => {
         return false;
     };
 
-    return requiredFieldKeys.every((field) => isEmptyValue((form.value as any)[field]));
+    const requiredKeys = form.value.contact_type === 'proveedor' ? requiredFieldKeys : requiredFieldKeys.filter((field) => field !== 'groups');
+
+    return requiredKeys.filter((field) => isEmptyValue((form.value as any)[field]));
+};
+
+const clearFieldError = (field: string) => {
+    delete errors.value[field];
 };
 
 const handleErrors = (errorResponse: any) => {
@@ -306,8 +311,14 @@ const submitForm = async () => {
     }
 
     try {
-        if (areRequiredFieldsEmpty()) {
-            alertMessage.value = emptyFieldsMessage;
+        const missingFields = getMissingRequiredFields();
+
+        if (missingFields.length > 0) {
+            errors.value = Object.fromEntries(missingFields.map((field) => [field, ['Este campo es obligatorio.']]));
+            alertMessage.value = formatRequiredFieldsMessage(
+                'Se debe completar todos los campos obligatorios',
+                missingFields.map((key) => fieldLabels[key as string] || String(key)),
+            );
             alertType.value = 'warning';
 
             const dialogEl = document.querySelector('[role="dialog"]');
@@ -389,14 +400,17 @@ const updateBranches = (branches: Branch[]) => {
 
                     <fieldset v-if="canRenderForm" :disabled="isBlockingLoading" class="space-y-3">
                         <Tabs default-value="basic-info" class="pt-1">
-                            <TabsList class="flex justify-center space-x-4">
-                                <TabsTrigger value="basic-info" class="flex-1 py-2 text-center">Informacion basica</TabsTrigger>
-                                <TabsTrigger value="additional-info" class="flex-1 py-2 text-center">Contactos adicionales</TabsTrigger>
-                                <TabsTrigger value="branches" class="flex-1 py-2 text-center">Sucursales</TabsTrigger>
-                            </TabsList>
+                            <PillTabs
+                                size="sm"
+                                :tabs="[
+                                    { value: 'basic-info', label: 'Información básica' },
+                                    { value: 'additional-info', label: 'Contactos adicionales' },
+                                    { value: 'branches', label: 'Sucursales' },
+                                ]"
+                            />
 
                             <TabsContent value="basic-info">
-                                <ContactForm v-model:form="form" class="pb-6" />
+                                <ContactForm v-model:form="form" :errors="errors" class="pb-6" @clear-error="clearFieldError" />
                             </TabsContent>
 
                             <TabsContent value="additional-info">

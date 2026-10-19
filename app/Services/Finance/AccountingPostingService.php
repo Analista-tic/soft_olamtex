@@ -38,6 +38,9 @@ class AccountingPostingService
     public const SOURCE_SALE_CREDIT_NOTE = 'sale_credit_note';
     public const SOURCE_SALE_DEBIT_NOTE = 'sale_debit_note';
 
+    /** Estado final de la factura de tela al aprobar su recepción (FabricRollService::approveReception). */
+    public const FABRIC_RECEPTION_APPROVED_STATUS = 'approved';
+
     public function __construct(
         private JournalEntryNumberSequenceService $sequenceService,
     ) {
@@ -246,6 +249,31 @@ class AccountingPostingService
         });
     }
 
+    /**
+     * Contabiliza una factura de compra recibida/aprobada solo si nunca tuvo asiento (ni activo ni revertido).
+     *
+     * Sirve para la factura de tela (recepción aprobada) y para la auto-reparación de facturas de tela
+     * aprobadas antes de que su recepción generara asiento. Es idempotente y no reposta una factura cuyo
+     * asiento ya fue revertido por una nota crédito. Devuelve null cuando no aplica (no es factura o su
+     * estado no es contabilizable); las fallas de configuración contable se propagan como excepción.
+     */
+    public function postPurchaseInvoiceIfMissing(PurchaseDocument $invoice): ?JournalEntry
+    {
+        if (! $invoice->isInvoice() || ! in_array($invoice->status ?? null, [
+            PurchaseInvoiceStatus::RECEIVED->value,
+            self::FABRIC_RECEPTION_APPROVED_STATUS,
+        ], true)) {
+            return null;
+        }
+
+        $existing = JournalEntry::query()
+            ->forSource(self::SOURCE_PURCHASE_INVOICE, (int) $invoice->id)
+            ->latest('id')
+            ->first();
+
+        return $existing ?? $this->postPurchaseInvoice($invoice);
+    }
+
     public function postPurchaseInvoice(PurchaseDocument $invoice): JournalEntry
     {
         $invoiceId = (int) $invoice->id;
@@ -255,11 +283,15 @@ class AccountingPostingService
             throw new InvalidArgumentException('El documento recibido no es una factura de compra válida.');
         }
 
-        if (($invoice->status ?? null) !== PurchaseInvoiceStatus::RECEIVED->value) {
+        // 'approved' es el estado final de la factura de tela cuando se aprueba su recepción de rollos.
+        if (! in_array($invoice->status ?? null, [
+            PurchaseInvoiceStatus::RECEIVED->value,
+            self::FABRIC_RECEPTION_APPROVED_STATUS,
+        ], true)) {
             throw new InvalidArgumentException(
                 "Solo se pueden contabilizar facturas de compra en estado \""
                 .PurchaseInvoiceStatus::RECEIVED->value
-                .'\".'
+                .'" o "'.self::FABRIC_RECEPTION_APPROVED_STATUS.'".'
             );
         }
 
@@ -411,7 +443,7 @@ class AccountingPostingService
         $invoiceNumber = trim((string) ($invoice->document_number ?: $invoiceId));
 
         if (! $invoice->isInvoice()) {
-            throw new InvalidArgumentException('El documento recibido no es una factura de venta valida.');
+            throw new InvalidArgumentException('El documento recibido no es una factura de venta válida.');
         }
 
         if (($invoice->status ?? null) !== 'issued') {
@@ -580,6 +612,42 @@ class AccountingPostingService
         );
     }
 
+    /**
+     * Intenta contabilizar la factura padre sin asiento. Devuelve el mensaje del fallo (ya registrado en log)
+     * o null si se contabilizó / no aplicaba.
+     */
+    private function tryPostMissingParentInvoice(int $parentInvoiceId): ?string
+    {
+        $parent = PurchaseDocument::query()->find($parentInvoiceId);
+
+        if (! $parent) {
+            return null;
+        }
+
+        try {
+            $this->postPurchaseInvoiceIfMissing($parent);
+
+            return null;
+        } catch (\Throwable $e) {
+            Log::warning("AccountingPostingService: no se pudo contabilizar automáticamente la factura padre {$parentInvoiceId} antes de la nota crédito", [
+                'invoice_id' => $parentInvoiceId,
+                'error' => $e->getMessage(),
+            ]);
+
+            return $e->getMessage();
+        }
+    }
+
+    /**
+     * Contabiliza una nota crédito de compra contra su factura padre.
+     *
+     * - Nota por el total de la factura (±0.01): revierte el asiento completo de la factura.
+     * - Nota parcial (0 < monto < total): asiento nuevo con las líneas de la factura invertidas y
+     *   escaladas por monto_nota / total_factura; el asiento de la factura queda vigente.
+     * - Idempotente: si la nota ya tiene asiento activo lo devuelve.
+     * - La suma acumulada de notas contabilizadas de la factura no puede superar su total.
+     * - Si la factura padre (recibida/aprobada) no tiene asiento, intenta contabilizarla primero.
+     */
     public function postCreditNote(PurchaseDocument $note): JournalEntry
     {
         $noteId = (int) $note->id;
@@ -590,39 +658,179 @@ class AccountingPostingService
             throw new RuntimeException('La nota crédito no tiene una factura de compra padre asociada.');
         }
 
-        $parentEntry = $this->getDocumentEntry(self::SOURCE_PURCHASE_INVOICE, $parentInvoiceId);
-
-        if (! $parentEntry) {
-            throw new RuntimeException(
-                'La factura de compra padre no tiene asiento contable registrado. '
-                .'Contabilice primero la factura antes de crear la nota crédito.'
-            );
-        }
-
-        $invoiceTotal = round((float) ($parentEntry->total_credit ?? 0), 2);
-        $noteTotal = round((float) (($note->total ?? null) ?? $note->items()->sum(DB::raw('COALESCE(total, 0) + COALESCE(total_tax, 0)'))), 2);
-
-        if ($noteTotal > 0 && abs($noteTotal - $invoiceTotal) > 0.01) {
-            throw new RuntimeException(
-                "Esta nota crédito es por un monto parcial ({$noteTotal}) distinto al total "
-                ."de la factura padre ({$invoiceTotal}). Las notas crédito parciales aún "
-                .'no están soportadas. Gestione este caso manualmente.'
-            );
-        }
-
-        if ($this->isDocumentPosted(self::SOURCE_CREDIT_NOTE, $noteId)) {
-            $activeNoteEntry = JournalEntry::query()
-                ->forSource(self::SOURCE_CREDIT_NOTE, $noteId)
-                ->activePosted()
-                ->latest('id')
-                ->first();
+        return DB::transaction(function () use ($note, $noteId, $noteNumber, $parentInvoiceId) {
+            $activeNoteEntry = $this->activeCreditNoteEntryForUpdate($noteId);
 
             if ($activeNoteEntry) {
                 Log::info("AccountingPostingService: Credit note {$noteNumber} already posted as entry {$activeNoteEntry->entry_number}");
+
                 return $activeNoteEntry;
             }
+
+            $parentEntry = $this->resolveActiveSourceEntryForUpdate(self::SOURCE_PURCHASE_INVOICE, $parentInvoiceId);
+            $repairError = null;
+
+            if (! $parentEntry) {
+                // Auto-reparación: factura recibida/aprobada (p.ej. de tela, aprobada antes de contabilizarse
+                // al recepcionar) que nunca tuvo asiento. Si no se puede, se deja el error claro de abajo.
+                $repairError = $this->tryPostMissingParentInvoice($parentInvoiceId);
+                $parentEntry = $this->resolveActiveSourceEntryForUpdate(self::SOURCE_PURCHASE_INVOICE, $parentInvoiceId);
+            }
+
+            if (! $parentEntry) {
+                $wasReversed = JournalEntry::query()
+                    ->forSource(self::SOURCE_PURCHASE_INVOICE, $parentInvoiceId)
+                    ->where('status', JournalEntry::STATUS_REVERSED)
+                    ->exists();
+
+                throw new RuntimeException($wasReversed
+                    ? 'El asiento de la factura de compra padre ya fue revertido por completo por otra nota crédito.'
+                    : 'La factura de compra padre no tiene asiento contable registrado. '
+                        .'Contabilice primero la factura antes de crear la nota crédito.'
+                        .($repairError !== null ? " No se pudo contabilizar automáticamente: {$repairError}" : ''));
+            }
+
+            $invoiceTotal = round((float) ($parentEntry->total_credit ?? 0), 2);
+            $noteTotal = $this->resolveCreditNoteTotal($note);
+
+            if ($noteTotal <= 0) {
+                throw new RuntimeException("La nota crédito {$noteNumber} no tiene un monto válido para contabilizar.");
+            }
+
+            $alreadyCredited = $this->creditedTotalForInvoice($parentInvoiceId, $noteId);
+
+            if (round($alreadyCredited + $noteTotal, 2) > $invoiceTotal + 0.01) {
+                throw new RuntimeException(
+                    "La nota crédito {$noteNumber} ({$noteTotal}) supera el saldo acreditable de la factura padre: "
+                    ."total {$invoiceTotal}, ya acreditado {$alreadyCredited}."
+                );
+            }
+
+            if (abs($noteTotal - $invoiceTotal) <= 0.01) {
+                return $this->postFullCreditNote($noteId, $noteNumber, $parentInvoiceId);
+            }
+
+            return $this->postPartialCreditNote($note, $parentEntry, $noteTotal, $invoiceTotal);
+        });
+    }
+
+    /**
+     * Sincroniza el asiento de una nota crédito editada: lo crea si no existe y, si el monto cambió,
+     * revierte el asiento parcial vigente y contabiliza uno nuevo.
+     */
+    public function syncCreditNoteEntry(PurchaseDocument $note): JournalEntry
+    {
+        return DB::transaction(function () use ($note) {
+            $noteId = (int) $note->id;
+            $existing = $this->activeCreditNoteEntryForUpdate($noteId);
+
+            if (! $existing) {
+                return $this->postCreditNote($note);
+            }
+
+            if (abs($this->resolveCreditNoteTotal($note) - round((float) $existing->total_debit, 2)) <= 0.01) {
+                return $existing;
+            }
+
+            if ($existing->reverses_entry_id !== null) {
+                throw new RuntimeException(
+                    'La nota crédito por el total de la factura ya revirtió su asiento completo; '
+                    .'no se puede cambiar su monto. Elimínela o gestione el ajuste manualmente.'
+                );
+            }
+
+            $this->reverseEntry(
+                self::SOURCE_CREDIT_NOTE,
+                $noteId,
+                'Actualización de la nota crédito #'.trim((string) $note->document_number),
+            );
+
+            return $this->postCreditNote($note);
+        });
+    }
+
+    /**
+     * Anula el asiento parcial de una nota crédito eliminada (o que dejó de ser crédito).
+     * El asiento de una nota por el total revirtió el de la factura y no se puede anular aquí.
+     */
+    public function voidCreditNoteEntry(PurchaseDocument $note): ?JournalEntry
+    {
+        return DB::transaction(function () use ($note) {
+            $noteId = (int) $note->id;
+            $existing = $this->activeCreditNoteEntryForUpdate($noteId);
+
+            if (! $existing) {
+                return null;
+            }
+
+            if ($existing->reverses_entry_id !== null) {
+                Log::warning("AccountingPostingService: Credit note {$note->document_number} reversed the whole invoice entry; its journal entry was not voided.", [
+                    'journal_entry_id' => $existing->id,
+                ]);
+
+                return null;
+            }
+
+            return $this->reverseEntry(
+                self::SOURCE_CREDIT_NOTE,
+                $noteId,
+                'Anulación de la nota crédito #'.trim((string) $note->document_number),
+            );
+        });
+    }
+
+    /**
+     * Total (con impuestos) de las notas crédito vigentes de una factura que ya tienen asiento contabilizado.
+     */
+    public function creditedTotalForInvoice(int $invoiceId, ?int $exceptNoteId = null): float
+    {
+        $noteIds = PurchaseDocument::query()
+            ->where('parent_document_id', $invoiceId)
+            ->where('document_type', PurchaseDocument::TYPE_CREDIT_NOTE)
+            ->when($exceptNoteId, fn ($query) => $query->where('id', '!=', $exceptNoteId))
+            ->whereIn('id', JournalEntry::query()
+                ->select('source_id')
+                ->where('source_type', self::SOURCE_CREDIT_NOTE)
+                ->where('status', JournalEntry::STATUS_POSTED))
+            ->pluck('id');
+
+        if ($noteIds->isEmpty()) {
+            return 0.0;
         }
 
+        return round((float) PurchaseDocumentItem::query()
+            ->whereIn('purchase_document_id', $noteIds)
+            ->sum(DB::raw('COALESCE(total, 0) + COALESCE(total_tax, 0)')), 2);
+    }
+
+    private function resolveCreditNoteTotal(PurchaseDocument $note): float
+    {
+        return round((float) $note->items()->sum(DB::raw('COALESCE(total, 0) + COALESCE(total_tax, 0)')), 2);
+    }
+
+    /**
+     * Asiento vigente de una nota crédito: contabilizado, no revertido y que no sea el asiento de
+     * anulación de otra nota (el de una nota por el total sí es una reversión, pero de la factura).
+     */
+    private function activeCreditNoteEntryForUpdate(int $noteId): ?JournalEntry
+    {
+        return JournalEntry::query()
+            ->forSource(self::SOURCE_CREDIT_NOTE, $noteId)
+            ->where('status', JournalEntry::STATUS_POSTED)
+            ->whereNull('reversed_by_entry_id')
+            ->where(function ($query) {
+                $query->whereNull('reverses_entry_id')
+                    ->orWhereIn('reverses_entry_id', JournalEntry::query()
+                        ->select('id')
+                        ->where('source_type', self::SOURCE_PURCHASE_INVOICE));
+            })
+            ->lockForUpdate()
+            ->latest('id')
+            ->first();
+    }
+
+    private function postFullCreditNote(int $noteId, string $noteNumber, int $parentInvoiceId): JournalEntry
+    {
         $reversalEntry = $this->reverseEntry(
             self::SOURCE_PURCHASE_INVOICE,
             $parentInvoiceId,
@@ -647,6 +855,113 @@ class AccountingPostingService
         ]);
 
         return $reversalEntry->fresh(['lines.account', 'lines.contact']) ?? $reversalEntry;
+    }
+
+    /**
+     * Asiento proporcional: cada línea de la factura se invierte (debe <-> haber) y se escala por
+     * ratio = monto_nota / total_factura, redondeando a centavos. El residuo de redondeo de cada lado
+     * se ajusta en su línea de mayor monto para que débitos = créditos = monto de la nota.
+     */
+    private function postPartialCreditNote(
+        PurchaseDocument $note,
+        JournalEntry $parentEntry,
+        float $noteTotal,
+        float $invoiceTotal,
+    ): JournalEntry {
+        $noteNumber = trim((string) $note->document_number);
+        $invoiceNumber = trim((string) ($note->parent?->document_number ?? $note->parent_document_id));
+        $ratio = $noteTotal / $invoiceTotal;
+
+        $scaled = [];
+        foreach ($parentEntry->lines as $line) {
+            $debit = (int) round(((float) $line->credit) * $ratio * 100);
+            $credit = (int) round(((float) $line->debit) * $ratio * 100);
+
+            if ($debit === 0 && $credit === 0) {
+                continue;
+            }
+
+            $scaled[] = ['line' => $line, 'debit' => $debit, 'credit' => $credit];
+        }
+
+        if ($scaled === []) {
+            throw new RuntimeException("La nota crédito {$noteNumber} es demasiado pequeña para contabilizarse.");
+        }
+
+        $targetCents = (int) round($noteTotal * 100);
+
+        foreach (['debit', 'credit'] as $side) {
+            $residual = $targetCents - array_sum(array_column($scaled, $side));
+
+            if ($residual === 0) {
+                continue;
+            }
+
+            $largestIndex = null;
+            foreach ($scaled as $index => $row) {
+                if ($row[$side] > 0 && ($largestIndex === null || $row[$side] > $scaled[$largestIndex][$side])) {
+                    $largestIndex = $index;
+                }
+            }
+
+            if ($largestIndex === null || $scaled[$largestIndex][$side] + $residual <= 0) {
+                throw new RuntimeException("No se pudo balancear el asiento de la nota crédito {$noteNumber}.");
+            }
+
+            $scaled[$largestIndex][$side] += $residual;
+        }
+
+        $entryNumber = $this->sequenceService->reserveNextNumber();
+
+        $entry = JournalEntry::create([
+            'entry_number' => $entryNumber,
+            'entry_date' => $note->date ?? now(),
+            'entry_type' => JournalEntry::TYPE_CREDIT_NOTE,
+            'status' => JournalEntry::STATUS_POSTED,
+            'posted_at' => now(),
+            'description' => sprintf(
+                'Nota crédito #%s parcial (%s%% de la factura #%s)',
+                $noteNumber,
+                number_format($ratio * 100, 2, '.', ''),
+                $invoiceNumber,
+            ),
+            'source_type' => self::SOURCE_CREDIT_NOTE,
+            'source_id' => (int) $note->id,
+            'total_debit' => 0,
+            'total_credit' => 0,
+            'created_by_user_id' => Auth::id() ?? $note->created_by_user_id,
+        ]);
+
+        foreach ($scaled as $index => $row) {
+            /** @var JournalEntryLine $source */
+            $source = $row['line'];
+
+            JournalEntryLine::create([
+                'journal_entry_id' => $entry->id,
+                'account_id' => $source->account_id,
+                'contact_id' => $source->contact_id,
+                'debit' => number_format($row['debit'] / 100, 2, '.', ''),
+                'credit' => number_format($row['credit'] / 100, 2, '.', ''),
+                'description' => "NC {$noteNumber}: {$source->description}",
+                'line_reference' => 'NC-'.$noteNumber.'-'.($source->line_reference ?: 'L'.($index + 1)),
+            ]);
+        }
+
+        $entry->recalculateTotals();
+
+        if (! $entry->isBalanced()) {
+            throw new RuntimeException("El asiento contable de la nota crédito {$noteNumber} no está balanceado.");
+        }
+
+        $entry->save();
+
+        Log::info("AccountingPostingService: Posted partial credit note {$noteNumber} as journal entry {$entryNumber}", [
+            'journal_entry_id' => $entry->id,
+            'parent_entry_id' => $parentEntry->id,
+            'ratio' => $ratio,
+        ]);
+
+        return $entry->fresh(['lines.account', 'lines.contact']) ?? $entry;
     }
 
     public function postInventoryAdjustmentOutflow(
@@ -807,7 +1122,7 @@ class AccountingPostingService
 
         if ($movementReason !== 'entry_regularization') {
             throw new InvalidArgumentException(
-                'Solo las regularizaciones positivas de inventario tienen politica contable definida en esta etapa.'
+                'Solo las regularizaciones positivas de inventario tienen política contable definida en esta etapa.'
             );
         }
 
@@ -1167,6 +1482,11 @@ class AccountingPostingService
             2
         );
 
+        $invoiceIva = round(
+            (float) $invoice->items->sum(fn (PurchaseDocumentItem $item) => (float) ($item->total_tax ?? 0)),
+            2
+        );
+
         $withholdings = is_array($invoice->withholdings) ? $invoice->withholdings : [];
         $lines = [];
 
@@ -1177,15 +1497,6 @@ class AccountingPostingService
 
             $percentage = round((float) ($withholding['percentage'] ?? 0), 2);
             if ($percentage <= 0) {
-                continue;
-            }
-
-            $baseAmount = isset($withholding['base_amount']) && is_numeric($withholding['base_amount'])
-                ? round((float) $withholding['base_amount'], 2)
-                : $invoiceSubtotal;
-
-            $amount = round(($baseAmount * $percentage) / 100, 2);
-            if ($amount <= 0) {
                 continue;
             }
 
@@ -1205,6 +1516,17 @@ class AccountingPostingService
                     .($retentionName !== '' ? $retentionName : '#'.($index + 1))
                     .'" para contabilizar la factura de compra.'
                 );
+            }
+
+            // Base por defecto según normativa: ReteIVA sobre el IVA; ReteFuente/ICA sobre el subtotal.
+            $hasCustomBase = isset($withholding['base_amount']) && is_numeric($withholding['base_amount']) && (float) $withholding['base_amount'] > 0;
+            $baseAmount = $hasCustomBase
+                ? round((float) $withholding['base_amount'], 2)
+                : round(\App\Support\Finance\PurchaseWithholdingCalculator::defaultBase($retention->type, $invoiceSubtotal, $invoiceIva), 2);
+
+            $amount = round(($baseAmount * $percentage) / 100, 2);
+            if ($amount <= 0) {
+                continue;
             }
 
             if (! $retention->account_id) {
@@ -1474,7 +1796,7 @@ class AccountingPostingService
         $noteNumber = trim((string) ($note->document_number ?: $noteId));
 
         if (! $note->isCreditDebitNote()) {
-            throw new InvalidArgumentException('El documento recibido no es una nota de venta valida.');
+            throw new InvalidArgumentException('El documento recibido no es una nota de venta válida.');
         }
 
         if (($note->status ?? null) !== 'issued') {

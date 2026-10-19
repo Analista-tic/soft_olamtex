@@ -98,6 +98,7 @@ class PermissionSeeder extends Seeder
             'editar telas rollos',
             'eliminar telas rollos',
             'ajustar telas rollos',
+            'agregar rollos recepcion aprobada',
             'fabric_rolls.import',
             'aprobar recepcion tela',
             'rechazar recepcion tela',
@@ -107,6 +108,7 @@ class PermissionSeeder extends Seeder
             'eliminar descargue telas orden',
             'descargar telas orden',
             'corregir descargue telas orden',
+            'revisar diferencias metraje telas',
 
             'anular comprobantes egreso',
             'ver movimientos cuenta contable',
@@ -115,8 +117,15 @@ class PermissionSeeder extends Seeder
             'crear contactos',
             'editar contactos',
             'eliminar contactos',
+            'carga masiva contactos',
+            'exportar contactos',
 
             'activar desactivar item',
+            'habilitar item',
+            'crear items',
+            'editar items',
+            'eliminar items',
+            'crear referencia manual item',
             'carga masiva items',
             'exportar items',
 
@@ -138,6 +147,6 @@ class PermissionSeeder extends Seeder
             Permission::findOrCreate($permission, 'web');
         }
 
-        $this->command->info('PermissionSeeder ejecutado: ' . count($newPermissions) . ' permisos procesados.');
+        $this->command->info('PermissionSeeder ejecutado: '.count($newPermissions).' permisos procesados.');
     }
 }

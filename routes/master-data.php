@@ -21,6 +21,7 @@ Route::prefix('catalogos/categorias')->name('catalogos.categorias.')->group(func
 
 // === CATEGORIAS ===
 Route::prefix('categorias')->name('categorias.')->middleware('permission:ver categorias')->group(function () {
+    Route::get('grupos/gestion', [CategoryGroupController::class, 'management'])->name('groups.management');
     Route::get('grupos', [CategoryGroupController::class, 'getData'])->name('groups.getData');
     Route::post('grupos', [CategoryGroupController::class, 'store'])->name('groups.store')->middleware('permission:crear categorias');
     Route::put('grupos/{group}', [CategoryGroupController::class, 'update'])->name('groups.update')->middleware('permission:editar categorias');
@@ -37,6 +38,9 @@ Route::get('contactos/data', [ContactController::class, 'getData'])->name('conta
 Route::get('contactos/list', [ContactController::class, 'list'])->name('contactos.list');
 
 Route::prefix('contactos')->name('contactos.')->middleware('permission:ver contactos')->group(function () {
+    Route::get('/descargar-plantilla', [ContactController::class, 'downloadTemplate'])->name('descargar-plantilla');
+    Route::get('/exportar-excel', [ContactController::class, 'exportExcel'])->name('exportar-excel')->middleware('permission:exportar contactos');
+    Route::post('/carga-masiva', [ContactController::class, 'bulkUpload'])->name('carga-masiva')->middleware('permission:carga masiva contactos');
     Route::get('/', [ContactController::class, 'index'])->name('index');
     Route::post('/', [ContactController::class, 'store'])->name('store')->middleware('permission:crear contactos');
     Route::get('/{contact}', [ContactController::class, 'show'])->name('show');
@@ -45,12 +49,12 @@ Route::prefix('contactos')->name('contactos.')->middleware('permission:ver conta
 });
 
 // === ITEMS ===
-// /data accesible también para roles que gestionan facturas (contabilidad, etc.)
+// El catálogo de ítems tiene permisos propios, independientes del inventario.
 Route::get('/item/data', [ItemController::class, 'getData'])
     ->name('item.data')
-    ->middleware('permission:ver inventario telas|ver facturas compra|crear facturas compra');
+    ->middleware('permission:ver catalogo items');
 
-Route::prefix('item')->name('item.')->middleware('permission:ver inventario telas')->group(function () {
+Route::prefix('item')->name('item.')->middleware('permission:ver catalogo items')->group(function () {
     Route::get('/descargar-plantilla', [ItemController::class, 'downloadTemplate'])->name('descargar-plantilla');
     Route::get('/exportar-excel', [ItemController::class, 'exportExcel'])->name('exportar-excel')->middleware('permission:exportar items');
     Route::get('/', [ItemController::class, 'index'])->name('index');
@@ -58,10 +62,11 @@ Route::prefix('item')->name('item.')->middleware('permission:ver inventario tela
     Route::get('/check-duplicate', [ItemController::class, 'checkDuplicate'])->name('check-duplicate');
     Route::get('/search', [ItemController::class, 'search'])->name('search');
     Route::get('/{id}', [ItemController::class, 'show'])->name('show');
-    Route::post('/', [ItemController::class, 'store'])->name('store')->middleware('permission:crear inventario telas');
-    Route::put('/{id}', [ItemController::class, 'update'])->name('update')->middleware('permission:editar inventario telas');
-    Route::delete('/{id}', [ItemController::class, 'destroy'])->name('destroy')->middleware('permission:eliminar inventario telas');
+    Route::post('/', [ItemController::class, 'store'])->name('store')->middleware('permission:crear items');
+    Route::put('/{id}', [ItemController::class, 'update'])->name('update')->middleware('permission:editar items');
+    Route::delete('/{id}', [ItemController::class, 'destroy'])->name('destroy')->middleware('permission:eliminar items');
     Route::post('/{id}/toggle-status', [ItemController::class, 'toggleStatus'])->name('toggle-status')->middleware('permission:activar desactivar item');
+    Route::post('/bulk-toggle-status', [ItemController::class, 'bulkToggleStatus'])->name('bulk-toggle-status')->middleware('permission:activar desactivar item');
 });
 
 Route::middleware(['auth', 'permission:ver colores'])->group(function () {

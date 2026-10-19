@@ -6,7 +6,6 @@ use App\Exceptions\MasterData\ParameterInUseException;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\MasterData\StoreParameterRequest;
 use App\Http\Requests\MasterData\UpdateParameterRequest;
-use App\Models\Settings\Setting;
 use App\Services\MasterData\ParameterService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -45,7 +44,11 @@ class ParameterController extends Controller
 
     public function update(UpdateParameterRequest $request, $id)
     {
-        $parameter = $this->service->update((int) $id, $request->validated());
+        try {
+            $parameter = $this->service->update((int) $id, $request->validated());
+        } catch (ParameterInUseException $exception) {
+            return response()->json($exception->context(), 409);
+        }
 
         return response()->json($parameter);
     }
@@ -64,27 +67,5 @@ class ParameterController extends Controller
         }
 
         return response()->noContent();
-    }
-
-    public function areas(): JsonResponse
-    {
-        $setting = Setting::parameters()->where('key', 'areas')->first();
-
-        if (! $setting) {
-            return response()->json([]);
-        }
-
-        $areas = is_array($setting->value) ? array_values($setting->value) : [];
-
-        $areas = array_map(function (mixed $area, int $index): ?array {
-            if (! is_array($area)) {
-                return null;
-            }
-            $id = isset($area['id']) && is_int($area['id']) ? $area['id'] : ($index + 1);
-
-            return array_merge($area, ['id' => $id]);
-        }, $areas, array_keys($areas));
-
-        return response()->json(array_values(array_filter($areas)));
     }
 }

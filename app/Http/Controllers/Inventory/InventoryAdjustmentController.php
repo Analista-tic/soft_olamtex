@@ -101,6 +101,8 @@ class InventoryAdjustmentController extends Controller
     public function store(Request $request)
     {
         $this->decodeLinesJson($request);
+        // El consecutivo lo asigna el servidor; un número viejo que llegue del formulario no debe provocar "ya existe".
+        $request->merge(['document_number' => null]);
 
         try {
             $data = $this->validateAdjustment($request, $this->service->movementReasons());
@@ -119,7 +121,7 @@ class InventoryAdjustmentController extends Controller
             return $this->validationErrorResponse($e);
         } catch (\Throwable $e) {
             return response()->json([
-                'message' => 'Ocurrio un error al guardar el ajuste de inventario.',
+                'message' => 'Ocurrió un error al guardar el ajuste de inventario.',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -149,7 +151,7 @@ class InventoryAdjustmentController extends Controller
             return $this->validationErrorResponse($e);
         } catch (\Throwable $e) {
             return response()->json([
-                'message' => 'Ocurrio un error al actualizar el ajuste de inventario.',
+                'message' => 'Ocurrió un error al actualizar el ajuste de inventario.',
                 'error' => $e->getMessage(),
             ], 500);
         }
@@ -163,16 +165,6 @@ class InventoryAdjustmentController extends Controller
         $this->service->deleteAdjustment($id);
 
         return response()->noContent();
-    }
-
-    /**
-     * Devuelve el siguiente numero consecutivo sugerido (para mostrar en el formulario).
-     */
-    public function nextNumber()
-    {
-        $next = $this->service->nextNumber();
-
-        return response()->json(['document_number' => $next]);
     }
 
     public function movementReasons()
@@ -234,7 +226,7 @@ class InventoryAdjustmentController extends Controller
             'lines.*.tax' => 'nullable|numeric|min:0',
             'lines.*.quantity' => 'required|integer|min:1',
             'lines.*.movement_reason' => ['required', Rule::in(array_keys($movementReasons))],
-            'lines.*.description' => 'required|string|min:1',
+            'lines.*.description' => 'nullable|string',
         ];
 
         return $request->validate($rules);

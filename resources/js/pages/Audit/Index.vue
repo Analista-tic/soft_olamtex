@@ -9,6 +9,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogClose, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { useAreas } from '@/composables/useAreas';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import type { BreadcrumbItem, PaginatedData, AuditLog as SharedAuditLog, SharedData } from '@/domain/shared';
 import AppLayout from '@/layouts/AppLayout.vue';
@@ -61,54 +62,14 @@ const filters = reactive({
     area: '',
 });
 // Opciones de área
-type AreaOption = { id: number; name: string };
-const areaOptions = ref<AreaOption[]>([]);
-const areaSelectOptions = computed(() => [{ id: '', name: 'Todas las áreas' }, ...areaOptions.value]);
+const { areaOptions, fetchAreas } = useAreas();
+const areaSelectOptions = computed(() => [
+    { id: '', name: 'Todas las áreas' },
+    ...[...areaOptions.value].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
+]);
 const selectedAreaId = ref(filters.area ?? '');
 const isAreaFilterActive = computed(() => selectedAreaId.value !== '' && selectedAreaId.value !== null);
 const areaFilterButtonClasses = useFilterButtonClasses(isAreaFilterActive);
-
-function normalizeAreas(payload: unknown): AreaOption[] {
-    if (typeof payload === 'string') {
-        try {
-            return normalizeAreas(JSON.parse(payload));
-        } catch {
-            return [];
-        }
-    }
-    if (!Array.isArray(payload)) {
-        if (payload && typeof payload === 'object') {
-            const record = payload as Record<string, unknown>;
-            if ('data' in record) return normalizeAreas(record.data);
-            if ('valor' in record) return normalizeAreas(record.valor);
-        }
-        return [];
-    }
-    return payload
-        .map((area) => {
-            if (area && typeof area === 'object') {
-                const record = area as Record<string, unknown>;
-                const name = String(record.name ?? record.nombre ?? record.label ?? '').trim();
-                if (!name) return null;
-                const rawId = record.id;
-                const parsedId = typeof rawId === 'number' ? rawId : Number(rawId);
-                if (!Number.isFinite(parsedId)) return null;
-                return { id: parsedId, name };
-            }
-            return null;
-        })
-        .filter((area): area is AreaOption => Boolean(area));
-}
-
-async function fetchAreas() {
-    try {
-        const { data } = await axios.get('/api/parameters/areas');
-        areaOptions.value = normalizeAreas(data);
-    } catch (error) {
-        console.error('Error al cargar áreas:', error);
-        areaOptions.value = [];
-    }
-}
 
 onMounted(() => {
     fetchAreas();
@@ -119,6 +80,13 @@ const actionOptionsForSelect = [
     { id: 'created', name: 'Creado' },
     { id: 'updated', name: 'Actualizado' },
     { id: 'deleted', name: 'Eliminado' },
+    { id: 'restored', name: 'Restaurado' },
+    { id: 'force_deleted', name: 'Eliminado definitivamente' },
+    { id: 'login', name: 'Inicio de sesión' },
+    { id: 'logout', name: 'Cierre de sesión' },
+    { id: 'login_failed', name: 'Inicio de sesión fallido' },
+    { id: 'lockout', name: 'Acceso bloqueado' },
+    { id: 'password_reset', name: 'Contraseña restablecida' },
 ];
 
 const selectAction = ref<string | null>(filters.action ?? null);
@@ -308,18 +276,31 @@ const actionLabels: Record<string, string> = {
     created: 'Creado',
     updated: 'Actualizado',
     deleted: 'Eliminado',
+    restored: 'Restaurado',
+    force_deleted: 'Eliminado definitivamente',
+    login: 'Inicio de sesión',
+    logout: 'Cierre de sesión',
+    login_failed: 'Inicio de sesión fallido',
+    lockout: 'Acceso bloqueado',
+    password_reset: 'Contraseña restablecida',
 };
 
 const actionVerbMap: Record<string, string> = {
     created: 'creó',
     updated: 'actualizó',
     deleted: 'eliminó',
+    restored: 'restauró',
+    force_deleted: 'eliminó definitivamente',
 };
 
 const actionToneMap: Record<string, 'green' | 'blue' | 'red' | 'gray'> = {
     created: 'green',
     updated: 'blue',
     deleted: 'red',
+    restored: 'green',
+    force_deleted: 'red',
+    login_failed: 'red',
+    lockout: 'red',
 };
 
 const fieldLabelTranslations: Record<string, string> = {
@@ -569,7 +550,12 @@ function summarizeChangedFields(log: AuditLog): string[] {
 }
 
 function formatDescriptionSummary(log: AuditLog): string {
-    const verb = actionVerbMap[log.action ?? ''] ?? 'registró';
+    const mappedVerb = actionVerbMap[log.action ?? ''];
+    // Eventos sin cambios de campos (sesión, operaciones masivas, permisos): usar la descripción del backend.
+    if (!mappedVerb && log.description) {
+        return log.description;
+    }
+    const verb = mappedVerb ?? 'registró';
     const fields = summarizeChangedFields(log);
     if (!fields.length) {
         return `Se ${verb} un recurso.`;

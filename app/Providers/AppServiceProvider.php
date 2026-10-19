@@ -4,6 +4,8 @@ namespace App\Providers;
 
 use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchaseDocumentItem;
+use App\Models\Expenses\PurchaseDocumentItemReception;
+use App\Models\Expenses\PurchaseDocumentReceptionEvent;
 use App\Models\Expenses\PurchaseRequest;
 use App\Models\Finance\Retention;
 use App\Models\Finance\Tax;
@@ -42,11 +44,49 @@ use App\Models\Production\ProductSheetCuttingPiece;
 use App\Models\Production\TechnicalSheetThread;
 use App\Models\Production\YarnBase;
 use App\Models\Settings\Area;
+use App\Models\Settings\NotificationEvent;
+use App\Models\Settings\NotificationEventRecipient;
 use App\Models\Settings\User;
 use App\Models\Settings\Role;
 use App\Models\Settings\Setting;
 use App\Models\Textil\FabricRoll;
+use App\Models\Textil\FabricRollLengthDifference;
+use App\Models\Expenses\ExpenseVoucher;
+use App\Models\Expenses\PurchasePayment;
+use App\Models\Finance\AccountingAccount;
+use App\Models\Finance\BankAccount;
+use App\Models\Finance\CashReceipt;
+use App\Models\Finance\JournalEntry;
+use App\Models\Finance\JournalEntryLine;
+use App\Models\Income\SaleDocument;
+use App\Models\Income\SaleDocumentItem;
+use App\Models\Income\SalePayment;
+use App\Models\Inventory\InventoryPeriodLock;
+use App\Models\Inventory\WarehouseItem;
+use App\Models\Inventory\WarehouseLocation;
+use App\Models\MasterData\Color;
+use App\Models\Production\BatchControlDelivery;
+use App\Models\Production\BatchControlInspection;
+use App\Models\Production\BatchControlNovelty;
+use App\Models\Production\BatchControlWarehouseReceipt;
+use App\Models\Production\Brand;
+use App\Models\Production\Destination;
+use App\Models\Production\FabricRollProgrammingLine;
+use App\Models\Production\Group;
+use App\Models\Production\ManualRollProgramming;
+use App\Models\Production\ProductionRollConsumption;
+use App\Models\Production\Section;
+use App\Models\Production\TechnicalSheetCuttingPiece;
+use App\Models\Production\TechnicalSheetCuttingPieceSize;
+use App\Models\Production\TechnicalSheetSize;
+use App\Models\Production\TechnicalSheetStampingImage;
+use App\Models\Production\World;
+use App\Models\Textil\FabricRollAdjustment;
+use App\Models\Textil\FabricRollCreditNoteLink;
+use App\Listeners\AuditAuthenticationEvents;
 use App\Observers\AuditObserver;
+use Illuminate\Support\Facades\Event;
+use Spatie\Permission\Models\Permission;
 use App\Observers\Textil\FabricRollObserver;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Gate;
@@ -100,6 +140,7 @@ class AppServiceProvider extends ServiceProvider
         Route::model('sabana', ProductSheet::class);
 
         $this->registerAuditObservers();
+        Event::subscribe(AuditAuthenticationEvents::class);
         FabricRoll::observe(FabricRollObserver::class);
 
         Model::saving(function (Model $model): void {
@@ -123,6 +164,9 @@ class AppServiceProvider extends ServiceProvider
             Setting::class,
             Area::class,
             Role::class,
+            NotificationEvent::class,
+            NotificationEventRecipient::class,
+            Permission::class,
             // MasterData
             CategoryGroup::class,
             CategorySubGroup::class,
@@ -131,13 +175,27 @@ class AppServiceProvider extends ServiceProvider
             Parameter::class,
             FabricName::class,
             YarnName::class,
+            Color::class,
             // Finance
             Tax::class,
             Retention::class,
+            AccountingAccount::class,
+            BankAccount::class,
+            CashReceipt::class,
+            JournalEntry::class,
+            JournalEntryLine::class,
+            // Income
+            SaleDocument::class,
+            SaleDocumentItem::class,
+            SalePayment::class,
             // Expenses
             PurchaseRequest::class,
             PurchaseDocument::class,
             PurchaseDocumentItem::class,
+            PurchaseDocumentItemReception::class,
+            PurchaseDocumentReceptionEvent::class,
+            PurchasePayment::class,
+            ExpenseVoucher::class,
             // Inventory
             Warehouse::class,
             WarehouseTransfer::class,
@@ -147,6 +205,9 @@ class AppServiceProvider extends ServiceProvider
             InventoryAdjustment::class,
             InventoryAdjustmentLine::class,
             InventoryMovement::class,
+            WarehouseItem::class,
+            WarehouseLocation::class,
+            InventoryPeriodLock::class,
             // Production
             ProductSheet::class,
             Collection::class,
@@ -167,8 +228,27 @@ class AppServiceProvider extends ServiceProvider
             TechnicalSheetSupply::class,
             TechnicalSheetRawMaterial::class,
             ProductSheetCuttingPiece::class,
+            TechnicalSheetCuttingPiece::class,
+            TechnicalSheetCuttingPieceSize::class,
+            TechnicalSheetSize::class,
+            TechnicalSheetStampingImage::class,
+            Brand::class,
+            Destination::class,
+            Group::class,
+            Section::class,
+            World::class,
+            BatchControlDelivery::class,
+            BatchControlInspection::class,
+            BatchControlNovelty::class,
+            BatchControlWarehouseReceipt::class,
+            ManualRollProgramming::class,
+            FabricRollProgrammingLine::class,
+            ProductionRollConsumption::class,
             // Textil
             FabricRoll::class,
+            FabricRollLengthDifference::class,
+            FabricRollAdjustment::class,
+            FabricRollCreditNoteLink::class,
         ];
 
         foreach ($auditedModels as $modelClass) {

@@ -52,12 +52,15 @@ class PurchaseDocument extends Model implements HasAuditLabel
         'rejected_at',
         'approved_by_user_id',
         'approved_at',
+        'sent_at',
         'requested_at',
         'ordered_at',
         'invoiced_at',
+        'received_at',
     ];
 
     protected $casts = [
+        'received_at'   => 'datetime',
         'date'          => 'date',
         'delivery_date' => 'date',
 
@@ -66,6 +69,7 @@ class PurchaseDocument extends Model implements HasAuditLabel
         'invoiced_at'   => 'datetime',
         'approved_at'   => 'datetime',
         'rejected_at'   => 'datetime',
+        'sent_at'       => 'datetime',
 
         'withholdings'  => 'array',
         'has_difference' => 'boolean',
@@ -149,6 +153,12 @@ class PurchaseDocument extends Model implements HasAuditLabel
         return $this->belongsTo(User::class, 'rejected_by_user_id');
     }
 
+    // Historial de recepción: rechazos y reaperturas, del más reciente al más antiguo
+    public function receptionEvents()
+    {
+        return $this->hasMany(PurchaseDocumentReceptionEvent::class, 'purchase_document_id')->orderByDesc('occurred_at')->orderByDesc('id');
+    }
+
     // Usuario que aprobó (si aplica)
     public function approvedBy()
     {
@@ -224,6 +234,9 @@ class PurchaseDocument extends Model implements HasAuditLabel
         return $this->isOrder() && $this->status === 'invoiced';
     }
 
+    public const ORDER_LOCKED_MESSAGE = 'Solo se pueden editar o eliminar órdenes de compra pendientes de aprobación.';
+    public const INVOICE_LOCKED_MESSAGE = 'Solo se puede editar o eliminar una factura pendiente de recepción, sin diferencias en revisión ni rechazadas.';
+
     public function canEditOrder(): bool
     {
         return $this->isOrder() && $this->status === 'pending';
@@ -268,9 +281,47 @@ class PurchaseDocument extends Model implements HasAuditLabel
         return $this->isInvoice() && $this->status === 'rejected';
     }
 
+    /**
+     * Editar/eliminar factura (normal y tela): solo pendiente de recepción (o legacy vacío/'pending')
+     * y sin aprobación/diferencia en curso o resuelta.
+     */
     public function canEditInvoice(): bool
     {
-        return $this->isInvoice() && $this->status === 'pending_receipt';
+        if (! $this->isInvoice()) {
+            return false;
+        }
+
+        $status = strtolower(trim((string) $this->status));
+        if (! in_array($status, ['', 'pending', 'pending_receipt'], true)) {
+            return false;
+        }
+
+        return ! in_array($this->approval_status, [
+            self::APPROVAL_PENDING_DIFFERENCE,
+            self::APPROVAL_DIFFERENCE_REJECTED,
+            self::APPROVAL_APPROVED,
+        ], true);
+    }
+
+    public function canDeleteInvoice(): bool
+    {
+        return $this->canEditInvoice();
+    }
+
+    /** Solo se envía al proveedor una orden aprobada (o ya en facturación); nunca pendiente ni rechazada. */
+    public function canSendOrderToSupplier(): bool
+    {
+        $status = $this->status instanceof \BackedEnum ? $this->status->value : (string) $this->status;
+
+        return $this->isOrder() && in_array($status, ['approved', 'partially_invoiced', 'invoiced'], true);
+    }
+
+    /** Una factura rechazada o con diferencia rechazada ya no se envía por correo. */
+    public function canSendInvoiceByEmail(): bool
+    {
+        return $this->isInvoice()
+            && $this->status !== 'rejected'
+            && $this->approval_status !== self::APPROVAL_DIFFERENCE_REJECTED;
     }
 
     public function canRejectInvoice(): bool

@@ -86,7 +86,7 @@ const emit = defineEmits<{
                     <div v-if="item.status === 'pending'" class="mt-3">
                         <template v-if="resolvingNoveltyId === item.id">
                             <div class="space-y-2">
-                                <Textarea
+                                <Textarea data-no-uppercase
                                     :model-value="resolveNotes"
                                     placeholder="Notas de resolución (opcional)..."
                                     :rows="2"

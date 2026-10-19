@@ -121,8 +121,6 @@ function formatStatus(value?: string | null): string {
     if (!value) return '-';
     if (value === 'pending') return 'Pendiente';
     if (value === 'approved') return 'Aprobada';
-    if (value === 'posted') return 'Contabilizada';
-    if (value === 'cancelled') return 'Anulada';
     return value;
 }
 
@@ -147,7 +145,7 @@ function canOpenNote(documentType: string): boolean {
                     :active="isBlockingLoading"
                     :delay-ms="0"
                     message="Cargando notas asociadas..."
-                    description="Preparando notas credito, notas debito y saldos de la factura."
+                    description="Preparando notas crédito, notas débito y saldos de la factura."
                 />
 
                 <template v-if="!isBlockingLoading">
@@ -157,11 +155,11 @@ function canOpenNote(documentType: string): boolean {
                             <p class="text-sm font-semibold">{{ formatCurrency(resolvedSummary.invoice_total) }}</p>
                         </div>
                         <div class="rounded-lg border border-sidebar-border/70 p-3 dark:border-sidebar-border">
-                            <p class="text-xs text-muted-foreground">Notas credito</p>
+                            <p class="text-xs text-muted-foreground">Notas crédito</p>
                             <p class="text-sm font-semibold">{{ formatCurrency(resolvedSummary.credit_total) }}</p>
                         </div>
                         <div class="rounded-lg border border-sidebar-border/70 p-3 dark:border-sidebar-border">
-                            <p class="text-xs text-muted-foreground">Notas debito</p>
+                            <p class="text-xs text-muted-foreground">Notas débito</p>
                             <p class="text-sm font-semibold">{{ formatCurrency(resolvedSummary.debit_total) }}</p>
                         </div>
                         <div class="rounded-lg border border-sidebar-border/70 p-3 dark:border-sidebar-border">

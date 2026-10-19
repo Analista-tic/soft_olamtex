@@ -18,10 +18,12 @@ class DatabaseSeeder extends Seeder
             // === CONFIGURACIÓN DEL SISTEMA ===
             CompanySettingSeeder::class,
             SettingsFieldParametersSeeder::class,
+            AreaSeeder::class,
             RolesAndPermissionsSeeder::class,
             PermissionSeeder::class,
             FabricRollImportPermissionSeeder::class,
             MaterialCatalogPermissionSeeder::class,
+            InventoryAdjustmentPermissionSeeder::class,
             RolePermissionMatrixAdjustmentSeeder::class,
 
             // === MAESTROS DE DATOS ===
@@ -29,6 +31,9 @@ class DatabaseSeeder extends Seeder
             TaxesSeeder::class,
             WarehousesSeeder::class,
             AccountingAccountSeeder::class,
+            FabricBaseSeeder::class,
+            FabricNameSeeder::class,
+            CollectionSeeder::class,
 
             // === PARAMETRIZACIÓN DE OPERACIONES ===
             OperationSeeder::class,
@@ -37,6 +42,7 @@ class DatabaseSeeder extends Seeder
             ColorsSeeder::class,
             LegacyItemsSeeder::class,
             LegacyContactsSeeder::class,
+            ContactsProductionBackupSeeder::class,
             LegacyFabricRollsSeeder::class,
         ]);
 

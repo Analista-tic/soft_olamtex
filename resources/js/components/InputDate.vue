@@ -11,6 +11,7 @@ const props = withDefaults(
         required?: boolean;
         clearable?: boolean;
         showToday?: boolean;
+        error?: boolean | string;
     }>(),
     {
         placeholder: 'Selecciona una fecha',
@@ -19,6 +20,7 @@ const props = withDefaults(
         required: false,
         clearable: false,
         showToday: false,
+        error: false,
     },
 );
 
@@ -36,6 +38,7 @@ const emit = defineEmits<{
         :required="props.required"
         :clearable="props.clearable"
         :show-today="props.showToday"
+        :error="props.error"
         @update:model-value="emit('update:modelValue', $event)"
     />
 </template>

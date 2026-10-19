@@ -52,7 +52,7 @@ beforeEach(function () {
     ]);
 
     $user = User::factory()->create();
-    foreach (['ver inventario telas', 'crear inventario telas', 'editar inventario telas'] as $permission) {
+    foreach (['ver catalogo items', 'crear items', 'editar items', 'crear referencia manual item'] as $permission) {
         $user->givePermissionTo(Permission::findOrCreate($permission, 'web'));
     }
     $this->actingAs($user);
@@ -62,7 +62,9 @@ function baseValidationItemPayload(int $subGroupId): array
 {
     return [
         'category_sub_group_id' => $subGroupId,
+        'color_id' => \App\Models\MasterData\Color::firstOrCreate(['name' => 'COLOR VALIDACION MATERIAL TEST'])->id,
         'reference' => 'REF-VALID-'.uniqid(),
+        'reference_mode' => 'manual',
         'description' => 'Item de prueba validacion',
         'tax' => 0,
         'negative_movement' => false,

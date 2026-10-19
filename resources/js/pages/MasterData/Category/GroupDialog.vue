@@ -52,7 +52,7 @@ async function submitForm() {
     errorMessage.value = '';
     isSaving.value = true;
     try {
-        const payload = { name: form.value.name, code: form.value.code || null };
+        const payload = { name: form.value.name };
         const response =
             props.dialogType === 'create'
                 ? await axios.post<CategoryGroup>('/categorias/grupos', payload)
@@ -88,11 +88,13 @@ async function submitForm() {
                             <div class="flex items-center gap-2">
                                 <Label class="text-sm font-medium">Código</Label>
                                 <HelpTooltip
-                                    text="2 dígitos, único. Se usa para componer la referencia automática de los ítems de este grupo (consecutivo+grupo+subgrupo+color). Déjalo vacío si aún no lo necesitas."
+                                    text="Código de 2 dígitos asignado automáticamente. Se usa para componer la referencia automática de los ítems."
                                     aria-label="Ayuda sobre el código"
                                 />
                             </div>
-                            <InputField v-model="form.code" label="" placeholder="Ej: 01" maxlength="2" />
+                            <div class="rounded-md border bg-muted/50 px-3 py-2 font-mono text-sm text-foreground">
+                                {{ form.code || 'Se asignará automáticamente al crear' }}
+                            </div>
                         </div>
                         <p v-if="errorMessage" class="text-sm text-destructive">{{ errorMessage }}</p>
                     </div>

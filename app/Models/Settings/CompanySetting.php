@@ -8,6 +8,16 @@ use Illuminate\Support\Facades\Route;
 
 class CompanySetting extends Model implements \App\Contracts\HasAuditLabel
 {
+    use \App\Models\Concerns\NormalizesAttributes;
+
+    /** Reglas de normalización al guardar (ver NormalizesAttributes). */
+    protected array $normalizedAttributes = [
+        'email' => 'email',
+        'accounting_email' => 'email',
+        'address' => 'freeText',
+        'description' => 'freeText',
+    ];
+
     protected $fillable = [
         'name',
         'nit',

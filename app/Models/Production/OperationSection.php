@@ -11,7 +11,12 @@ use Illuminate\Database\Eloquent\Builder;
 
 class OperationSection extends Model
 {
-    use HasFactory, SoftDeletes, HasAuditLabel;
+    use HasFactory, SoftDeletes, HasAuditLabel, \App\Models\Concerns\NormalizesAttributes;
+
+    /** Reglas de normalización al guardar. type (enum PREPARACION/ENSAMBLE/TERMINACION) queda fuera. */
+    protected array $normalizedAttributes = [
+        'name' => 'catalogName',
+    ];
 
     protected $table = 'operation_sections';
 

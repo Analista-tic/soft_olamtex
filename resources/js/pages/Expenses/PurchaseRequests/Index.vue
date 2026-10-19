@@ -1,32 +1,48 @@
 <script setup lang="ts">
+import HoverTooltip from '@/components/common/HoverTooltip.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import ConfirmWithInputDialog from '@/components/common/ConfirmWithInputDialog.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import EditButton from '@/components/common/EditButton.vue';
-import ServerPagination from '@/components/common/ServerPagination.vue';
+import SearchInput from '@/components/common/SearchInput.vue';
+import PurchaseListTable, { type ListColumn } from '@/components/common/PurchaseListTable.vue';
+import TableActionsMenu from '@/components/common/TableActionsMenu.vue';
+import TableRowActions from '@/components/common/TableRowActions.vue';
 import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
+import ViewButton from '@/components/common/ViewButton.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
-import InputDate from '@/components/InputDate.vue';
+import AccountingDateRangePicker from '@/components/AccountingDateRangePicker.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import Input from '@/components/ui/input/Input.vue';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAlertStack } from '@/composables/useAlert';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
-import { useAuthStore } from '@/stores/auth';
 import type { PurchaseRequest } from '@/domain/Expenses';
+import { formatCurrency, formatDate } from '@/domain/Expenses/format';
+import { getPurchaseRequestStatus } from '@/domain/Expenses/statuses';
+import { canDeleteRequest as canDeleteRequestRule, canEditRequest as canEditRequestRule } from '@/domain/Expenses/rules';
 import AppLayout from '@/layouts/AppLayout.vue';
-import { Head } from '@inertiajs/vue3';
+import { useAuthStore } from '@/stores/auth';
+import { Head, router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
-import { CheckCircle, Eye, MoreVertical, PlusCircle, Search, Send, X, XCircle } from 'lucide-vue-next';
+import { CheckCircle, MessageSquareWarning, PlusCircle, Send, X, XCircle } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import PurchaseRequestDialog from './PurchaseRequestDialog.vue';
 
 const breadcrumbs = [{ title: 'Solicitud de compra', href: '/solicitudes-compra' }];
+
+const columns: ListColumn[] = [
+    { key: 'request_number', label: 'N° Solicitud' },
+    { key: 'date', label: 'Fecha', sortField: 'date' },
+    { key: 'provider_name', label: 'Proveedor', class: 'max-w-[180px] truncate' },
+    { key: 'requester', label: 'Solicitante', class: 'max-w-[160px] truncate' },
+    { key: 'description', label: 'Descripción', align: 'start', class: 'max-w-[200px] truncate' },
+    { key: 'total', label: 'Total estimado', sortField: 'total' },
+    { key: 'status', label: 'Estado' },
+];
 
 const sortBy = ref<string>('date');
 const sortDir = ref<'asc' | 'desc'>('desc');
@@ -35,9 +51,9 @@ const searchQuery = ref('');
 const currentPage = ref(1);
 const itemsPerPage = ref(10);
 const totalItems = ref(0);
-const statusFilter = ref('all');
+const statusFilter = ref<string | null>(null);
 // Filtro de proveedor eliminado
-const dateFilter = ref('');
+const dateFilter = ref<{ from: string | null; to: string | null }>({ from: null, to: null });
 const isLoading = ref(false);
 function toggleSort(column: string) {
     if (sortBy.value === column) {
@@ -49,12 +65,10 @@ function toggleSort(column: string) {
     fetchRequests();
 }
 
-const DEFAULT_STATUS_FILTER = 'all';
-
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
-const isStatusFilterActive = computed(() => statusFilter.value !== DEFAULT_STATUS_FILTER);
+const isStatusFilterActive = computed(() => statusFilter.value != null);
 // Filtro de proveedor eliminado
-const isDateFilterActive = computed(() => Boolean(dateFilter.value));
+const isDateFilterActive = computed(() => Boolean(dateFilter.value.from || dateFilter.value.to));
 
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 const { successMessage, errorMessage, errorType, clearSuccess, clearError, showError, showWarning } = useAlertStack();
@@ -62,9 +76,11 @@ const authStore = useAuthStore();
 const hasApprovePermission = computed(() => authStore.can('aprobar solicitudes compra'));
 const hasRejectPermission = computed(() => authStore.can('rechazar solicitudes compra'));
 const hasCancelPermission = computed(() => authStore.can('cancelar solicitudes compra'));
+const hasCreatePermission = computed(() => authStore.can('crear solicitudes compra'));
+const hasEditPermission = computed(() => authStore.can('editar solicitudes compra'));
+const hasDeletePermission = computed(() => authStore.can('eliminar solicitudes compra'));
 
 const statusOptions = [
-    { id: 'all', name: 'Todos los estados' },
     { id: 'draft', name: 'Borrador' },
     { id: 'pending', name: 'Pendiente' },
     { id: 'approved', name: 'Aprobada' },
@@ -72,30 +88,6 @@ const statusOptions = [
     { id: 'rejected', name: 'Rechazada' },
     { id: 'cancelled', name: 'Cancelada' },
 ];
-
-const statusLabels: Record<string, string> = {
-    draft: 'Borrador',
-    pending: 'Pendiente',
-    approved: 'Aprobada',
-    processed: 'Procesada',
-    rejected: 'Rechazada',
-    cancelled: 'Cancelada',
-};
-
-const statusBadgeTones: Record<string, 'gray' | 'yellow' | 'green' | 'blue' | 'red' | 'slate'> = {
-    draft: 'gray',
-    pending: 'yellow',
-    approved: 'green',
-    processed: 'blue',
-    rejected: 'red',
-    cancelled: 'slate',
-};
-
-const currencyFormatter = new Intl.NumberFormat('es-CO', {
-    style: 'currency',
-    currency: 'COP',
-    minimumFractionDigits: 0,
-});
 
 const isDialogOpen = ref(false);
 const dialogType = ref<'create' | 'edit'>('create');
@@ -107,15 +99,6 @@ const isRejectDialogOpen = ref(false);
 const requestToReject = ref<PurchaseRequest | null>(null);
 const isCancelDialogOpen = ref(false);
 const requestToCancel = ref<PurchaseRequest | null>(null);
-
-const formatCurrency = (value?: number) => currencyFormatter.format(value ?? 0);
-
-const formatDate = (value?: string | null) => {
-    if (!value) return '-';
-    const date = new Date(value);
-    if (Number.isNaN(date.getTime())) return String(value);
-    return date.toLocaleDateString('es-CO');
-};
 
 const computeRequestTotal = (request: PurchaseRequest) => {
     if (typeof request.estimated_amount === 'number') {
@@ -139,10 +122,7 @@ function closeDialog() {
 }
 
 function openCreateRequest() {
-    dialogType.value = 'create';
-    dialogForm.value = {};
-    dialogReadonly.value = false;
-    isDialogOpen.value = true;
+    router.visit('/gastos/solicitudes-compra/crear');
 }
 
 function viewRequest(request: PurchaseRequest) {
@@ -161,10 +141,7 @@ function editRequest(request: PurchaseRequest) {
         return;
     }
 
-    dialogType.value = 'edit';
-    dialogForm.value = { ...request };
-    dialogReadonly.value = false;
-    isDialogOpen.value = true;
+    router.visit(`/gastos/solicitudes-compra/${request.id}/editar`);
 }
 
 function confirmDeleteRequest(request: PurchaseRequest) {
@@ -291,19 +268,9 @@ function handleDialogRefresh(message?: string) {
     fetchRequests();
 }
 
-const getStatusLabel = (status?: string) => {
-    if (!status) return 'Sin estado';
-    return statusLabels[status] ?? status;
-};
+const canEditRequest = (request: PurchaseRequest): boolean => canEditRequestRule(request.status) && hasEditPermission.value;
 
-const getStatusTone = (status?: string): 'gray' | 'yellow' | 'green' | 'blue' | 'red' | 'slate' => {
-    if (!status) return 'gray';
-    return statusBadgeTones[status] ?? 'gray';
-};
-
-const canEditRequest = (request: PurchaseRequest): boolean => request.status === 'draft';
-
-const canSendToApproval = (request: PurchaseRequest): boolean => request.status === 'draft';
+const canSendToApproval = (request: PurchaseRequest): boolean => request.status === 'draft' && hasEditPermission.value;
 const canApprove = (request: PurchaseRequest): boolean => request.status === 'pending' && hasApprovePermission.value;
 const canReject = (request: PurchaseRequest): boolean => request.status === 'pending' && hasRejectPermission.value;
 const canCancel = (request: PurchaseRequest): boolean => (request.status === 'draft' || request.status === 'pending') && hasCancelPermission.value;
@@ -317,12 +284,10 @@ async function fetchRequests(page = 1) {
         sort_dir: sortDir.value,
     };
     if (searchQuery.value.trim()) params.search = searchQuery.value.trim();
-    if (statusFilter.value !== 'all') params.status = statusFilter.value;
+    if (statusFilter.value != null) params.status = statusFilter.value;
     // Filtro de proveedor eliminado
-    if (dateFilter.value) {
-        params.date_from = dateFilter.value;
-        params.date_to = dateFilter.value;
-    }
+    if (dateFilter.value.from) params.date_from = dateFilter.value.from;
+    if (dateFilter.value.to) params.date_to = dateFilter.value.to;
 
     try {
         const response = await axios.get('/gastos/solicitudes-compra/data', { params });
@@ -341,6 +306,9 @@ async function fetchRequests(page = 1) {
             }
             return request;
         });
+
+        totalItems.value = Number(payload?.total ?? rows.length);
+        currentPage.value = Number(payload?.current_page ?? page);
 
         clearError();
     } catch (error) {
@@ -364,6 +332,26 @@ watch(searchQuery, () => {
 onMounted(() => {
     fetchRequests();
 });
+
+// Deep link desde una notificación: /gastos/solicitudes-compra?ver=<id> abre esa solicitud en el dialog.
+// Se observa la URL porque Inertia no vuelve a montar la página si ya estás en ella.
+const page = usePage();
+watch(
+    () => page.url,
+    async (url) => {
+        const id = Number(new URL(url, window.location.origin).searchParams.get('ver'));
+        if (!Number.isInteger(id) || id <= 0) return;
+
+        window.history.replaceState(window.history.state, '', window.location.pathname);
+        try {
+            const { data } = await axios.get(`/gastos/solicitudes-compra/${id}`);
+            viewRequest(data?.data ?? { id });
+        } catch {
+            showError('No se pudo abrir la solicitud. Puede que ya no exista o no tengas acceso.');
+        }
+    },
+    { immediate: true },
+);
 </script>
 
 <template>
@@ -376,182 +364,133 @@ onMounted(() => {
             @close-success="clearSuccess"
             @close-error="clearError"
         />
-        <div class="flex flex-1 flex-col gap-4 rounded-xl p-3">
+        <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
             <div class="flex flex-wrap items-center justify-between gap-4">
                 <div class="space-y-1">
-                    <h1 class="text-lg font-bold">Solicitud de Compra y Servicios</h1>
+                    <h1 class="text-lg font-bold">Solicitud de compra y servicios</h1>
                     <p class="text-sm text-muted-foreground">Gestiona las solicitudes emitidas a proveedores y mantente al tanto de su estado.</p>
                 </div>
-                <Button variant="default" size="pill" dusk="btn-nueva-solicitud" @click="openCreateRequest">
-                    <PlusCircle class="h-4 w-4" />
-                    Nueva solicitud
-                </Button>
+                <div class="flex gap-2">
+                    <Button v-if="hasCreatePermission" variant="default" size="pill" dusk="btn-nueva-solicitud" @click="openCreateRequest">
+                        <PlusCircle class="h-4 w-4" />
+                        Nueva solicitud
+                    </Button>
+                </div>
             </div>
 
             <FilterBar align="start">
                 <FilterField label="Buscar solicitud" :active="isSearchActive" class="min-w-[220px] flex-1">
-                    <div class="relative">
-                        <Input v-model="searchQuery" placeholder="Buscar solicitud" class="h-10 w-full pl-10" />
-                        <span class="pointer-events-none absolute inset-y-0 start-0 flex items-center justify-center px-2">
-                            <Search class="h-4 w-4 text-muted-foreground" />
-                        </span>
-                    </div>
+                    <SearchInput v-model="searchQuery" placeholder="Buscar solicitud" />
                 </FilterField>
                 <FilterField label="Estado" :active="isStatusFilterActive" class="min-w-[180px]">
                     <SelectField
                         v-model="statusFilter"
                         label=""
                         :options="statusOptions"
-                        placeholder="Selecciona un estado"
+                        placeholder="Estado"
                         :button-class="statusButtonClasses"
+                        :clearable="true"
                     />
                 </FilterField>
                 <!-- Filtro de proveedor eliminado -->
-                <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">
-                    <InputDate v-model="dateFilter" placeholder="Fecha" :clearable="true" :show-today="true" />
+                <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[240px]">
+                    <AccountingDateRangePicker v-model="dateFilter" placeholder="Rango de fechas" />
                 </FilterField>
             </FilterBar>
 
-            <div class="relative overflow-auto rounded-xl border border-sidebar-border/70">
-                <Table class="text-center">
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>N° Solicitud</TableHead>
-                            <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('date')">
-                                <span class="inline-flex items-center gap-1">
-                                    Fecha
-                                    <span class="text-muted-foreground">
-                                        <template v-if="sortBy === 'date'">
-                                            {{ sortDir === 'asc' ? '↑' : '↓' }}
-                                        </template>
-                                        <template v-else>
-                                            <span class="opacity-30">↕</span>
-                                        </template>
-                                    </span>
-                                </span>
-                            </TableHead>
-                            <TableHead>Proveedor</TableHead>
-                            <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('total')">
-                                <span class="inline-flex items-center gap-1">
-                                    Total estimado
-                                    <span class="text-muted-foreground">
-                                        <template v-if="sortBy === 'total'">
-                                            {{ sortDir === 'asc' ? '↑' : '↓' }}
-                                        </template>
-                                        <template v-else>
-                                            <span class="opacity-30">↕</span>
-                                        </template>
-                                    </span>
-                                </span>
-                            </TableHead>
-                            <TableHead>Descripción</TableHead>
-                            <TableHead>Estado</TableHead>
-                            <TableHead class="text-center">Acciones</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        <template v-if="isLoading">
-                            <TableRow v-for="i in 5" :key="`request-skeleton-${i}`">
-                                <TableCell
-                                    v-for="col in 7"
-                                    :key="`request-skeleton-${i}-${col}`"
-                                    class="px-4 py-3"
-                                >
-                                    <Skeleton class="h-4 w-full" />
-                                </TableCell>
-                            </TableRow>
-                        </template>
-                        <template v-else-if="!requests.length">
-                            <TableRow>
-                                <TableCell colspan="7">
-                                    <div class="py-6 text-center text-sm text-muted-foreground">No se encontraron solicitudes.</div>
-                                </TableCell>
-                            </TableRow>
-                        </template>
-                        <template v-else>
-                            <TableRow v-for="request in requests" :key="request.id" class="text-center">
-                                <TableCell class="font-medium">{{ request.request_number || request.id }}</TableCell>
-                                <TableCell>{{ formatDate(request.date) }}</TableCell>
-                                <TableCell class="max-w-[180px] truncate">{{ request.provider_name || '-' }}</TableCell>
-                                <TableCell>{{ formatCurrency(computeRequestTotal(request)) }}</TableCell>
-                                <TableCell class="max-w-[200px] truncate">{{ request.description || '-' }}</TableCell>
-                                <TableCell>
-                                    <TableStatusBadge
-                                        :dusk="`estado-solicitud-${request.id}`"
-                                        :label="getStatusLabel(request.status)"
-                                        :tone="getStatusTone(request.status)"
-                                    />
-                                </TableCell>
-                                <TableCell class="flex items-center justify-center gap-2">
+            <TooltipProvider>
+                <PurchaseListTable
+                    :columns="columns"
+                    :rows="requests"
+                    :loading="isLoading"
+                    empty-text="No se encontraron solicitudes."
+                    :sort-by="sortBy"
+                    :sort-dir="sortDir"
+                    v-model:current-page="currentPage"
+                    v-model:page-size="itemsPerPage"
+                    :total-items="totalItems"
+                    @sort="toggleSort"
+                    @fetch-data="() => fetchRequests(currentPage)"
+                >
+                    <template #cell-request_number="{ row: request }">
+                        <span class="font-medium">{{ request.request_number || request.id }}</span>
+                    </template>
+                    <template #cell-date="{ row: request }">{{ formatDate(request.date) }}</template>
+                    <template #cell-provider_name="{ row: request }">{{ request.provider_name || '-' }}</template>
+                    <template #cell-requester="{ row: request }">{{ request.requester?.name || '-' }}</template>
+                    <template #cell-description="{ row: request }">{{ request.description || '-' }}</template>
+                    <template #cell-total="{ row: request }">{{ formatCurrency(computeRequestTotal(request)) }}</template>
+                    <template #cell-status="{ row: request }">
+                        <div class="flex items-center justify-center gap-1.5">
+                            <TableStatusBadge
+                                :dusk="`estado-solicitud-${request.id}`"
+                                :label="getPurchaseRequestStatus(request.status).label"
+                                :tone="getPurchaseRequestStatus(request.status).tone"
+                            />
+                            <Tooltip v-if="request.status === 'rejected'">
+                                <TooltipTrigger as-child>
                                     <button
-                                        class="flex items-center text-muted-foreground transition-colors duration-200 hover:text-primary"
+                                        type="button"
+                                        class="flex items-center text-red-500 hover:text-red-600"
+                                        aria-label="Ver motivo del rechazo"
                                         @click="viewRequest(request)"
-                                        title="Ver detalles"
                                     >
-                                        <Eye class="h-4 w-4" />
+                                        <MessageSquareWarning class="h-4 w-4" />
                                     </button>
-                                    <EditButton v-if="canEditRequest(request)" :onClick="() => editRequest(request)" title="Editar solicitud" />
-                                    <DeleteButton
-                                        v-if="request.status === 'draft'"
-                                        @click="confirmDeleteRequest(request)"
-                                        title="Eliminar solicitud"
-                                    />
-                                    <DropdownMenu
-                                        v-if="canSendToApproval(request) || canApprove(request) || canReject(request) || canCancel(request)"
-                                    >
-                                        <DropdownMenuTrigger as-child>
-                                            <button
-                                                class="flex items-center text-gray-500 transition-colors duration-200 hover:text-gray-700"
-                                                title="Más acciones"
-                                            >
-                                                <MoreVertical class="h-4 w-4" />
-                                            </button>
-                                        </DropdownMenuTrigger>
-                                        <DropdownMenuContent align="end" class="w-48">
-                                            <DropdownMenuItem
-                                                v-if="canSendToApproval(request)"
-                                                class="cursor-pointer gap-2"
-                                                @click="handleSendToApproval(request)"
-                                            >
-                                                <Send class="h-4 w-4" /> Enviar a aprobación
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                                v-if="canApprove(request)"
-                                                class="cursor-pointer gap-2 text-green-600"
-                                                @click="handleApprove(request)"
-                                            >
-                                                <CheckCircle class="h-4 w-4" /> Aprobar
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                                v-if="canReject(request)"
-                                                class="cursor-pointer gap-2 text-red-600"
-                                                @click="confirmRejectRequest(request)"
-                                            >
-                                                <XCircle class="h-4 w-4" /> Rechazar
-                                            </DropdownMenuItem>
-                                            <DropdownMenuItem
-                                                v-if="canCancel(request)"
-                                                class="cursor-pointer gap-2 text-orange-600"
-                                                @click="handleCancel(request)"
-                                            >
-                                                <X class="h-4 w-4" /> Cancelar
-                                            </DropdownMenuItem>
-                                        </DropdownMenuContent>
-                                    </DropdownMenu>
-                                </TableCell>
-                            </TableRow>
-                        </template>
-                    </TableBody>
-                </Table>
-                <div class="flex flex-col gap-2 border-t border-border/70 bg-card/50 px-4 py-3 md:flex-row md:items-center md:justify-between">
-                    <ServerPagination
-                        v-model:current-page="currentPage"
-                        v-model:page-size="itemsPerPage"
-                        :total-items="totalItems"
-                        @fetch-data="() => fetchRequests(currentPage)"
-                    />
-                </div>
-            </div>
+                                </TooltipTrigger>
+                                <TooltipContent class="max-w-[260px]">
+                                    <p class="font-semibold">Motivo del rechazo</p>
+                                    <p>{{ request.rejection_reason || 'Sin motivo registrado.' }}</p>
+                                </TooltipContent>
+                            </Tooltip>
+                        </div>
+                    </template>
+                    <template #actions="{ row: request }">
+                        <TableRowActions>
+                            <HoverTooltip text="Ver detalles"><ViewButton :onClick="() => viewRequest(request)" /></HoverTooltip>
+                            <HoverTooltip v-if="canEditRequest(request)" text="Editar solicitud"><EditButton
+                               
+                                :onClick="() => editRequest(request)" /></HoverTooltip>
+                            <HoverTooltip v-if="canDeleteRequestRule(request.status) && hasDeletePermission" text="Eliminar solicitud"><DeleteButton
+                               
+                                @click="confirmDeleteRequest(request)" /></HoverTooltip>
+                            <TableActionsMenu
+                                v-if="canSendToApproval(request) || canApprove(request) || canReject(request) || canCancel(request)"
+                                trigger-class="h-8 w-8"
+                            >
+                                <DropdownMenuItem
+                                    v-if="canSendToApproval(request)"
+                                    class="cursor-pointer gap-2 text-blue-600"
+                                    @click="handleSendToApproval(request)"
+                                >
+                                    <Send class="h-4 w-4" /> Enviar solicitud a aprobación
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    v-if="canApprove(request)"
+                                    class="cursor-pointer gap-2 text-green-600"
+                                    @click="handleApprove(request)"
+                                >
+                                    <CheckCircle class="h-4 w-4" /> Aprobar solicitud
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    v-if="canReject(request)"
+                                    class="cursor-pointer gap-2 text-red-600"
+                                    @click="confirmRejectRequest(request)"
+                                >
+                                    <XCircle class="h-4 w-4" /> Rechazar solicitud
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                    v-if="canCancel(request)"
+                                    class="cursor-pointer gap-2 text-orange-600"
+                                    @click="handleCancel(request)"
+                                >
+                                    <X class="h-4 w-4" /> Cancelar solicitud
+                                </DropdownMenuItem>
+                            </TableActionsMenu>
+                        </TableRowActions>
+                    </template>
+                </PurchaseListTable>
+            </TooltipProvider>
 
             <PurchaseRequestDialog
                 :isOpen="isDialogOpen"

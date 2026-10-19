@@ -48,7 +48,7 @@
     <tbody>
         @forelse($rolls as $roll)
             @php
-                $available = max(0, (float)$roll->quantity - (float)$roll->actual_output);
+                $available = max(0, (float)$roll->quantity + (float)$roll->length_adjustment_meters - (float)$roll->actual_output);
                 $status    = $roll->approval_status ?? '';
                 $label     = $approvalLabels[$status] ?? $status;
                 $badgeClass = match($status) {

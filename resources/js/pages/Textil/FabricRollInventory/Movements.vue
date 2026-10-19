@@ -166,8 +166,8 @@ onMounted(() => fetchAdjustments(1));
                             <TableRow>
                                 <TableHead>Rollo</TableHead>
                                 <TableHead>Tipo</TableHead>
-                                <TableHead>Cant. antes</TableHead>
-                                <TableHead>Cant. después</TableHead>
+                                <TableHead>Metraje antes</TableHead>
+                                <TableHead>Metraje después</TableHead>
                                 <TableHead>Parc. antes</TableHead>
                                 <TableHead>Parc. después</TableHead>
                                 <TableHead>Disp. real antes</TableHead>

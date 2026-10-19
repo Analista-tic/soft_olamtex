@@ -13,6 +13,8 @@ interface Props {
     disabled?: boolean;
     rows?: number;
     tooltipText?: string;
+    /** `true` pinta el borde en rojo; un string además muestra el mensaje. */
+    error?: boolean | string;
 }
 
 const props = defineProps<Props>();
@@ -47,7 +49,14 @@ watch(localModelValue, (newValue) => emit('update:modelValue', newValue));
             :disabled="disabled"
             :required="required"
             :rows="rows || 4"
-            class="block w-full rounded border border-input bg-background px-3 py-2 text-sm text-foreground transition duration-150 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50"
+            :aria-invalid="error ? 'true' : undefined"
+            :class="[
+                'block w-full rounded border bg-background px-3 py-2 text-sm text-foreground transition duration-150 placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-50 read-only:cursor-default read-only:caret-transparent read-only:focus-visible:ring-0 read-only:focus-visible:ring-offset-0',
+                error ? 'border-destructive ring-1 ring-destructive/40 focus-visible:ring-destructive/40' : 'border-input',
+            ]"
         ></textarea>
+        <p v-if="typeof error === 'string' && error" class="mt-0.5 text-xs text-destructive">
+            {{ error }}
+        </p>
     </div>
 </template>

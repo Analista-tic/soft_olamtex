@@ -8,6 +8,9 @@ use App\Models\Production\Machine;
 use App\Models\Production\ProductOperationList;
 use App\Models\Production\ProductSheet;
 use App\Models\Production\ProductSheetOperationHistory;
+use App\Models\Production\TechnicalSheetOperation;
+use App\Models\Production\TechnicalSheetOperationHistory;
+use App\Services\Audit\AuditLogService;
 use App\Services\Settings\SettingService;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
@@ -151,6 +154,7 @@ class ProductOperationListService
 
         $operations = $this->model
             ->newQuery()
+            ->with('operation.section')
             ->where('product_sheet_id', $productSheetId)
             ->get();
 
@@ -208,10 +212,15 @@ class ProductOperationListService
             $query->whereIn('product_sheet_id', $productSheetIds);
         }
 
-        return $query
-            ->get()
-            ->groupBy('product_sheet_id')
-            ->map(static function (Collection $rows, int|string $sheetId): array {
+        $grouped = $query->get()->groupBy('product_sheet_id');
+
+        // Estado "completo" del listado: vive en la sábana (ProductSheetStatusService).
+        $completedAtBySheet = ProductSheet::query()
+            ->whereIn('id', $grouped->keys()->all())
+            ->pluck('operational_list_completed_at', 'id');
+
+        return $grouped
+            ->map(static function (Collection $rows, int|string $sheetId) use ($completedAtBySheet): array {
                 $totalSam = 0.0;
                 $totalSamConfeccion = 0.0;
                 $totalSamTerminacion = 0.0;
@@ -252,6 +261,10 @@ class ProductOperationListService
                     'total_sam_confeccion' => round($totalSamConfeccion, 4),
                     'total_sam_terminacion' => round($totalSamTerminacion, 4),
                     'is_active' => $isActive,
+                    'operational_list_completed' => $completedAtBySheet->get($sheetId) !== null,
+                    'operational_list_completed_at' => $completedAtBySheet->get($sheetId) !== null
+                        ? (string) $completedAtBySheet->get($sheetId)
+                        : null,
                     'search_blob' => trim(implode(' ', array_unique(array_filter($searchParts)))),
                 ];
             })
@@ -301,6 +314,104 @@ class ProductOperationListService
     }
 
     /**
+     * Lleva a los listados el tiempo (SAM base) y la cantidad actuales de una operación, recalcula sus totales y
+     * deja el cambio en el historial de cada línea. Las copias por orden de producción solo se actualizan mientras
+     * la orden sigue en I&D y la operación no tiene avance: las que ya salieron conservan el tiempo con que se midieron.
+     *
+     * @return array{lines: int, order_operations: int}
+     */
+    public function syncFromOperation(Operation $operation, string $motivo): array
+    {
+        return DB::transaction(function () use ($operation, $motivo) {
+            $samBase = (float) ($operation->sam_base ?? 0);
+            $operation->loadMissing('section');
+            $lines = $this->model->newQuery()->where('operation_id', $operation->id)->get();
+
+            foreach ($lines as $line) {
+                $before = $line->getAttributes();
+                $line->setRelation('operation', $operation);
+
+                $line->sam_base = $samBase;
+                $line->optimal_time = $samBase;
+                $line->sam = $samBase;
+                $line->sam_total_unitario = round($line->calculateSamTotalUnitario(), 4);
+                $line->sam_total_operacion = $line->calculateSamTotalOperacion();
+                $line->production_time = $this->calculateProductionTime(
+                    $samBase,
+                    (float) $line->operator_efficiency_factor,
+                    (float) $line->machine_supplement_factor,
+                );
+                $line->save();
+
+                $this->recordChangeIfNeeded($line, $before, $motivo);
+            }
+
+            $orderOperations = $this->syncOrderOperationsInDesign($operation, $lines->pluck('id')->all(), $samBase, $motivo);
+
+            return ['lines' => $lines->count(), 'order_operations' => $orderOperations];
+        });
+    }
+
+    private function syncOrderOperationsInDesign(Operation $operation, array $lineIds, float $samBase, string $motivo): int
+    {
+        if ($lineIds === []) {
+            return 0;
+        }
+
+        $touched = 0;
+        $quantity = ProductOperationList::quantityOf($operation->quantity);
+
+        $orderOperations = TechnicalSheetOperation::query()
+            ->whereIn('product_sheet_operation_id', $lineIds)
+            ->whereHas('technicalSheet.productionOrder', fn ($q) => $q->where('current_process', 'I&D'))
+            ->where(fn ($q) => $q->where('quantity_progressed', '<=', 0)->orWhereNull('quantity_progressed'))
+            ->whereNull('progressed_at')
+            ->with('technicalSheet.productionOrder:id,units')
+            ->get();
+
+        foreach ($orderOperations as $orderOperation) {
+            $before = $orderOperation->getAttributes();
+            $lote = max(1, (int) ($orderOperation->technicalSheet?->productionOrder?->units ?? 1));
+
+            $orderOperation->sam_base = $samBase;
+            $orderOperation->quantity = $quantity;
+            $orderOperation->sam_total_unitario = round(
+                $samBase * (float) $orderOperation->machine_supplement_factor * (float) $orderOperation->fabric_base_factor * (float) $orderOperation->operator_efficiency_factor,
+                4
+            );
+            $orderOperation->sam_total_operacion = round($orderOperation->sam_total_unitario * $quantity, 4);
+            $orderOperation->sam_total_lote = round($orderOperation->sam_total_operacion * $lote, 4);
+            $orderOperation->save();
+
+            TechnicalSheetOperationHistory::create([
+                'technical_sheet_id' => $orderOperation->technical_sheet_id,
+                'technical_sheet_operation_id' => $orderOperation->id,
+                'event_type' => 'OPERATION_TIME_PROPAGATED',
+                'changed_by_user_id' => auth()->id(),
+                'reason' => $motivo,
+                'before_sam_base' => $before['sam_base'] ?? null,
+                'before_sam_total_unitario' => $before['sam_total_unitario'] ?? null,
+                'before_sam_total_operacion' => $before['sam_total_operacion'] ?? null,
+                'before_sam_total_lote' => $before['sam_total_lote'] ?? null,
+                'after_sam_base' => $orderOperation->sam_base,
+                'after_sam_total_unitario' => $orderOperation->sam_total_unitario,
+                'after_sam_total_operacion' => $orderOperation->sam_total_operacion,
+                'after_sam_total_lote' => $orderOperation->sam_total_lote,
+            ]);
+
+            $touched++;
+        }
+
+        return $touched;
+    }
+
+    /** Repeticiones por pieza de la operación base: el SAM de la operación las multiplica. */
+    private function operationQuantity(int $operationId): int
+    {
+        return ProductOperationList::quantityOf(Operation::query()->whereKey($operationId)->value('quantity'));
+    }
+
+    /**
      * Crea una nueva operación en el listado con snapshot de factores.
      * Calcula sam_base, sam_total_unitario, sam_total_operacion y production_time.
      */
@@ -325,8 +436,10 @@ class ProductOperationListService
                 $samBase * $data['machine_supplement_factor'] * $data['fabric_base_factor'] * $data['operator_efficiency_factor'],
                 4
             );
-            // quantity es solo informativo, no multiplica el SAM
-            $data['sam_total_operacion'] = $data['sam_total_unitario'];
+            $data['sam_total_operacion'] = round(
+                $data['sam_total_unitario'] * $this->operationQuantity((int) $data['operation_id']),
+                4
+            );
 
             $data['production_time'] = $this->calculateProductionTime(
                 (float) ($data['optimal_time'] ?? $samBase),
@@ -391,8 +504,10 @@ class ProductOperationListService
                     $samBase * $data['machine_supplement_factor'] * $data['fabric_base_factor'] * $data['operator_efficiency_factor'],
                     4
                 );
-                // quantity es solo informativo, no multiplica el SAM
-                $data['sam_total_operacion'] = $data['sam_total_unitario'];
+                $data['sam_total_operacion'] = round(
+                    $data['sam_total_unitario'] * $this->operationQuantity($operationId),
+                    4
+                );
 
                 $data['production_time'] = $this->calculateProductionTime(
                     (float) ($data['optimal_time'] ?? $samBase),
@@ -434,8 +549,10 @@ class ProductOperationListService
         }
 
         return DB::transaction(function () use ($productSheetId, $operations) {
+            // Con la operación y su sección cargadas: el hook `saving` las consulta en cada línea.
             $existingItems = $this->model
                 ->newQuery()
+                ->with('operation.section')
                 ->where('product_sheet_id', $productSheetId)
                 ->get()
                 ->keyBy('id');
@@ -688,12 +805,27 @@ class ProductOperationListService
     public function reorder(int $productSheetId, array $operationIds): void
     {
         DB::transaction(function () use ($productSheetId, $operationIds) {
+            $sequences = [];
+
             foreach ($operationIds as $index => $operationId) {
-                $this->model
+                $affected = $this->model
                     ->where('id', $operationId)
                     ->where('product_sheet_id', $productSheetId)
                     ->update(['sequence' => ($index + 1) * 10]);
+
+                if ($affected > 0) {
+                    $sequences[$operationId] = ($index + 1) * 10;
+                }
             }
+
+            // El update por query builder no dispara el AuditObserver: se registra un resumen.
+            app(AuditLogService::class)->logBulk(
+                ProductOperationList::class,
+                'updated',
+                array_keys($sequences),
+                ['product_sheet_id' => $productSheetId, 'sequence' => $sequences],
+                'Reordenamiento de operaciones de la ficha',
+            );
         });
     }
 

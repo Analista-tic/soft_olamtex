@@ -389,7 +389,8 @@ class TechnicalSheetService
             ['status' => TechnicalSheet::STATUS_DRAFT],
         );
 
-        $sheet->processes()->delete();
+        // Por instancia para que el AuditObserver registre cada proceso eliminado.
+        $sheet->processes()->get()->each->delete();
 
         foreach ($normalized as $row) {
             $fixedCost = $this->resolveProcessCost($row, $payload);

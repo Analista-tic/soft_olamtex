@@ -5,7 +5,7 @@
  * funciones de normalización, y toda la lógica de construcción de payload para
  * crear/actualizar una sábana.
  */
-import type { OptionParams, ProductSheet } from '@/domain/Production';
+import type { ProductSheet } from '@/domain/Production';
 import {
     PRODUCT_SHEET_TYPE_PRODUCT,
     PRODUCT_SHEET_TYPE_SAMPLE,
@@ -64,14 +64,14 @@ export const TYPE_OPTIONS = [
 export const TOOLTIPS = {
     type: 'Define si esta referencia es una muestra (desarrollo/prueba) o un producto listo para produccion y venta.',
     section: 'Indica el tipo de prenda al que pertenece la referencia.',
-    group: 'Clasifica la referencia segun su forma de produccion: lineas continuas, lotes periodicos o desarrollos especificos.',
+    group: 'Clasifica la referencia según su forma de producción: líneas continuas, lotes periodicos o desarrollos específicos.',
     world: 'Define el publico o tipo de mercado al que va dirigida la referencia.',
     wovenProduct: 'Indica si la prenda se fabrica a partir de tejido.',
     base: 'Material base principal de la prenda.',
     yarnBase: 'Define la hilaza base usada cuando la prenda se fabrica en tejido.',
     operationalList: 'Define las operaciones detalladas necesarias para el desarrollo o fabricacion de esta referencia.',
     processes: 'Etapas que seguira la referencia para el control y seguimiento de los lotes.',
-    flatSketch: 'Boceto tecnico de la referencia con medidas, detalles y observaciones para produccion.',
+    flatSketch: 'Boceto técnico de la referencia con medidas, detalles y observaciones para producción.',
 } as const;
 
 export const SIZE_GROUPS = {
@@ -422,14 +422,9 @@ export function useProductSheetForm(params: UseProductSheetFormParams) {
     }
 
     // ── Status ────────────────────────────────────────────────────────────────
-    function determineStatus(hasOperationalList: boolean): void {
-        const hasSelectedSize = Object.values(parsedSizes.value).some(Boolean);
-        const isComplete =
-            Boolean(form.value.reference) &&
-            Boolean(form.value.selling_price) &&
-            hasSelectedSize &&
-            hasOperationalList;
-        form.value.status = isComplete ? 'complete' : 'incomplete';
+    // El estado lo decide el servidor al guardar; aquí solo se conserva el que ya tenía la ficha.
+    function determineStatus(): void {
+        form.value.status = form.value.status === 'complete' ? 'complete' : 'incomplete';
     }
 
     // ── Reset ─────────────────────────────────────────────────────────────────

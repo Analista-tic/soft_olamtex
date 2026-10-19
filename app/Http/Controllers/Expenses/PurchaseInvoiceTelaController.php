@@ -28,6 +28,19 @@ class PurchaseInvoiceTelaController extends PurchaseDocumentController
         return Inertia::render('Expenses/PurchaseInvoices/IndexFabric');
     }
 
+    /** Fechas del recorrido solicitud → orden → recepción → factura, solo lectura. */
+    public function traceability(PurchaseDocument $purchaseInvoice)
+    {
+        return $this->traceabilityResponse($purchaseInvoice);
+    }
+
+    public function show(PurchaseDocument $purchaseInvoice)
+    {
+        $this->ensureDocumentType($purchaseInvoice, PurchaseDocument::TYPE_INVOICE);
+
+        return response()->json(['data' => $this->service->findAccessibleDocumentOrFail($purchaseInvoice, request()->user())]);
+    }
+
     public function create()
     {
         return Inertia::render('Expenses/PurchaseInvoices/PurchaseInvoiceTelaForm', [
@@ -38,17 +51,16 @@ class PurchaseInvoiceTelaController extends PurchaseDocumentController
     public function edit(PurchaseDocument $purchaseInvoice)
     {
         $this->ensureDocumentType($purchaseInvoice, PurchaseDocument::TYPE_INVOICE);
-        $invoice = $this->service->loadWithRelations($purchaseInvoice);
+        $purchaseInvoice = $this->service->findAccessibleDocumentOrFail($purchaseInvoice, request()->user());
+
+        if (! $purchaseInvoice->canEditInvoice()) {
+            abort(403, PurchaseDocument::INVOICE_LOCKED_MESSAGE);
+        }
+
         return Inertia::render('Expenses/PurchaseInvoices/PurchaseInvoiceTelaForm', [
             'mode' => 'edit',
-            'form' => $invoice,
+            'form' => $purchaseInvoice,
         ]);
-    }
-
-    public function show(PurchaseDocument $purchaseInvoice)
-    {
-        $this->ensureDocumentType($purchaseInvoice, PurchaseDocument::TYPE_INVOICE);
-        return response()->json(['data' => $this->service->loadWithRelations($purchaseInvoice)]);
     }
 
     public function store(Request $request)
@@ -61,9 +73,8 @@ class PurchaseInvoiceTelaController extends PurchaseDocumentController
         $items = $payload['items'] ?? [];
         $withholdings = $payload['withholdings'] ?? [];
 
-        if (empty($payload['document_number'])) {
-            $payload['document_number'] = $this->invoiceService()->generateFabricInvoiceNumber();
-        }
+        // El consecutivo FAC-T se asigna dentro de la transacción de creación (ver createInvoice).
+        $payload['number_prefix'] = 'FAC-T';
 
         $invoice = $this->invoiceService()->createInvoice($payload, $items, $withholdings);
 
@@ -73,6 +84,13 @@ class PurchaseInvoiceTelaController extends PurchaseDocumentController
     public function update(Request $request, PurchaseDocument $purchaseInvoice)
     {
         $this->ensureDocumentType($purchaseInvoice, PurchaseDocument::TYPE_INVOICE);
+
+        $purchaseInvoice = $this->service->findAccessibleDocumentOrFail($purchaseInvoice, $request->user());
+
+        if (! $purchaseInvoice->canEditInvoice()) {
+            return response()->json(['message' => PurchaseDocument::INVOICE_LOCKED_MESSAGE], 422);
+        }
+
         $payload = $this->validateInvoiceRequest($request, true);
         $items = $request->has('items') ? $payload['items'] ?? [] : null;
 
@@ -83,6 +101,13 @@ class PurchaseInvoiceTelaController extends PurchaseDocumentController
     public function destroy(PurchaseDocument $purchaseInvoice)
     {
         $this->ensureDocumentType($purchaseInvoice, PurchaseDocument::TYPE_INVOICE);
+
+        $purchaseInvoice = $this->service->findAccessibleDocumentOrFail($purchaseInvoice, request()->user());
+
+        if (! $purchaseInvoice->canDeleteInvoice()) {
+            return response()->json(['message' => PurchaseDocument::INVOICE_LOCKED_MESSAGE], 422);
+        }
+
         $this->service->deleteDocument($purchaseInvoice);
         return response()->json(['message' => 'Factura eliminada']);
     }
@@ -111,12 +136,13 @@ class PurchaseInvoiceTelaController extends PurchaseDocumentController
 
     protected function buildFilters(Request $request): array
     {
-        return $request->only(['search', 'date_from', 'date_to', 'status', 'provider_id', 'approval_status', 'exclude_difference_rejected']);
+        return $request->only(['search', 'date_from', 'date_to', 'status', 'provider_id', 'approval_status', 'invoice_status', 'exclude_difference_rejected']);
     }
 
     public function justify(Request $request, PurchaseDocument $purchaseInvoice)
     {
         $this->ensureDocumentType($purchaseInvoice, PurchaseDocument::TYPE_INVOICE);
+        $purchaseInvoice = $this->service->findAccessibleDocumentOrFail($purchaseInvoice, $request->user());
 
         $validated = $request->validate([
             'difference_reason' => 'required|string',
@@ -137,6 +163,7 @@ class PurchaseInvoiceTelaController extends PurchaseDocumentController
     public function approveDifference(Request $request, PurchaseDocument $purchaseInvoice)
     {
         $this->ensureDocumentType($purchaseInvoice, PurchaseDocument::TYPE_INVOICE);
+        $purchaseInvoice = $this->service->findAccessibleDocumentOrFail($purchaseInvoice, $request->user());
 
         $validated = $request->validate([
             'approval_notes' => 'nullable|string|max:1000',
@@ -154,6 +181,7 @@ class PurchaseInvoiceTelaController extends PurchaseDocumentController
     public function rejectDifference(Request $request, PurchaseDocument $purchaseInvoice)
     {
         $this->ensureDocumentType($purchaseInvoice, PurchaseDocument::TYPE_INVOICE);
+        $purchaseInvoice = $this->service->findAccessibleDocumentOrFail($purchaseInvoice, $request->user());
 
         $validated = $request->validate([
             'approval_notes' => 'required|string|max:1000',
@@ -175,7 +203,7 @@ class PurchaseInvoiceTelaController extends PurchaseDocumentController
     {
         $this->ensureDocumentType($purchaseInvoice, PurchaseDocument::TYPE_INVOICE);
 
-        $invoice = $this->service->loadWithRelations($purchaseInvoice);
+        $invoice = $this->service->findAccessibleDocumentOrFail($purchaseInvoice, request()->user());
 
         return Inertia::render('Expenses/PurchaseInvoices/PurchaseInvoiceFabricPrint', [
             'invoice' => $invoice,

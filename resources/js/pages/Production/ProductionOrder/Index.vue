@@ -10,7 +10,8 @@ import { Card, CardContent } from '@/components/ui/card';
 import Input from '@/components/ui/input/Input.vue';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { ToggleGroup, ToggleGroupItem } from '@/components/ui/toggle-group';
+import PillTabs from '@/components/common/PillTabs.vue';
+import { Tabs } from '@/components/ui/tabs';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAlertStack } from '@/composables/useAlert';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
@@ -46,9 +47,6 @@ const FETCH_DEBOUNCE_MS = 350;
 const REQUEST_PER_PAGE = 1000;
 const LIST_ITEMS_PER_PAGE = 10;
 
-const toggleGroupBaseClass = 'inline-flex min-w-max items-center gap-1 rounded-full bg-muted/40 p-1';
-const toggleItemBaseClass =
-    'flex items-center gap-2 rounded-full px-4 py-2 text-sm font-medium transition text-muted-foreground hover:text-foreground data-[state=on]:border-primary/30 data-[state=on]:bg-primary/10 data-[state=on]:text-primary data-[state=on]:shadow-sm';
 const actionButtonClass =
     'inline-flex h-9 w-9 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
 const actionIconClass = 'h-4 w-4';
@@ -377,12 +375,14 @@ const typeOptions = computed<Option[]>(() => {
     ];
 });
 
-const destinationOptions = computed<Option[]>(() => [
-    ...props.destinations.map((destination) => ({
-        id: String(destination.id),
-        name: destination.name,
-    })),
-]);
+const destinationOptions = computed<Option[]>(() =>
+    props.destinations
+        .map((destination) => ({
+            id: String(destination.id),
+            name: destination.name,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
+);
 
 const yearOptions = computed<Option[]>(() => {
     const years = Array.from(
@@ -551,20 +551,9 @@ onUnmounted(() => {
                         <CardContent class="space-y-6 px-4 py-5">
                             <div class="flex flex-col gap-2">
                                 <div class="min-w-0">
-                                    <div class="overflow-x-auto">
-                                        <ToggleGroup v-model="scope" type="single" variant="outline" :class="toggleGroupBaseClass">
-                                            <ToggleGroupItem
-                                                v-for="option in scopeOptions"
-                                                :key="option.value"
-                                                :value="option.value"
-                                                variant="outline"
-                                                :class="toggleItemBaseClass"
-                                            >
-                                                <component :is="option.icon" class="h-4 w-4" />
-                                                <span>{{ option.label }}</span>
-                                            </ToggleGroupItem>
-                                        </ToggleGroup>
-                                    </div>
+                                    <Tabs v-model="scope">
+                                        <PillTabs :tabs="scopeOptions" class="mb-0" />
+                                    </Tabs>
                                 </div>
                             </div>
 

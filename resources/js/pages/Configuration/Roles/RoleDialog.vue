@@ -7,7 +7,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Label from '@/components/ui/label/Label.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import { PERMISSION_CATEGORIES, PERMISSION_MODULES } from '@/lib/permissionModules';
+import { PERMISSION_CATEGORIES, PERMISSION_MODULES, permissionLabel } from '@/lib/permissionModules';
 import { computed, ref, watch } from 'vue';
 
 const emit = defineEmits(['submit', 'close']);
@@ -236,7 +236,7 @@ const filteredPermissionModules = computed(() => {
         const moduleNorm = normalizeText(module);
         const matchedPerms = perms.filter((p) => {
             const pNorm = normalizeText(p);
-            return pNorm.includes(query) || moduleNorm.includes(query);
+            return pNorm.includes(query) || normalizeText(permissionLabel(p)).includes(query) || moduleNorm.includes(query);
         });
         if (matchedPerms.length > 0) {
             result[module] = matchedPerms;
@@ -329,7 +329,7 @@ const filteredPermissionModules = computed(() => {
                                         >
                                             <!-- Cabecera del módulo — igual que antes -->
                                             <div class="mb-2.5 flex items-center justify-between">
-                                                <span class="text-xs font-semibold uppercase tracking-wide text-foreground">
+                                                <span class="text-xs font-semibold text-foreground">
                                                     {{ module }}
                                                 </span>
                                                 <label class="flex cursor-pointer items-center gap-1 text-xs text-muted-foreground">
@@ -359,7 +359,7 @@ const filteredPermissionModules = computed(() => {
                                                         v-model="form.permissions"
                                                         class="accent-primary h-3.5 w-3.5 shrink-0 cursor-pointer"
                                                     />
-                                                    {{ permission }}
+                                                    {{ permissionLabel(permission) }}
                                                 </label>
                                             </div>
                                         </div>

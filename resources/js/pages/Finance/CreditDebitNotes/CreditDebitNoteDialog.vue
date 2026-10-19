@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatPersonNameDisplay } from '@/lib/textNormalizer';
 import AlertStack from '@/components/common/AlertStack.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
 import InputDate from '@/components/InputDate.vue';
@@ -6,14 +7,15 @@ import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import { Button } from '@/components/ui/button';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useAlertStack } from '@/composables/useAlert';
 import { useContactsCatalog } from '@/composables/useContactsCatalog';
 import { useItemsCatalog } from '@/composables/useItemsCatalog';
-import type { CreditDebitNote, CreditDebitNoteItem, CreditDebitNotePayload, CreditDebitNoteType, NoteKind } from '@/domain/Finance';
-import { create as createCreditDebitNote, update as updateCreditDebitNote } from '@/domain/Finance';
+import type { CreditDebitNote, CreditDebitNoteItem, CreditDebitNotePayload, CreditDebitNoteType, NoteKind, RejectedFabricRoll } from '@/domain/Finance';
+import { create as createCreditDebitNote, fetchCoverableRejectedRolls, update as updateCreditDebitNote } from '@/domain/Finance';
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 import axios from 'axios';
 import { PlusCircle, Trash } from 'lucide-vue-next';
@@ -132,6 +134,11 @@ const parentSummary = ref<ParentSummary | null>(null);
 const reasonOptions = ref<Array<{ id: string; name: string }>>([]);
 const isSyncingParentApplication = ref(false);
 
+// Rollos de tela rechazados en recepción que esta nota crédito puede cubrir (al aprobarse la nota se dan de baja).
+const rejectedRolls = ref<RejectedFabricRoll[]>([]);
+const selectedRollIds = ref<number[]>([]);
+let rejectedRollsRequestId = 0;
+
 const localForm = ref<CreditDebitNoteWithMeta>(createDefaultForm());
 
 const { successMessage, errorMessage, errorType, showSuccess, showError, showWarning, clearSuccess, clearError } = useAlertStack();
@@ -157,8 +164,8 @@ const resolvedNoteType = computed<NoteKind>(() => {
 });
 
 const reasonParameterKey = computed(() => (resolvedNoteType.value === 'debit' ? 'debit_note_reason' : 'credit_note_reason'));
-const reasonLabel = computed(() => (resolvedNoteType.value === 'debit' ? 'Motivo nota debito' : 'Motivo nota credito'));
-const noteTypeLabel = computed(() => (resolvedNoteType.value === 'debit' ? 'Nota debito' : 'Nota credito'));
+const reasonLabel = computed(() => (resolvedNoteType.value === 'debit' ? 'Motivo nota débito' : 'Motivo nota crédito'));
+const noteTypeLabel = computed(() => (resolvedNoteType.value === 'debit' ? 'Nota débito' : 'Nota crédito'));
 
 const dialogTitle = computed(() => (props.dialogType === 'create' ? `Nueva ${noteTypeLabel.value}` : `Editar ${noteTypeLabel.value}`));
 
@@ -185,7 +192,11 @@ function toDocumentType(noteType: NoteKind): RuntimeDocumentType {
 /**
  * Computeds de formulario / selección
  */
-const contactOptions = computed(() => contacts.value.map((c) => ({ id: c.id, name: c.full_name })));
+const contactOptions = computed(() =>
+    contacts.value
+        .map((c) => ({ id: c.id, name: formatPersonNameDisplay(c.full_name, c.person_type) }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
+);
 
 const selectedContact = computed(() => {
     const contactId = asNumber(localForm.value.contact_id, 0);
@@ -218,6 +229,48 @@ const parentDocumentSelectValue = computed<number | null>({
 });
 
 const filteredInvoiceOptions = computed(() => invoiceOptions.value);
+
+const showRollSelector = computed(
+    () => noteContext.value === 'purchase' && resolvedNoteType.value === 'credit' && rejectedRolls.value.length > 0,
+);
+const selectedRollsAmount = computed(() =>
+    round2(rejectedRolls.value.filter((roll) => selectedRollIds.value.includes(roll.id)).reduce((sum, roll) => sum + asNumber(roll.amount), 0)),
+);
+
+function isRollSelected(rollId: number): boolean {
+    return selectedRollIds.value.includes(rollId);
+}
+
+function toggleRoll(rollId: number, checked: boolean | 'indeterminate'): void {
+    const without = selectedRollIds.value.filter((id) => id !== rollId);
+    selectedRollIds.value = checked === true ? [...without, rollId] : without;
+}
+
+async function loadRejectedRolls(): Promise<void> {
+    const requestId = ++rejectedRollsRequestId;
+    const parentId = asNumber(localForm.value.parent_document_id, 0);
+
+    if (noteContext.value !== 'purchase' || resolvedNoteType.value !== 'credit' || parentId <= 0) {
+        rejectedRolls.value = [];
+        selectedRollIds.value = [];
+        return;
+    }
+
+    try {
+        const noteId = asNumber(localForm.value.id, 0);
+        const rows = await fetchCoverableRejectedRolls(parentId, noteId > 0 ? noteId : null);
+        if (requestId !== rejectedRollsRequestId) return;
+
+        rejectedRolls.value = rows;
+        const validIds = new Set(rows.map((roll) => roll.id));
+        const alreadyLinked = noteId > 0 ? rows.filter((roll) => roll.credit_note_id === noteId).map((roll) => roll.id) : [];
+        selectedRollIds.value = Array.from(new Set([...selectedRollIds.value.filter((id) => validIds.has(id)), ...alreadyLinked]));
+    } catch {
+        if (requestId !== rejectedRollsRequestId) return;
+        rejectedRolls.value = [];
+        selectedRollIds.value = [];
+    }
+}
 
 const reasonCodeValue = computed<string>({
     get() {
@@ -391,15 +444,15 @@ function validateForm(): boolean {
     for (const [index, item] of items.entries()) {
         const hasItemReference = asNumber(item.item_id, 0) > 0 || trimText(item.item_name).length > 0;
         if (!hasItemReference) {
-            showWarning(`El item ${index + 1} debe tener concepto o descripcion.`);
+            showWarning(`El ítem ${index + 1} debe tener concepto o descripción.`);
             return false;
         }
         if (asNumber(item.quantity, 0) <= 0) {
-            showWarning(`El item ${index + 1} debe tener cantidad mayor a 0.`);
+            showWarning(`El ítem ${index + 1} debe tener cantidad mayor a 0.`);
             return false;
         }
         if (asNumber(item.price, 0) < 0) {
-            showWarning(`El item ${index + 1} no puede tener precio negativo.`);
+            showWarning(`El ítem ${index + 1} no puede tener precio negativo.`);
             return false;
         }
     }
@@ -440,6 +493,8 @@ function buildPayload(): CreditDebitNotePayload {
         reason: reason,
         status: String(localForm.value.status || 'pending'),
         approval_status: localForm.value.approval_status || null,
+        // Solo se envía cuando hay rollos ofrecidos: [] desenlaza todos, omitirlo no toca los enlaces.
+        ...(showRollSelector.value ? { fabric_roll_ids: [...selectedRollIds.value] } : {}),
         items: normalizedItems,
     };
 }
@@ -458,7 +513,7 @@ async function safeGet<T = any>(url: string, config?: any): Promise<T | null> {
 
 async function fetchContacts(): Promise<void> {
     try {
-        await fetchContactsCatalog();
+        await fetchContactsCatalog({}, true);
     } catch {
         contacts.value = [];
     }
@@ -466,11 +521,13 @@ async function fetchContacts(): Promise<void> {
 
 async function fetchItemsCatalog(): Promise<void> {
     try {
-        const rows = await fetchItemsCatalogData();
-        itemsCatalog.value = rows.map((row) => ({
-            id: asNumber(row.id),
-            name: String(row.name ?? `Item #${row.id}`),
-        }));
+        const rows = await fetchItemsCatalogData({}, true);
+        itemsCatalog.value = rows
+            .map((row) => ({
+                id: asNumber(row.id),
+                name: String(row.name ?? `Item #${row.id}`),
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
     } catch {
         itemsCatalog.value = [];
     }
@@ -607,7 +664,7 @@ async function handleSubmit(): Promise<void> {
             emit('refresh', 'Nota creada correctamente.');
         } else {
             const noteId = asNumber(localForm.value.id, 0);
-            if (!noteId) throw new Error('No se encontro el identificador de la nota a actualizar.');
+            if (!noteId) throw new Error('No se encontró el identificador de la nota a actualizar.');
             await updateCreditDebitNote(noteId, payload);
             showSuccess('Nota actualizada correctamente.');
             emit('refresh', 'Nota actualizada correctamente.');
@@ -675,6 +732,9 @@ async function initializeDialog(): Promise<void> {
     if (!Array.isArray(localForm.value.items) || localForm.value.items.length === 0) {
         localForm.value.items = [createEmptyItem()];
     }
+
+    selectedRollIds.value = [];
+    await loadRejectedRolls();
 }
 
 /**
@@ -717,6 +777,11 @@ watch(
             }
         }
         if (newParentId <= 0) parentSummary.value = null;
+
+        if (newParentId !== previousParentId) {
+            selectedRollIds.value = [];
+            await loadRejectedRolls();
+        }
     },
 );
 
@@ -740,7 +805,7 @@ watch(
 
 watch(resolvedNoteType, async () => {
     localForm.value.document_type = toDocumentType(resolvedNoteType.value);
-    if (dialogOpen.value) await fetchReasonOptions();
+    if (dialogOpen.value) await Promise.all([fetchReasonOptions(), loadRejectedRolls()]);
 });
 
 onMounted(async () => {
@@ -777,8 +842,8 @@ onMounted(async () => {
                             :options="contactOptions"
                             :placeholder="contactSelectPlaceholder"
                         />
-                        <InputField label="Identificacion" :modelValue="contactIdNumber" readonly />
-                        <InputField label="Telefono" :modelValue="contactPhone" readonly />
+                        <InputField label="Identificación" :modelValue="contactIdNumber" readonly />
+                        <InputField label="Teléfono" :modelValue="contactPhone" readonly />
                     </div>
 
                     <div class="space-y-3">
@@ -809,9 +874,41 @@ onMounted(async () => {
                 />
                 <InputField v-else :label="baseInvoiceLabel" :modelValue="parentDisplay || `Factura #${localForm.parent_document_id}`" readonly />
 
+                <section
+                    v-if="showRollSelector"
+                    class="rounded-xl border border-amber-300/70 bg-amber-50/40 p-3 dark:border-amber-500/40 dark:bg-amber-950/10"
+                >
+                    <div class="mb-2 flex flex-wrap items-center justify-between gap-2">
+                        <div>
+                            <h3 class="text-sm font-semibold">Rollos rechazados que cubre esta nota</h3>
+                            <p class="text-xs text-muted-foreground">
+                                Su monto queda retenido en el pago de la factura hasta que esta nota se apruebe; al aprobarla los rollos se dan de baja.
+                            </p>
+                        </div>
+                        <span v-if="selectedRollIds.length > 0" class="text-xs font-medium">
+                            {{ selectedRollIds.length }} seleccionado(s) · {{ formatMoney(selectedRollsAmount) }}
+                        </span>
+                    </div>
+
+                    <ul class="divide-y divide-border/60 rounded-lg border border-border/60 bg-background">
+                        <li v-for="roll in rejectedRolls" :key="roll.id" class="flex items-center gap-3 px-3 py-2">
+                            <Checkbox
+                                :id="`note-roll-${roll.id}`"
+                                :model-value="isRollSelected(roll.id)"
+                                @update:model-value="(checked: boolean | 'indeterminate') => toggleRoll(roll.id, checked)"
+                            />
+                            <label :for="`note-roll-${roll.id}`" class="flex min-w-0 flex-1 cursor-pointer flex-col text-sm">
+                                <span class="font-medium">Rollo {{ roll.roll_number || `#${roll.id}` }} · {{ roll.quantity }} m</span>
+                                <span v-if="roll.reason" class="truncate text-xs text-muted-foreground">Motivo: {{ roll.reason }}</span>
+                            </label>
+                            <span class="text-sm font-medium tabular-nums">{{ formatMoney(roll.amount) }}</span>
+                        </li>
+                    </ul>
+                </section>
+
                 <section class="rounded-xl border border-sidebar-border/70 p-3 dark:border-sidebar-border">
                     <div class="mb-2 flex items-center justify-between">
-                        <h3 class="text-sm font-semibold">Items</h3>
+                        <h3 class="text-sm font-semibold">Ítems</h3>
                         <button
                             type="button"
                             class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/35 bg-background px-4 py-2 text-sm font-semibold text-primary shadow-sm transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30"
@@ -927,10 +1024,10 @@ onMounted(async () => {
                 </section>
 
                 <TextareaField
-                    :modelValue="String(localForm.description ?? '')"
+                    :modelValue="String(localForm.description ?? '')" data-no-uppercase
                     @update:modelValue="(value) => (localForm.description = String(value ?? ''))"
-                    label="Observacion general"
-                    placeholder="Agrega una observacion para la nota"
+                    label="Observación general"
+                    placeholder="Agrega una observación para la nota"
                     :rows="3"
                 />
                 </div>

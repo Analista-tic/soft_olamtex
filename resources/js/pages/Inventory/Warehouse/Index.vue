@@ -16,7 +16,7 @@ import { formatRequiredFieldsMessage } from '@/lib/alert-format';
 import { useAuthStore } from '@/stores/auth';
 import { useWarehousesStore } from '@/stores/inventory/warehouses';
 import { Head, router } from '@inertiajs/vue3';
-import axios from 'axios';
+import axios, { type AxiosError } from 'axios';
 import { Pencil, PlusCircle, Search, Trash } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import WarehouseDialog from './WarehouseDialog.vue';
@@ -89,7 +89,13 @@ async function deleteWarehouse() {
         setError('');
         fetchWarehouses();
     } catch (error) {
-        setError('Error al eliminar la bodega.');
+        const status = (error as AxiosError)?.response?.status;
+        const serverMessage = (error as AxiosError<{ message?: string }>)?.response?.data?.message;
+        if (status === 409 && serverMessage) {
+            setError(serverMessage, 'warning');
+        } else {
+            setError('Error al eliminar la bodega.');
+        }
         console.error('Error al eliminar el warehouse:', error);
     } finally {
         isDeleteDialogOpen.value = false;

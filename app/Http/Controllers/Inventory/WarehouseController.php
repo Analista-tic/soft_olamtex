@@ -3,7 +3,14 @@
 namespace App\Http\Controllers\Inventory;
 
 use App\Http\Controllers\Controller;
+use App\Models\Expenses\PurchaseDocumentItemReception;
+use App\Models\Inventory\InventoryAdjustmentLine;
+use App\Models\Inventory\InventoryMovement;
+use App\Models\Inventory\InventoryRequestItem;
 use App\Models\Inventory\Warehouse;
+use App\Models\Inventory\WarehouseItem;
+use App\Models\Inventory\WarehouseTransfer;
+use App\Models\Production\BatchControlWarehouseReceipt;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 
@@ -38,9 +45,31 @@ class WarehouseController extends Controller
     public function destroy($id)
     {
         $warehouse = Warehouse::findOrFail($id);
+
+        if ($this->hasMovements($warehouse)) {
+            return response()->json([
+                'message' => 'No se puede eliminar la bodega porque tiene stock, movimientos o transferencias asociadas.',
+            ], 409);
+        }
+
         $warehouse->delete();
 
         return response()->noContent();
+    }
+
+    private function hasMovements(Warehouse $warehouse): bool
+    {
+        $id = $warehouse->id;
+
+        return WarehouseItem::where('warehouse_id', $id)->exists()
+            || InventoryMovement::where('warehouse_id', $id)->exists()
+            || InventoryAdjustmentLine::where('warehouse_id', $id)->exists()
+            || InventoryRequestItem::where('warehouse_id', $id)->exists()
+            || WarehouseTransfer::withTrashed()
+                ->where(fn ($query) => $query->where('origin_warehouse_id', $id)->orWhere('destination_warehouse_id', $id))
+                ->exists()
+            || BatchControlWarehouseReceipt::where('warehouse_id', $id)->exists()
+            || PurchaseDocumentItemReception::where('warehouse_id', $id)->exists();
     }
 
     /**

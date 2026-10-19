@@ -3,20 +3,17 @@
 namespace App\Services\Expenses;
 
 use App\Models\Expenses\PurchaseDocument;
-use App\Models\Expenses\PurchaseDocumentItem;
 use App\Models\Expenses\PurchaseRequest;
 use App\Models\Settings\User;
+use App\Notifications\GenericEventNotification;
 use App\Notifications\PurchaseOrderCreatedNotification;
+use App\Services\Settings\NotificationDispatcher;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Notification;
 
 class PurchaseDocumentOrderService extends PurchaseDocumentService
 {
-    public function __construct(private PurchaseDocumentInvoiceService $invoiceService)
-    {
-    }
-
     public function createOrder(array $data, array $items = []): PurchaseDocument
     {
         return DB::transaction(function () use ($data, $items) {
@@ -45,7 +42,7 @@ class PurchaseDocumentOrderService extends PurchaseDocumentService
             }
 
             $userId = Auth::id();
-            $status = $data['status'] ?? 'approved';
+            $status = $data['status'] ?? 'pending';
             $isUpdatingPending = false;
 
             // Si existe una orden pendiente, actualizarla en lugar de crear una nueva
@@ -91,126 +88,25 @@ class PurchaseDocumentOrderService extends PurchaseDocumentService
 
     protected function notifyOrderCreated(PurchaseDocument $order): void
     {
-        $recipients = User::role('contabilidad')->get();
-        if ($recipients->isEmpty()) {
-            return;
-        }
-
         $creator = Auth::user();
-        // Excluir al creador si tiene rol contabilidad
-        if ($creator) {
-            $recipients = $recipients->filter(fn($u) => $u->id !== $creator->id);
+        $dispatcher = app(NotificationDispatcher::class);
+
+        $dispatcher->dispatch('purchase_order_created', new PurchaseOrderCreatedNotification($order, $creator?->name), ['actor' => $creator]);
+
+        $status = $order->status instanceof \BackedEnum ? $order->status->value : $order->status;
+        if ($status === 'pending') {
+            $number = $order->document_number ?? (string) $order->id;
+            $dispatcher->dispatch(
+                'purchase_order_pending_approval',
+                new GenericEventNotification(
+                    'purchase_order_pending_approval',
+                    'Gastos',
+                    "Orden de compra #{$number} pendiente de aprobación",
+                    ($creator?->name ?? 'Un usuario')." creó la orden de compra {$number}; debe aprobarse antes de facturarse.",
+                    '/gastos/ordenes-compra'
+                ),
+                ['actor' => $creator]
+            );
         }
-
-        if ($recipients->isEmpty()) {
-            return;
-        }
-
-        Notification::send($recipients, new PurchaseOrderCreatedNotification($order, $creator?->name));
-    }
-
-    public function convertOrderToInvoice(
-        PurchaseDocument $order,
-        array $invoiceData = [],
-        ?array $invoiceItems = null,
-        ?array $withholdings = null
-    ): PurchaseDocument {
-        if (! $order->isOrder()) {
-            throw new \InvalidArgumentException('Solo las ordenes de compra pueden convertirse a factura.');
-        }
-
-        return DB::transaction(function () use ($order, $invoiceData, $invoiceItems, $withholdings) {
-            $order->refresh()->load('items');
-
-            if ($order->children()->where('document_type', PurchaseDocument::TYPE_INVOICE)->exists()) {
-                throw new \RuntimeException('La orden de compra ya tiene una factura vinculada.');
-            }
-
-            $payload = [
-                'parent_document_id'      => $order->id,
-                'contact_id'              => $order->contact_id,
-                'provider_name'           => $order->provider_name,
-                'provider_phone'          => $order->provider_phone,
-                'date'                    => $invoiceData['date'] ?? now()->toDateString(),
-                'delivery_date'           => $invoiceData['delivery_date'] ?? $order->delivery_date,
-                'description'             => $invoiceData['description'] ?? $order->description,
-                'status'                  => $invoiceData['status'] ?? 'pending',
-                'approval_status'         => $invoiceData['approval_status'] ?? 'pending',
-                'supplier_invoice_number' => $invoiceData['supplier_invoice_number'] ?? null,
-                'document_number'         => $invoiceData['document_number'] ?? null,
-                'invoiced_at'             => $invoiceData['invoiced_at'] ?? now(),
-                'order_status'            => $invoiceData['order_status'] ?? 'approved',
-                'buyer_user_id'           => $order->buyer_user_id,
-            ];
-
-            $items = $invoiceItems ?? $order->items
-                ->map(fn (PurchaseDocumentItem $item) => [
-                    'item_id'        => $item->item_id,
-                    'item_name'      => $item->item_name,
-                    'quantity'       => $item->quantity,
-                    'price'          => $item->price,
-                    'tax'            => $item->tax,
-                    'total'          => $item->total,
-                    'total_tax'      => $item->total_tax,
-                    'supplier_code'  => $item->supplier_code,
-                    'supplier_color' => $item->supplier_color,
-                    'order_width'    => $item->order_width,
-                    'description'    => $item->description,
-                ])
-                ->toArray();
-
-            return $this->invoiceService->createInvoice($payload, $items, $withholdings ?? []);
-        });
-    }
-
-    /**
-     * Verifica si todas las cantidades de la solicitud están cubiertas por órdenes (no rechazadas/eliminadas).
-     * Devuelve null si todo está cubierto, o un mensaje de error si falta cantidad.
-     */
-    public function checkRequestCoverage(PurchaseDocument $order): ?string
-    {
-        $requestId = $order->purchase_request_id;
-        if (!$requestId) {
-            return null; // Orden directa sin solicitud → sin restricción
-        }
-
-        $purchaseRequest = PurchaseRequest::find($requestId);
-        if (!$purchaseRequest) {
-            return null;
-        }
-
-        $requestItems = is_array($purchaseRequest->items)
-            ? $purchaseRequest->items
-            : (is_string($purchaseRequest->items) ? (json_decode($purchaseRequest->items, true) ?? []) : []);
-
-        if (empty($requestItems)) {
-            return null;
-        }
-
-        // Sumar cantidades ordenadas por item_id en todas las órdenes de esta solicitud (excluidas las rechazadas/eliminadas)
-        $orderIds = PurchaseDocument::where('purchase_request_id', $requestId)
-            ->where('document_type', PurchaseDocument::TYPE_ORDER)
-            ->whereNotIn('status', ['rejected'])
-            ->whereNull('deleted_at')
-            ->pluck('id');
-
-        $orderedQty = PurchaseDocumentItem::whereIn('purchase_document_id', $orderIds)
-            ->get()
-            ->groupBy(fn($i) => $i->item_id ? "id:{$i->item_id}" : "name:" . strtolower(trim((string) $i->item_name)))
-            ->map(fn($group) => $group->sum(fn($i) => (float) $i->quantity));
-
-        foreach ($requestItems as $item) {
-            $key = !empty($item['item_id']) ? "id:{$item['item_id']}" : "name:" . strtolower(trim((string) ($item['name'] ?? $item['item_name'] ?? '')));
-            $requested = (float) ($item['quantity'] ?? 0);
-            $ordered   = (float) ($orderedQty[$key] ?? 0);
-
-            if ($requested > 0 && $ordered < $requested) {
-                $name = $item['name'] ?? $item['item_name'] ?? 'ítem';
-                $pending = $requested - $ordered;
-                return "Faltan {$pending} unidades de \"{$name}\" por ordenar antes de aprobar.";
-            }
-        }
-
-        return null;
     }
 }

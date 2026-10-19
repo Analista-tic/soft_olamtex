@@ -70,10 +70,12 @@ async function fetchRequest(id: number) {
 
 async function fetchWarehouses() {
     const { data } = await axios.get('/bodegas/data', { params: { per_page: 1000 } });
-    warehouses.value = (data.data || []).map((warehouse: any) => ({
-        id: Number(warehouse.id),
-        name: warehouse.name,
-    }));
+    warehouses.value = (data.data || [])
+        .map((warehouse: any) => ({
+            id: Number(warehouse.id),
+            name: warehouse.name,
+        }))
+        .sort((a: { name: string }, b: { name: string }) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
 }
 
 async function ensureItemWarehouseStock(itemId: number | null) {
@@ -142,7 +144,7 @@ async function initializeDialog() {
     errorMessage.value = '';
     errorType.value = 'error';
     if (props.requestId) {
-        await Promise.all([fetchRequest(props.requestId), warehouses.value.length ? Promise.resolve() : fetchWarehouses()]);
+        await Promise.all([fetchRequest(props.requestId), fetchWarehouses()]);
     }
 }
 
@@ -156,13 +158,13 @@ function validateForm() {
     for (const line of items.value) {
         if (!line.item_id) {
             errorType.value = 'warning';
-            errorMessage.value = 'Debe asociar un item existente antes de entregar.';
+            errorMessage.value = 'Debe asociar un ítem existente antes de entregar.';
             return false;
         }
         const quantity = Number(line.delivered_quantity) || 0;
         if (quantity <= 0) {
             errorType.value = 'warning';
-            errorMessage.value = 'Todas las lineas deben tener cantidad entregada.';
+            errorMessage.value = 'Todas las líneas deben tener cantidad entregada.';
             return false;
         }
         if (quantity > Number(line.requested_quantity)) {
@@ -275,7 +277,7 @@ onMounted(() => {
                         <Table class="min-w-full table-fixed text-center">
                             <TableHeader>
                                 <TableRow class="border-b border-border/60 bg-muted/20 text-center">
-                                    <TableHead class="min-w-[200px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Item</TableHead>
+                                    <TableHead class="min-w-[200px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Ítem</TableHead>
                                     <TableHead class="min-w-[120px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Solicitado</TableHead>
                                     <TableHead class="min-w-[140px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Cantidad a entregar</TableHead>
                                     <TableHead class="min-w-[200px] px-3 py-3 text-left text-xs font-semibold uppercase tracking-wider text-muted-foreground">Bodega</TableHead>
@@ -286,7 +288,7 @@ onMounted(() => {
                                     <TableCell class="min-w-[200px] whitespace-normal break-words px-3 py-3 text-left align-middle">
                                         <div class="flex h-full items-center">
                                             <span :class="item.item_id ? '' : 'text-destructive'">
-                                                {{ item.name || (item.item_id ? `Item ${item.item_id}` : 'Sin item asignado') }}
+                                                {{ item.name || (item.item_id ? `Ítem ${item.item_id}` : 'Sin ítem asignado') }}
                                             </span>
                                         </div>
                                     </TableCell>
@@ -321,7 +323,7 @@ onMounted(() => {
                     </div>
 
                     <p v-if="hasMissingItems" class="text-xs text-destructive">
-                        Hay items sin asociar. Debes crear o asignar un item valido antes de entregar.
+                        Hay ítems sin asociar. Debes crear o asignar un ítem válido antes de entregar.
                     </p>
                 </div>
             </div>

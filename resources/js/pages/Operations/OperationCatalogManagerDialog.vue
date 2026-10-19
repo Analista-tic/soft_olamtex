@@ -9,15 +9,18 @@ import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogFooter } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import PillTabs from '@/components/common/PillTabs.vue';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
 import axios from 'axios';
 import { Pencil, Plus, Save, Trash2, X } from 'lucide-vue-next';
 import { computed, ref, watch } from 'vue';
 
+export type SectionType = 'PREPARACION' | 'ENSAMBLE' | 'TERMINACION';
+
 export type ManagedSection = {
     id: number;
     name: string;
-    type: 'confeccion' | 'presentacion';
+    type: SectionType;
     is_active: boolean;
     usage_count: number;
 };
@@ -71,7 +74,7 @@ const form = ref({
     id: null as number | null,
     code: '',
     name: '',
-    type: 'confeccion' as 'confeccion' | 'presentacion',
+    type: 'PREPARACION' as SectionType,
     supplement_factor: 1,
     is_active: '1' as StatusValue,
 });
@@ -125,8 +128,9 @@ const tabLabels: Record<TabKey, { title: string; singular: string; empty: string
 };
 
 const typeOptions = [
-    { id: 'confeccion', name: 'Confección' },
-    { id: 'presentacion', name: 'Presentación' },
+    { id: 'PREPARACION', name: 'Preparación' },
+    { id: 'ENSAMBLE', name: 'Ensamble' },
+    { id: 'TERMINACION', name: 'Terminación' },
 ];
 
 const statusOptions = [
@@ -160,7 +164,7 @@ function resetForm() {
         id: null,
         code: '',
         name: '',
-        type: 'confeccion',
+        type: 'PREPARACION',
         supplement_factor: 1,
         is_active: '1',
     };
@@ -205,7 +209,7 @@ function startEdit(item: ManagedSection | ManagedCatalogOption | ManagedMachine)
         id: item.id,
         code: 'code' in item ? String((item as ManagedMachine).code) : '',
         name: (item as ManagedSection | ManagedCatalogOption).name ?? '',
-        type: 'type' in item ? (item as ManagedSection).type : 'confeccion',
+        type: 'type' in item ? (item as ManagedSection).type : 'PREPARACION',
         supplement_factor: 'supplement_factor' in item ? Number((item as ManagedMachine).supplement_factor) : 1,
         is_active: item.is_active ? '1' : '0',
     };
@@ -311,12 +315,15 @@ async function confirmDelete() {
                 </p>
 
                 <Tabs v-model="activeTab" class="space-y-4">
-                    <TabsList class="grid w-full grid-cols-4">
-                        <TabsTrigger value="sections">Secciones</TabsTrigger>
-                        <TabsTrigger value="actions">Acciones</TabsTrigger>
-                        <TabsTrigger value="garment-parts">Partes de prenda</TabsTrigger>
-                        <TabsTrigger value="machines">Máquinas</TabsTrigger>
-                    </TabsList>
+                    <PillTabs
+                        size="sm"
+                        :tabs="[
+                            { value: 'sections', label: 'Secciones' },
+                            { value: 'actions', label: 'Acciones' },
+                            { value: 'garment-parts', label: 'Partes de prenda' },
+                            { value: 'machines', label: 'Máquinas' },
+                        ]"
+                    />
 
                     <TabsContent value="sections" class="mt-0">
                         <div class="grid grid-cols-1 gap-4 lg:grid-cols-[360px_minmax(0,1fr)]">

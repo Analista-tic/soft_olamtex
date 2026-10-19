@@ -34,37 +34,39 @@ function calcularDV(nit: string): string {
 }
 
 const contactTypeOptions = [
-    { id: 'proveedor', name: 'Proveedor' },
     { id: 'cliente', name: 'Cliente' },
     { id: 'cliente_proveedor', name: 'Cliente y Proveedor' },
+    { id: 'proveedor', name: 'Proveedor' },
 ];
 
 const idTypeOptions = [
-    { id: 'nit', name: 'NIT - Numero de identificacion tributaria' },
     { id: 'cc', name: 'CC - Cedula de ciudadania' },
-    { id: 'nit_otro_pais', name: 'NIT de otro pais' },
-    { id: 'pp', name: 'PP - Pasaporte' },
-    { id: 'pep', name: 'PEP - Permiso especial de permanencia' },
-    { id: 'die', name: 'DIE - Documento de identificacion extranjero' },
     { id: 'ce', name: 'CE - Cedula de extranjeria' },
+    { id: 'die', name: 'DIE - Documento de identificacion extranjero' },
+    { id: 'nit', name: 'NIT - Número de identificación tributaria' },
+    { id: 'nit_otro_pais', name: 'NIT de otro pais' },
+    { id: 'nuip', name: 'NUIP - Número único de identificación personal' },
+    { id: 'pep', name: 'PEP - Permiso especial de permanencia' },
+    { id: 'pp', name: 'PP - Pasaporte' },
+    { id: 'ppt', name: 'PPT - Permiso de proteccion temporal' },
+    { id: 'rc', name: 'RC - Registro civil' },
     { id: 'te', name: 'TE - Tarjeta de extranjeria' },
     { id: 'ti', name: 'TI - Tarjeta de identidad' },
-    { id: 'rc', name: 'RC - Registro civil' },
-    { id: 'nuip', name: 'NUIP - Numero unico de identificacion personal' },
-    { id: 'ppt', name: 'PPT - Permiso de proteccion temporal' },
 ];
 
 const personTypeOptions = [
-    { id: 'persona_natural', name: 'Persona natural' },
     { id: 'persona_juridica', name: 'Persona juridica' },
+    { id: 'persona_natural', name: 'Persona natural' },
 ];
 
 const props = defineProps<{
     form?: ContactFormState | Record<string, any>;
+    errors?: Record<string, string[]>;
 }>();
 
 const emit = defineEmits<{
     (e: 'update:form', updatedForm: ContactFormState): void;
+    (e: 'clear-error', field: string): void;
 }>();
 
 const defaultForm: ContactFormState = {
@@ -138,13 +140,15 @@ const emitUpdate = useDebounceFn(() => {
 
 watch(internalForm, emitUpdate, { deep: true });
 
-const allLocationOptions = colombiaData.flatMap((department: any) =>
-    (department.ciudades || []).map((municipality: string) => ({
-        id: `${municipality}||${department.departamento}`,
-        name: `${municipality}, ${department.departamento}`,
-        searchText: `${municipality.toLowerCase()} ${department.departamento.toLowerCase()}`,
-    })),
-);
+const allLocationOptions = colombiaData
+    .flatMap((department: any) =>
+        (department.ciudades || []).map((municipality: string) => ({
+            id: `${municipality}||${department.departamento}`,
+            name: `${municipality}, ${department.departamento}`,
+            searchText: `${municipality.toLowerCase()} ${department.departamento.toLowerCase()}`,
+        })),
+    )
+    .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
 
 const locationOptions = ref(allLocationOptions.slice(0, 50));
 const isLoadingLocations = ref(false);
@@ -185,7 +189,18 @@ const updateLocationOptions = (searchQuery: string = '') => {
 
 const masterDataStore = useMasterDataStore();
 
-const errors = ref<Record<string, string[]>>({});
+const errors = computed(() => props.errors ?? {});
+
+const errorFieldKeys = ['contact_type', 'groups', 'id_type', 'id_number', 'full_name', 'person_type', 'municipality', 'department', 'email'] as const;
+
+errorFieldKeys.forEach((field) => {
+    watch(
+        () => JSON.stringify(internalForm.value[field] ?? ''),
+        () => {
+            if (errors.value[field]) emit('clear-error', field);
+        },
+    );
+});
 
 watch(getSelectedLocationKey, (key) => {
     syncSelectedLocationOption(key);
@@ -206,12 +221,6 @@ const locationValue = computed({
         internalForm.value.department = department || '';
     },
 });
-
-const validateField = (field: string) => {
-    if (errors.value[field]) {
-        delete errors.value[field];
-    }
-};
 </script>
 
 <template>
@@ -221,19 +230,18 @@ const validateField = (field: string) => {
             label="Tipo de contacto"
             required
             :options="contactTypeOptions"
-            :error="errors.contact_type?.[0]"
+            :invalid="!!errors.contact_type"
+            :error-message="errors.contact_type?.[0]"
             :searchable="false"
-            @input="validateField('contact_type')"
         />
         <GroupSelect
             v-model="internalForm.groups"
-            label="Categoria proveedor/cliente"
+            label="Categoría proveedor/cliente"
             :options="masterDataStore.groups"
-            placeholder="Selecciona categorias"
-            required
+            placeholder="Selecciona categorías"
+            :required="internalForm.contact_type === 'proveedor'"
             :searchable="true"
             :error="errors.groups?.[0]"
-            @input="validateField('groups')"
         />
         <SelectField
             v-model="internalForm.id_type"
@@ -241,10 +249,18 @@ const validateField = (field: string) => {
             required
             :searchable="true"
             :options="idTypeOptions"
+            :invalid="!!errors.id_type"
+            :error-message="errors.id_type?.[0]"
         />
         <div class="grid grid-cols-5 gap-4">
             <div :class="internalForm.id_type === 'nit' ? 'col-span-4' : 'col-span-5'">
-                <InputField v-model="internalForm.id_number" label="Numero de identificacion" required placeholder="Numero de identificacion" />
+                <InputField
+                    v-model="internalForm.id_number"
+                    label="Número de identificación"
+                    required
+                    placeholder="Número de identificación"
+                    :error="errors.id_number?.[0]"
+                />
             </div>
             <div v-if="internalForm.id_type === 'nit'" class="col-span-1">
                 <div class="grid w-full items-center gap-1.5">
@@ -265,11 +281,18 @@ const validateField = (field: string) => {
             label="Tipo de persona"
             required
             :options="personTypeOptions"
-            :error="errors.person_type?.[0]"
+            :invalid="!!errors.person_type"
+            :error-message="errors.person_type?.[0]"
             :searchable="false"
-            @input="validateField('person_type')"
         />
-        <InputField v-model="internalForm.full_name" label="Nombre completo o razon social" required placeholder="Nombre completo" />
+        <InputField
+            v-model="internalForm.full_name"
+            data-no-uppercase
+            label="Nombre completo o razón social"
+            required
+            placeholder="Nombre completo"
+            :error="errors.full_name?.[0]"
+        />
         <div class="md:col-span-2">
             <SelectField
                 v-model="locationValue"
@@ -277,30 +300,24 @@ const validateField = (field: string) => {
                 required
                 :options="locationOptions"
                 placeholder="Escribe para buscar municipio o departamento..."
-                :error="errors.municipality?.[0] || errors.department?.[0]"
+                :invalid="!!(errors.municipality || errors.department)"
+                :error-message="errors.municipality?.[0] || errors.department?.[0]"
                 :searchable="true"
                 :searchThreshold="0"
                 @search="updateLocationOptions"
-                @input="
-                    () => {
-                        validateField('municipality');
-                        validateField('department');
-                    }
-                "
             />
         </div>
         <div class="col-span-full grid grid-cols-3 gap-4">
-            <InputField v-model="internalForm.address" label="Direccion" placeholder="Direccion" />
+            <InputField v-model="internalForm.address" data-no-uppercase label="Dirección" placeholder="Dirección" />
             <InputField
                 v-model="internalForm.email"
-                label="Correo electronico"
+                label="Correo electrónico"
                 type="email"
                 required
-                placeholder="Correo electronico"
-                :error="!!errors.email?.[0]"
-                @input="validateField('email')"
+                placeholder="Correo electrónico"
+                :error="errors.email?.[0]"
             />
-            <InputField v-model="internalForm.phone" label="Telefono" placeholder="Telefono" />
+            <InputField v-model="internalForm.phone" label="Teléfono" placeholder="Teléfono" />
         </div>
     </div>
 </template>

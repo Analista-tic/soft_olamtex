@@ -430,8 +430,8 @@ onUnmounted(() => {
                 <FormLoadingOverlay
                     :active="isLoading"
                     :delay-ms="0"
-                    message="Cargando orden de produccion..."
-                    description="Consultando la informacion consolidada de la OP seleccionada."
+                    message="Cargando orden de producción..."
+                    description="Consultando la información consolidada de la OP seleccionada."
                 />
                 <template v-if="canRenderDetail && !hasData">
                     <div class="rounded-lg bg-muted/10 px-3 py-2 text-sm text-muted-foreground">

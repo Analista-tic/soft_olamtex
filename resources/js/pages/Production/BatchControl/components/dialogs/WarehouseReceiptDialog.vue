@@ -52,6 +52,10 @@ const warehouseId     = ref<number | null>(null);
 
 const NON_SIZE_KEYS = new Set(['color', 'color_code', 'total']);
 
+const sortedWarehouses = computed<WarehouseOption[]>(() =>
+    [...props.warehouses].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
+);
+
 const dynamicSizes = computed<string[]>(() => {
     const source = props.receivedCurves[0]
         ?? props.savedReceipt?.remision_curves[0]
@@ -291,14 +295,14 @@ const textareaBase = 'w-full rounded-md border border-input bg-background px-3 p
                             <div class="grid grid-cols-1 gap-4 px-4 pb-4 pt-2 lg:grid-cols-2">
                                 <div class="space-y-1.5">
                                     <label class="text-xs font-semibold text-foreground">Responsable</label>
-                                    <input v-if="!viewOnly" type="text" :class="'h-8 w-full rounded-md border border-input bg-background px-3 text-xs focus:outline-none focus:ring-1 focus:ring-ring'"
+                                    <input data-no-uppercase v-if="!viewOnly" type="text" :class="'h-8 w-full rounded-md border border-input bg-background px-3 text-xs focus:outline-none focus:ring-1 focus:ring-ring'"
                                         placeholder="Nombre del responsable..."
                                         v-model="responsible" />
                                     <p v-else class="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">{{ responsible || '—' }}</p>
                                 </div>
                                 <div class="space-y-1.5">
                                     <label class="text-xs font-semibold text-foreground">Observaciones <span class="font-normal text-muted-foreground">(opcional)</span></label>
-                                    <textarea v-if="!viewOnly" :class="textareaBase" rows="2" placeholder="Descripción de los defectos..." v-model="imperfectObs" />
+                                    <textarea data-no-uppercase v-if="!viewOnly" :class="textareaBase" rows="2" placeholder="Descripción de los defectos..." v-model="imperfectObs" />
                                     <p v-else class="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground min-h-[3rem]">{{ imperfectObs || '—' }}</p>
                                 </div>
                             </div>
@@ -358,7 +362,7 @@ const textareaBase = 'w-full rounded-md border border-input bg-background px-3 p
                                         v-model="warehouseId"
                                     >
                                         <option :value="null" disabled>Seleccionar bodega…</option>
-                                        <option v-for="wh in warehouses" :key="wh.id" :value="wh.id">{{ wh.name }}</option>
+                                        <option v-for="wh in sortedWarehouses" :key="wh.id" :value="wh.id">{{ wh.name }}</option>
                                     </select>
                                     <p v-else class="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
                                         {{ warehouses.find(w => w.id === warehouseId)?.name ?? '—' }}
@@ -366,7 +370,7 @@ const textareaBase = 'w-full rounded-md border border-input bg-background px-3 p
                                 </div>
                                 <div class="space-y-1.5">
                                     <label class="text-xs font-semibold text-foreground">Observaciones <span class="font-normal text-muted-foreground">(opcional)</span></label>
-                                    <textarea v-if="!viewOnly" :class="textareaBase" rows="2" placeholder="Notas de la remisión..." v-model="remisionObs" />
+                                    <textarea data-no-uppercase v-if="!viewOnly" :class="textareaBase" rows="2" placeholder="Notas de la remisión..." v-model="remisionObs" />
                                     <p v-else class="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground min-h-[3rem]">{{ remisionObs || '—' }}</p>
                                 </div>
                             </div>

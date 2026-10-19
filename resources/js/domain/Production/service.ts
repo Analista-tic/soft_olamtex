@@ -1,7 +1,7 @@
 import type { Option } from '@/domain/shared';
 import { toUnitNumber } from '@/domain/Textil';
 import axios from 'axios';
-import { normalizeAdditionalInfoForSummary, mergeCutConsumptionIntoAdditionalInfo } from './normalizers';
+import { normalizeAdditionalInfoForSummary } from './normalizers';
 import type {
     AdditionalInfoDto,
     CostsSummaryDto,

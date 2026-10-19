@@ -406,7 +406,7 @@ const costValues = computed(() => {
                         <div class="px-5 py-4">
                             <div class="space-y-1.5">
                                 <label class="text-xs font-semibold text-foreground">Observaciones generales <span class="font-normal text-muted-foreground">(opcional)</span></label>
-                                <textarea
+                                <textarea data-no-uppercase
                                     v-if="!viewOnly"
                                     :class="textareaBase"
                                     rows="3"

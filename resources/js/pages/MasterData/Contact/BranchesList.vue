@@ -13,15 +13,24 @@ const emit = defineEmits<{
     (e: 'update:branches', updatedBranches: { name: string; address: string; phone: string }[]): void;
 }>();
 
-// Estado interno para las sucursales
-const internalBranches = ref([...props.branches]);
+const emptyBranch = () => ({ name: '', address: '', phone: '' });
+
+const isBlankBranch = (branch: { name: string; address: string; phone: string }) =>
+    !branch.name.trim() && !branch.address.trim() && !branch.phone.trim();
+
+// Estado interno para las sucursales (siempre al menos una fila para indicar que se puede llenar)
+const internalBranches = ref(props.branches.length ? [...props.branches] : [emptyBranch()]);
 
 // Mensaje de alerta
 const alertMessage = ref<string>('');
 const alertType = ref<'success' | 'error' | 'info' | 'warning'>('error');
 
-// Validar que todos los campos de la sucursal estén llenos
-const validateBranch = (branch: { name: string; address: string; phone: string }) => {
+// Validar que todos los campos de la sucursal estén llenos (una fila vacía no marca errores salvo que se fuerce)
+const validateBranch = (branch: { name: string; address: string; phone: string }, force = false) => {
+    if (!force && isBlankBranch(branch)) {
+        return { name: '', address: '', phone: '' };
+    }
+
     const errors = {
         name: !branch.name.trim() ? 'El nombre es obligatorio.' : '',
         address: !branch.address.trim() ? 'La dirección es obligatoria.' : '',
@@ -57,7 +66,10 @@ watch(
             alertMessage.value = '';
         }
 
-        emit('update:branches', newBranches);
+        emit(
+            'update:branches',
+            newBranches.filter((branch) => !isBlankBranch(branch)),
+        );
     },
     { deep: true },
 );
@@ -73,7 +85,7 @@ const addBranch = () => {
     if (!areBranchesValid()) {
         alertType.value = 'warning';
         alertMessage.value = 'Por favor, complete todos los campos antes de agregar una nueva sucursal.';
-        branchErrors.value = internalBranches.value.map((branch) => validateBranch(branch));
+        branchErrors.value = internalBranches.value.map((branch) => validateBranch(branch, true));
         return;
     }
 
@@ -84,15 +96,20 @@ const addBranch = () => {
         return;
     }
 
-    internalBranches.value.push({ name: '', address: '', phone: '' });
-    branchErrors.value.push(validateBranch({ name: '', address: '', phone: '' }));
+    internalBranches.value.push(emptyBranch());
+    branchErrors.value.push(validateBranch(emptyBranch()));
     alertMessage.value = ''; // limpiamos alerta si había
 };
 
-// Eliminar una sucursal
+// Eliminar una sucursal (si queda vacía la lista, se deja una fila en blanco)
 const removeBranch = (index: number) => {
     internalBranches.value.splice(index, 1);
     branchErrors.value.splice(index, 1);
+
+    if (internalBranches.value.length === 0) {
+        internalBranches.value.push(emptyBranch());
+        branchErrors.value.push(validateBranch(emptyBranch()));
+    }
 };
 
 const showDuplicateAlertFn = () => {
@@ -126,8 +143,8 @@ defineExpose({
 
         <div v-for="(branch, index) in internalBranches" :key="index" class="p-2">
             <div class="flex items-center gap-4">
-                <InputField v-model="branch.name" label="Nombre de la sucursal" placeholder="Nombre" required :error="branchErrors[index]?.name" />
-                <InputField v-model="branch.address" label="Dirección" placeholder="Dirección" required :error="branchErrors[index]?.address" />
+                <InputField v-model="branch.name" data-no-uppercase label="Nombre de la sucursal" placeholder="Nombre" required :error="branchErrors[index]?.name" />
+                <InputField v-model="branch.address" data-no-uppercase label="Dirección" placeholder="Dirección" required :error="branchErrors[index]?.address" />
                 <InputField v-model="branch.phone" label="Teléfono" placeholder="Teléfono" required :error="branchErrors[index]?.phone" />
                 <div class="text-right">
                     <DeleteButton @click="removeBranch(index)">Eliminar sucursal</DeleteButton>

@@ -2,7 +2,8 @@
 import ImagePreviewDialog from '@/components/ImagePreviewDialog.vue';
 import SelectField from '@/components/SelectField.vue';
 import Button from '@/components/ui/button/Button.vue';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import PillTabs from '@/components/common/PillTabs.vue';
+import { Tabs, TabsContent } from '@/components/ui/tabs';
 import type { OpBasicInfo } from '@/domain/Production';
 import { fetchOpBasicInfo, fetchOpOptions, fetchOpRawMaterials, fetchOpRolls } from '@/domain/Production';
 import axios from 'axios';
@@ -28,8 +29,8 @@ const props = defineProps<{
 }>();
 
 const breadcrumbs: BreadcrumbItem[] = [
-    { title: 'Produccion', href: '/produccion' },
-    { title: 'Ficha Tecnica', href: '/produccion/ficha-tecnica' },
+    { title: 'Producción', href: '/produccion' },
+    { title: 'Ficha Técnica', href: '/produccion/ficha-tecnica' },
 ];
 
 const selectedOpId = ref<string | number | null>(props.initialOpId ?? null);
@@ -294,7 +295,7 @@ const tabs = [
     { value: 'lista_operacional', label: 'Lista operacional', icon: ClipboardList },
     { value: 'procesos', label: 'Procesos', icon: Workflow },
     { value: 'materia_prima', label: 'Materia prima', icon: Box },
-    { value: 'informacion_adicional', label: 'Informacion adicional', icon: FilePlus2 },
+    { value: 'informacion_adicional', label: 'Información adicional', icon: FilePlus2 },
     { value: 'hilos', label: 'Hilos', icon: Volleyball },
     { value: 'insumos', label: 'Insumos', icon: Package },
     { value: 'costos', label: 'Costos', icon: DollarSign },
@@ -529,11 +530,11 @@ onBeforeUnmount(() => {
 </script>
 
 <template>
-    <Head title="Ficha Tecnica" />
+    <Head title="Ficha Técnica" />
 
     <AppLayout :breadcrumbs="breadcrumbs">
         <div class="flex h-full flex-1 flex-col gap-4 overflow-hidden rounded-xl p-3">
-            <h1 :class="uiPatterns.typography.pageTitle">Ficha Tecnica</h1>
+            <h1 :class="uiPatterns.typography.pageTitle">Ficha Técnica</h1>
             <p class="max-w-4xl text-sm text-muted-foreground">
                 Selecciona una orden de produccion para consultar su informacion basica y revisar el dibujo plano de referencia en vista ampliada.
             </p>
@@ -542,7 +543,7 @@ onBeforeUnmount(() => {
                 <div class="w-full max-w-md">
                     <SelectField
                         v-model="selectedOpId"
-                        label="Orden de produccion"
+                        label="Orden de producción"
                         :options="opOptions"
                         :get-option-label="formatOpOptionLabel"
                         placeholder="Selecciona una OP"
@@ -604,7 +605,7 @@ onBeforeUnmount(() => {
                                 <div class="flex flex-col gap-4 lg:flex-row lg:items-stretch">
                                     <div class="flex min-w-0 flex-1 flex-col">
                                         <div class="mb-3 flex items-center justify-between gap-2">
-                                            <p class="text-sm font-semibold text-foreground">Informacion basica</p>
+                                            <p class="text-sm font-semibold text-foreground">Información básica</p>
                                             <button
                                                 type="button"
                                                 class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md border border-transparent text-muted-foreground transition-colors hover:bg-muted hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
@@ -674,7 +675,7 @@ onBeforeUnmount(() => {
 
                         <div v-show="isBasicInfoCollapsed" class="flex items-center justify-between gap-3">
                             <div class="flex flex-1 items-center gap-4">
-                                <p class="text-sm font-semibold text-foreground">Informacion basica</p>
+                                <p class="text-sm font-semibold text-foreground">Información básica</p>
                                 <p class="text-xs text-muted-foreground">{{ opHeaderLabel }}</p>
                             </div>
                             <div class="flex shrink-0 items-center gap-2">
@@ -692,21 +693,7 @@ onBeforeUnmount(() => {
                     </div>
 
                     <Tabs v-model="activeTab" :default-value="defaultTabValue" class="flex min-h-0 w-full min-w-0 flex-1 flex-col">
-                        <div class="mb-3 flex justify-center">
-                            <TabsList class="inline-flex w-fit flex-nowrap items-center gap-1 rounded-full border border-border bg-muted/40 p-1">
-                                <TabsTrigger
-                                    v-for="tab in tabs"
-                                    :key="tab.value"
-                                    :value="tab.value"
-                                    class="inline-flex shrink-0 items-center gap-2 whitespace-nowrap rounded-full px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground data-[state=active]:border data-[state=active]:border-primary/20 data-[state=active]:bg-primary/10 data-[state=active]:text-primary data-[state=active]:shadow-sm"
-                                >
-                                    <span class="inline-flex shrink-0 items-center gap-2">
-                                        <component :is="tab.icon" class="h-4 w-4 shrink-0" />
-                                        <span class="shrink-0">{{ tab.label }}</span>
-                                    </span>
-                                </TabsTrigger>
-                            </TabsList>
-                        </div>
+                        <PillTabs :tabs="tabs" align="center" />
 
                         <TabsContent value="lista_operacional" class="mt-0">
                             <div v-if="selectedOp && isEditable" class="mb-3 flex justify-end">
@@ -790,7 +777,7 @@ onBeforeUnmount(() => {
         :open="editOpsOpen"
         mode="edit"
         :initial-data="opsInitialData"
-        :product-sheets="selectedOp && productSheetId ? [{ id: productSheetId, fabric_base_id: selectedOp.fabric_base_id ?? null }] : []"
+        :product-sheets="selectedOp && productSheetId ? [{ id: productSheetId, reference: String(selectedOp.reference ?? ''), type: 'producto', fabric_base_id: selectedOp.fabric_base_id ?? null }] : []"
         :sections="catalogSections"
         :operations="catalogOperations"
         :machines="catalogMachines"

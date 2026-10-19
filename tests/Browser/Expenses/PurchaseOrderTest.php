@@ -115,12 +115,12 @@ class PurchaseOrderTest extends DuskTestCase
             $browser->pause(200);
             $browser->type('[dusk="orden-item-0-cantidad"]', '3');
             $browser->type('[dusk="orden-item-0-descripcion"]', 'Prueba automatizada');
-            $browser->type('[dusk="orden-item-0-ancho"]', '150');
+            $browser->type('[dusk="orden-item-0-ancho"]', '1.5');
 
             $browser->screenshot('debug-c04-form-completo');
 
             $browser->click('[dusk="btn-guardar-orden"]');
-            $browser->waitForText('creada correctamente', 10);
+            $browser->waitForLocation('/gastos/ordenes-compra', 10);
             $browser->screenshot('debug-c04-guardada');
 
             $browser->waitUntilMissingText('Cargando órdenes...');

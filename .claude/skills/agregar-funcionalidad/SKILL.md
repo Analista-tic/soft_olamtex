@@ -38,6 +38,28 @@ Sigue este checklist completo antes de marcar una funcionalidad como lista. Las 
 - Esto es obligatorio incluso en módulos que hoy no tienen ningún test (Textil, Inventario, Compras) — cada funcionalidad nueva es la oportunidad de empezar a cubrirlos, no una excusa para seguir sin pruebas.
 - Si vas a corregir un bug reportado, primero escribe (o confirma) una prueba que lo reproduzca antes de tocar el código de la corrección.
 
+## 5.1 Cambios de reglas de validación (obligatorio/opcional, condicionales)
+
+Una regla de negocio de "campo obligatorio" vive en varias capas a la vez. Antes de declarar el cambio hecho:
+
+1. **Rastrea el campo en todas las capas** con un solo Grep por nombre de campo y por etiqueta visible (ej. `groups` y `Categoría proveedor/cliente`) sobre `app/` y `resources/js/`. Capas típicas: regla del backend (FormRequest/`rules()`), asterisco del formulario, lista de campos obligatorios del diálogo (`requiredFieldKeys` y similares), mensajes de error y servicios de importación.
+2. **Cambia todas las capas en el mismo turno.** Un cambio en solo la regla del backend o solo el asterisco no cuenta como corregido.
+3. **Busca otros consumidores del componente** (otros diálogos/páginas que lo importen) y confirma que heredan el comportamiento.
+4. **Aplica exactamente lo que el usuario eligió.** No amplíes el alcance (ej. otro tipo de contacto) ni lo reduzcas sin preguntar.
+5. **No digas "corregido" sin evidencia.** Si no probaste el flujo real (navegador o prueba que ejercite el diálogo), dilo explícitamente en vez de afirmar que funciona. Si el usuario reporta que sigue fallando, el mensaje exacto que pegó es la pista: búscalo literalmente (Grep del texto) antes de cualquier otra cosa.
+
+## 5.2 Formularios y dialogs: validación visible (obligatorio al crear o editar cualquier formulario)
+
+Aplica la regla "validación visible en formularios y dialogs" de `.github/copilot-instructions.md`. Antes de dar por terminado cualquier cambio en un formulario:
+
+1. **Lista los campos obligatorios** (los del `handleSubmit`/`requiredErrors`, los del backend y los dinámicos como campos adicionales o filas repetibles) y verifica que **cada uno** tiene: asterisco en la etiqueta, borde rojo + "Requerido" tras intentar guardar, y se limpia al completarlo.
+2. **Una sola función decide "falta"** y la usan el mensaje general y el template. Si encuentras la condición duplicada, unifícala.
+3. **Revisa el componente de cada campo**: si no soporta `invalid`/`error`, agrégalo al componente compartido y confirma que los demás usos no cambian.
+4. **Vacío ≠ 0** en campos numéricos.
+5. **Edición de registros antiguos:** abre mentalmente (o con datos reales de la BD de desarrollo, solo lectura) un registro existente y comprueba que ningún campo obligatorio vacío queda sin poder corregirse. Si el mensaje de error dice "falta X", el usuario debe ver X marcado y editable.
+6. **Importación masiva:** si el formulario exige el campo, la importación (Excel) debe exigirlo igual.
+7. **Evidencia:** `vue-tsc` sin errores en los archivos tocados + prueba Pest del backend; si no se probó en el navegador, decirlo.
+
 ## 6. Cierre de QA
 
 Antes de dar la tarea por terminada:

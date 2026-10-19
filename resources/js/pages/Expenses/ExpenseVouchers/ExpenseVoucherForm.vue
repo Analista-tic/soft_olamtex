@@ -657,6 +657,9 @@ function normalizeEditableDocumentRow(row: TreasuryOpenDocument): TreasuryOpenDo
         debit_notes_total: Number(row.debit_notes_total ?? 0),
         applied_total: Number(row.applied_total ?? 0),
         pending_balance: Number(row.pending_balance ?? 0),
+        disputed_amount: Number(row.disputed_amount ?? 0),
+        disputed_rolls_count: Number(row.disputed_rolls_count ?? 0),
+        payable_balance: Number(row.payable_balance ?? row.pending_balance ?? 0),
         status: row.status ?? null,
         status_label: row.status_label ?? null,
     };
@@ -706,6 +709,7 @@ function buildEditableDocumentsForEdit(currentVoucher: ExpenseVoucherDetailItem)
         const next = { ...current };
         if (!hasEditableDocuments) {
             next.pending_balance = Math.max(0, Number(next.pending_balance ?? 0) + appliedAmount);
+            next.payable_balance = Math.max(0, Number(next.payable_balance ?? next.pending_balance ?? 0) + appliedAmount);
             next.applied_total = Math.max(0, Number(next.applied_total ?? 0) - appliedAmount);
         }
 
@@ -794,7 +798,7 @@ watch(
         const target = rows.find((doc) => doc.id === invoiceId);
         if (!target) return;
 
-        updateApplicationAmount(target.id, String(target.pending_balance));
+        updateApplicationAmount(target.id, String(target.payable_balance ?? target.pending_balance));
         pendingInvoiceSelectionId.value = null;
     },
     { deep: false },
@@ -899,11 +903,8 @@ onMounted(async () => {
                                     v-model="form.date"
                                     :disabled="submitting"
                                     placeholder="Fecha"
-                                    :class="isRequiredFieldInvalid('date') ? '[&_button]:border-destructive [&_button]:focus-visible:ring-destructive/40' : ''"
+                                    :error="isRequiredFieldInvalid('date') ? getRequiredFieldErrorMessage('date') : false"
                                 />
-                                <p v-if="isRequiredFieldInvalid('date')" class="mt-1 text-xs text-destructive">
-                                    {{ getRequiredFieldErrorMessage('date') }}
-                                </p>
                             </div>
                             <div>
                                 <p :class="['mb-1', uiPatterns.typography.fieldLabel]">Forma de pago</p>
@@ -932,7 +933,7 @@ onMounted(async () => {
                             <div class="md:col-span-3">
                                 <p :class="['mb-1', uiPatterns.typography.fieldLabel]">Nota de egreso</p>
                                 <Textarea
-                                    v-model="form.notes"
+                                    v-model="form.notes" data-no-uppercase
                                     :disabled="submitting"
                                     rows="2"
                                     placeholder="Nota de egreso"
@@ -993,6 +994,15 @@ onMounted(async () => {
                                                 <div class="flex min-h-[84px] flex-col justify-center">
                                                     <div class="font-medium text-foreground">{{ doc.document_number }}</div>
                                                     <div class="text-xs text-muted-foreground">{{ formatDate(doc.invoice_date) }}</div>
+                                                    <div
+                                                        v-if="(doc.disputed_amount ?? 0) > 0"
+                                                        class="mt-1 text-xs font-medium text-amber-600 dark:text-amber-400"
+                                                        title="Rollos rechazados sin nota crédito aprobada: ese monto no se puede pagar hasta resolverlos."
+                                                    >
+                                                        Retenido {{ formatCurrency(doc.disputed_amount ?? 0) }}
+                                                        ({{ doc.disputed_rolls_count ?? 0 }} {{ (doc.disputed_rolls_count ?? 0) === 1 ? 'rollo' : 'rollos' }})
+                                                        · Pagable {{ formatCurrency(doc.payable_balance ?? doc.pending_balance) }}
+                                                    </div>
                                                 </div>
                                             </TableCell>
 

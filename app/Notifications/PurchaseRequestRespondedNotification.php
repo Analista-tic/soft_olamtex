@@ -3,21 +3,19 @@
 namespace App\Notifications;
 
 use App\Models\Expenses\PurchaseRequest;
+use App\Notifications\Concerns\UsesConfiguredChannels;
 use Illuminate\Notifications\Notification;
 
 class PurchaseRequestRespondedNotification extends Notification
 {
+    use UsesConfiguredChannels;
+
     public function __construct(
         protected PurchaseRequest $purchaseRequest,
         protected string $action, // 'approved' | 'rejected' | 'cancelled'
         protected ?string $responderName = null,
         protected ?string $reason = null
     ) {}
-
-    public function via(object $notifiable): array
-    {
-        return ['database'];
-    }
 
     public function toArray(object $notifiable): array
     {
@@ -30,10 +28,13 @@ class PurchaseRequestRespondedNotification extends Notification
         ];
         $label = $actionLabels[$this->action] ?? $this->action;
 
+        $isRequester = (int) $notifiable->getKey() === (int) $this->purchaseRequest->requester_user_id;
+
         $body = sprintf(
-            '%s ha %s tu solicitud %s.',
+            '%s ha %s %s solicitud %s.',
             $this->responderName ?? 'Un usuario',
             $label,
+            $isRequester ? 'tu' : 'la',
             $number
         );
         if ($this->reason) {
@@ -50,7 +51,7 @@ class PurchaseRequestRespondedNotification extends Notification
             'user_name'       => $this->responderName ?? 'Usuario',
             'title'           => "Solicitud #{$number} {$label}",
             'body'            => $body,
-            'url'             => '/gastos/solicitudes-compra',
+            'url'             => '/gastos/solicitudes-compra?ver=' . $this->purchaseRequest->id,
         ];
     }
 }

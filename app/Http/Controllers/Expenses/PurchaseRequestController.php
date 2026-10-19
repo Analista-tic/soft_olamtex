@@ -9,6 +9,7 @@ use Illuminate\Http\Request;
 use Illuminate\Http\UploadedFile;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 use Inertia\Inertia;
 
 class PurchaseRequestController extends Controller
@@ -18,6 +19,27 @@ class PurchaseRequestController extends Controller
     public function index()
     {
         return Inertia::render('Expenses/PurchaseRequests/Index');
+    }
+
+    public function create()
+    {
+        return Inertia::render('Expenses/PurchaseRequests/PurchaseRequestForm', [
+            'mode' => 'create',
+        ]);
+    }
+
+    public function edit(PurchaseRequest $purchaseRequest)
+    {
+        $purchaseRequest = $this->service->findAccessibleOrFail($purchaseRequest, request()->user());
+
+        if (! $purchaseRequest->canEdit()) {
+            abort(403, 'Solo se pueden editar solicitudes en estado borrador.');
+        }
+
+        return Inertia::render('Expenses/PurchaseRequests/PurchaseRequestForm', [
+            'mode' => 'edit',
+            'form' => $purchaseRequest,
+        ]);
     }
 
     public function getData(Request $request)
@@ -67,6 +89,8 @@ class PurchaseRequestController extends Controller
             $purchaseRequest = $this->service->create($payload);
 
             return response()->json(['data' => $purchaseRequest], 201);
+        } catch (ValidationException $e) {
+            throw $e;
         } catch (\Throwable $e) {
             Log::error('Error creando solicitud de compra', [
                 'message' => $e->getMessage(),
@@ -80,6 +104,15 @@ class PurchaseRequestController extends Controller
         }
     }
 
+    public function traceability(PurchaseRequest $purchaseRequest)
+    {
+        $purchaseRequest = $this->service->findAccessibleOrFail($purchaseRequest, request()->user());
+
+        return response()->json(['data' => [
+            'chain' => app(\App\Services\Expenses\PurchaseDocumentChainService::class)->forRequest($purchaseRequest, request()->user()),
+        ]]);
+    }
+
     public function show(PurchaseRequest $purchaseRequest)
     {
         return response()->json(['data' => $this->service->findAccessibleOrFail($purchaseRequest, request()->user())]);
@@ -89,6 +122,12 @@ class PurchaseRequestController extends Controller
     {
         $purchaseRequest = $this->service->findAccessibleOrFail($purchaseRequest, $request->user());
 
+        if (! $purchaseRequest->canEdit()) {
+            return response()->json([
+                'message' => 'Solo se pueden editar solicitudes en estado borrador.',
+            ], 422);
+        }
+
         try {
             $payload = $this->validateRequestPayload($request, true);
             $payload['items'] = $this->prepareItemsPayload($request, $payload['items'] ?? [], $purchaseRequest);
@@ -96,6 +135,8 @@ class PurchaseRequestController extends Controller
             $updated = $this->service->update($purchaseRequest, $payload);
 
             return response()->json(['data' => $updated]);
+        } catch (ValidationException $e) {
+            throw $e;
         } catch (\Throwable $e) {
             Log::error('Error actualizando solicitud de compra', [
                 'purchase_request_id' => $purchaseRequest->id,
@@ -144,7 +185,7 @@ class PurchaseRequestController extends Controller
         } catch (\RuntimeException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         } catch (\Exception $e) {
-            \Log::error('Error enviando solicitud a aprobacion: ' . $e->getMessage(), [
+            \Log::error('Error enviando solicitud a aprobación:' . $e->getMessage(), [
                 'exception' => $e,
                 'request_id' => $purchaseRequest->id,
                 'trace' => $e->getTraceAsString(),
@@ -158,6 +199,8 @@ class PurchaseRequestController extends Controller
 
     public function approve(Request $request, PurchaseRequest $purchaseRequest)
     {
+        $purchaseRequest = $this->service->findAccessibleOrFail($purchaseRequest, $request->user());
+
         $validated = $request->validate([
             'reason' => 'nullable|string|max:500',
         ]);
@@ -185,6 +228,8 @@ class PurchaseRequestController extends Controller
 
     public function reject(Request $request, PurchaseRequest $purchaseRequest)
     {
+        $purchaseRequest = $this->service->findAccessibleOrFail($purchaseRequest, $request->user());
+
         $validated = $request->validate([
             'reason' => 'required|string|max:500',
         ]);
@@ -235,6 +280,8 @@ class PurchaseRequestController extends Controller
 
     public function cancel(PurchaseRequest $purchaseRequest)
     {
+        $purchaseRequest = $this->service->findAccessibleOrFail($purchaseRequest, request()->user());
+
         try {
             $updated = $this->service->cancel($purchaseRequest);
 
@@ -267,18 +314,16 @@ class PurchaseRequestController extends Controller
 
         $rules = [
             'provider_name' => 'nullable|string|max:255',
-            'requester_user_id' => 'nullable|exists:users,id',
             'solicited_to' => 'nullable|in:gerencia,logistica',
             'buyer_user_id' => 'nullable|exists:users,id',
             'date' => 'required|date',
             'destination' => 'nullable|string|max:255',
             'description' => $isUpdate ? 'sometimes|nullable|string' : 'required|string',
-            'status' => 'sometimes|in:draft,pending,approved,processed,rejected,cancelled',
             'items' => ['required', 'array', 'min:1'],
             'items.*.item_id' => 'nullable',
             'items.*.name' => 'nullable|string',
-            'items.*.price' => 'nullable|numeric|min:0',
-            'items.*.quantity' => 'nullable|numeric|min:0',
+            'items.*.price' => 'nullable|numeric|min:0|decimal:0,2',
+            'items.*.quantity' => 'nullable|numeric|min:0|decimal:0,2',
             'items.*.description' => 'nullable|string',
             'items.*.total' => 'nullable|numeric|min:0',
             'items.*.total_tax' => 'nullable|numeric|min:0',
@@ -286,6 +331,11 @@ class PurchaseRequestController extends Controller
             'items.*._delete_image' => 'nullable|boolean',
             'items.*.image' => 'nullable|image|max:2048',
         ];
+
+        // El estado solo se acepta al crear; en update se ignora (las transiciones van por sus endpoints).
+        if (!$isUpdate) {
+            $rules['status'] = 'sometimes|in:draft,pending,approved,processed,rejected,cancelled';
+        }
 
         $validated = $request->validate($rules, [
             'items.required' => 'Debe agregar al menos un ítem a la solicitud.',

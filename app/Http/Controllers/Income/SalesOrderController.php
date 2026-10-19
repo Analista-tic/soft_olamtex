@@ -234,7 +234,7 @@ class SalesOrderController extends Controller
 
         if (! $quote->isQuote()) {
             throw ValidationException::withMessages([
-                'parent_document_id' => 'El documento de origen debe ser una cotizacion.',
+                'parent_document_id' => 'El documento de origen debe ser una cotización.',
             ]);
         }
 

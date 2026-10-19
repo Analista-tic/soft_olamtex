@@ -18,7 +18,7 @@ import type { AdditionalField, AdditionalFieldPayload } from '@/domain/MasterDat
 import type { BreadcrumbItem } from '@/domain/shared';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head } from '@inertiajs/vue3';
-import axios from 'axios';
+import axios, { type AxiosError } from 'axios';
 import { PlusCircle, Search } from 'lucide-vue-next';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 import AdditionalFieldDialog from './AdditionalFieldDialog.vue';
@@ -30,9 +30,9 @@ const breadcrumbs: BreadcrumbItem[] = [
 
 const fieldTypeLabels: Record<string, string> = {
     text: 'Texto',
-    number: 'Numero',
+    number: 'Número',
     select: 'Lista de opciones',
-    textarea: 'Area de texto',
+    textarea: 'Área de texto',
     date: 'Fecha',
 };
 
@@ -78,11 +78,10 @@ const currentPage = ref(1);
 const totalItems = ref(0);
 const itemsPerPage = ref(10);
 
-const DEFAULT_TYPE_FILTER = null;
-const DEFAULT_STATUS_FILTER = null;
-
 const typeOptions = computed(() => [
-    ...Object.entries(fieldTypeLabels).map(([key, label]) => ({ id: key, name: label })),
+    ...Object.entries(fieldTypeLabels)
+        .map(([key, label]) => ({ id: key, name: label }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
 ]);
 const statusOptions = [
     { id: 'active', name: 'Activo' },
@@ -284,8 +283,9 @@ async function deleteField() {
         successMessage.value = 'Campo adicional eliminado correctamente.';
         setError('');
         fetchAdditionalFields(currentPage.value, searchQuery.value);
-    } catch {
-        setError('No se pudo eliminar el campo adicional.');
+    } catch (error) {
+        const serverMessage = (error as AxiosError<{ message?: string }>)?.response?.data?.message;
+        setError(serverMessage ?? 'No se pudo eliminar el campo adicional.', serverMessage ? 'warning' : 'error');
     } finally {
         isDeleteDialogOpen.value = false;
         fieldToDelete.value = null;
@@ -412,7 +412,7 @@ onBeforeUnmount(() => {
             :success-message="successMessage"
             :error-message="errorMessage"
             :error-type="errorType"
-            success-title="Operacion exitosa"
+            success-title="Operación exitosa"
             error-title="Aviso"
             @close-success="successMessage = ''"
             @close-error="errorMessage = ''"
@@ -546,8 +546,8 @@ onBeforeUnmount(() => {
 
         <ConfirmDialog
             v-model:open="isDeleteDialogOpen"
-            title="Confirmar eliminacion"
-            description="Estas seguro de que deseas eliminar este campo adicional? Esta accion no se puede deshacer."
+            title="Confirmar eliminación"
+            description="¿Estás seguro de que deseas eliminar este campo adicional? Esta acción no se puede deshacer."
             confirm-text="Eliminar"
             cancel-text="Cancelar"
             :destructive="true"

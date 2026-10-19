@@ -404,7 +404,7 @@ class FabricRollsLegacySeeder extends Seeder
                     . ($isRealOrder ? " (Pedido: {$orderNumber})" : ''),
                 'created_by_user_id'     => null,
                 'executed_by_user_id'    => null,
-                'status'                 => 'received',
+                'status'                 => 'invoiced',
                 'approval_status'        => 'approved',
                 'supplier_order_number'  => $isRealOrder ? $orderNumber : null,
                 'supplier_invoice_number' => null,

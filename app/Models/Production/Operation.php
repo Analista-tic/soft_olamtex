@@ -159,6 +159,19 @@ class Operation extends Model
         return number_format((float) $value, $precision, '.', '');
     }
 
+    /**
+     * Medida para la descripción ("10", "10.5"). Solo se quitan ceros de los decimales (antes "10" salía "1");
+     * 0 o vacío significa "no aplica" y no aparece en la descripción.
+     */
+    public static function formatMeasure(float|int|string|null $measure): ?string
+    {
+        if ($measure === null || $measure === '' || ! is_numeric($measure) || (float) $measure <= 0) {
+            return null;
+        }
+
+        return rtrim(rtrim(number_format((float) $measure, 4, '.', ''), '0'), '.');
+    }
+
     private function composeDescription(): string
     {
         $parts = [
@@ -171,8 +184,9 @@ class Operation extends Model
             $parts[] = strtoupper($anexo);
         }
 
-        if ($this->measure !== null && is_numeric((string) $this->measure)) {
-            $parts[] = rtrim(rtrim((string) $this->measure, '0'), '.') . ' CM';
+        $measureLabel = self::formatMeasure($this->measure);
+        if ($measureLabel !== null) {
+            $parts[] = $measureLabel . ' CM';
         }
 
         if ($this->quantity !== null && is_numeric((string) $this->quantity)) {

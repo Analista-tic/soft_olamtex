@@ -4,16 +4,80 @@ namespace App\Http\Controllers\MasterData;
 
 use App\Helpers\NitHelper;
 use App\Http\Controllers\Controller;
+use App\Models\Expenses\ExpenseVoucher;
 use App\Models\Expenses\PurchaseDocument;
+use App\Models\Finance\CashReceipt;
+use App\Models\Finance\JournalEntryLine;
+use App\Models\Income\SaleDocument;
 use App\Models\MasterData\Contact;
+use App\Services\MasterData\ContactBulkImportService;
+use App\Services\MasterData\ContactExcelService;
 use Illuminate\Database\QueryException;
 use Illuminate\Http\Request;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
+use PhpOffice\PhpSpreadsheet\IOFactory;
 
 class ContactController extends Controller
 {
+    public function __construct(
+        protected ContactExcelService $excelService,
+        protected ContactBulkImportService $bulkImportService,
+    ) {}
+
+    public function downloadTemplate()
+    {
+        return $this->excelService->downloadTemplate();
+    }
+
+    public function exportExcel()
+    {
+        return $this->excelService->exportAll();
+    }
+
+    public function bulkUpload(Request $request)
+    {
+        $request->validate([
+            'file' => 'required|file|mimes:xlsx,xls',
+        ]);
+
+        $file = $request->file('file');
+        $spreadsheet = IOFactory::load($file->getPathname());
+        // La plantilla mueve "Instrucciones" al frente y la deja como hoja activa
+        // (moveInstructionsToFirst()), así que un Excel guardado sin cambiar de
+        // pestaña reabre en "Instrucciones" — buscar la hoja de datos por nombre
+        // evita leer esa hoja en vez de "contactos".
+        $sheet = $spreadsheet->getSheetByName('contactos') ?? $spreadsheet->getActiveSheet();
+        $rows = $sheet->toArray(null, true, true, true);
+
+        $result = $this->bulkImportService->processBulkUploadArray($rows);
+
+        $inserted = $result['inserted'] ?? 0;
+        $updated = $result['updated'] ?? 0;
+
+        if ($inserted === 0 && $updated === 0 && ! empty($result['errors'])) {
+            return response()->json([
+                'message' => 'No se pudo procesar ningún contacto. Errores: '.implode('; ', $result['errors']),
+            ], 422);
+        }
+
+        $parts = [];
+        if ($inserted > 0) {
+            $parts[] = "{$inserted} contacto(s) creado(s)";
+        }
+        if ($updated > 0) {
+            $parts[] = "{$updated} contacto(s) actualizado(s)";
+        }
+
+        return response()->json([
+            'message' => 'Carga masiva completada. '.implode(', ', $parts),
+            'errors' => $result['errors'] ?? [],
+            'inserted' => $inserted,
+            'updated' => $updated,
+        ]);
+    }
+
     public function index(Request $request)
     {
         $sortBy = $request->input('sort_by', 'id');
@@ -128,9 +192,9 @@ class ContactController extends Controller
             $validated['groups'] = $validated['groups'] ?? [];
             $validated['branches'] = $validated['branches'] ?? [];
 
-            Contact::create($validated);
+            $contact = Contact::create($validated);
 
-            return response()->json(['message' => 'Contacto creado exitosamente.']);
+            return response()->json(['message' => 'Contacto creado exitosamente.', 'id' => $contact->id, 'data' => $contact]);
         } catch (\Exception $e) {
             return response()->json(['message' => 'Error al crear el contacto.', 'errors' => $e->getMessage()], 500);
         }
@@ -180,7 +244,7 @@ class ContactController extends Controller
         if ($this->hasActiveAssociations($contact)) {
             return response()->json(
                 [
-                    'message' => 'No se puede eliminar el contacto porque tiene facturas u órdenes activas asociadas.',
+                    'message' => 'No se puede eliminar el contacto porque tiene documentos o movimientos asociados.',
                 ],
                 409,
             );
@@ -199,9 +263,13 @@ class ContactController extends Controller
 
     private function hasActiveAssociations(Contact $contact): bool
     {
-        return PurchaseDocument::where('contact_id', $contact->id)
-            ->whereNull('deleted_at')
-            ->exists();
+        $id = $contact->id;
+
+        return PurchaseDocument::where('contact_id', $id)->whereNull('deleted_at')->exists()
+            || SaleDocument::where('contact_id', $id)->whereNull('deleted_at')->exists()
+            || ExpenseVoucher::where('contact_id', $id)->whereNull('deleted_at')->exists()
+            || CashReceipt::where('contact_id', $id)->whereNull('deleted_at')->exists()
+            || JournalEntryLine::where('contact_id', $id)->exists();
     }
 
     private function validateNitDv(Request $request, array $validated): void
@@ -225,8 +293,8 @@ class ContactController extends Controller
 
     private function rules(?Contact $contact = null): array
     {
-        $idNumberUnique = Rule::unique('contacts', 'id_number');
-        $emailUnique = Rule::unique('contacts', 'email');
+        $idNumberUnique = Rule::unique('contacts', 'id_number')->whereNull('deleted_at');
+        $emailUnique = Rule::unique('contacts', 'email')->whereNull('deleted_at');
 
         if ($contact) {
             $idNumberUnique = $idNumberUnique->ignore($contact->id);
@@ -240,7 +308,7 @@ class ContactController extends Controller
             'dv' => ['nullable', 'string', 'max:10'],
             'full_name' => ['required', 'string', 'max:255'],
             'person_type' => ['required', Rule::in(Contact::PERSON_TYPES)],
-            'groups' => ['nullable', 'array'],
+            'groups' => [Rule::requiredIf(fn () => request()->input('contact_type') === 'proveedor'), 'array'],
             'groups.*' => ['exists:category_groups,id'],
             'municipality' => ['nullable', 'string', 'max:255'],
             'department' => ['nullable', 'string', 'max:255'],

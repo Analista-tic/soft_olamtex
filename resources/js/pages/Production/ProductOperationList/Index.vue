@@ -11,13 +11,13 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import { useAlertStack } from '@/composables/useAlert';
 import type {
-    CostParameters,
     ProductOperationDialogInitialData,
-    ProductOperationDialogRowInput,
     ProductOperationListPageProps,
     ProductOperationListSummary,
     ProductOperationPayload,
+    ProductOperationSaveOptions,
 } from '@/domain/product-sheet/types';
+import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { Head, Link, router, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
@@ -34,7 +34,7 @@ const page = usePage<ProductOperationListPageProps>();
 const costParameters = computed(() => page.props.costParameters ?? { operation_cost: 406, yarn_cost: 0 });
 
 const breadcrumbs = [
-    { title: 'Sabana de Productos', href: '/produccion/sabana-productos' },
+    { title: 'Sábana de Productos', href: '/produccion/sabana-productos' },
     { title: 'Listados operacionales', href: '/produccion/listados-operacionales' },
 ];
 
@@ -58,10 +58,12 @@ function buildProductSheetLabel(sheet: any): string {
 
 const productSheetOptions = computed(() => [
     { id: 'all', name: 'Todos' },
-    ...productSheets.value.map((sheet) => ({
-        id: sheet.id,
-        name: buildProductSheetLabel(sheet),
-    })),
+    ...productSheets.value
+        .map((sheet) => ({
+            id: sheet.id,
+            name: buildProductSheetLabel(sheet),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
 ]);
 
 const bySheetId = computed(() => {
@@ -128,82 +130,10 @@ function formatOptimalTime(value: unknown): string {
     return String(value);
 }
 
-function resolveSectionName(entry: any): string {
-    const relationName = entry.operation_section?.name ?? entry.operationSection?.name ?? '';
-    if (relationName) return relationName;
-    const sectionId = entry.operation_section_id ?? entry.section_id ?? null;
-    if (!sectionId) return '';
-    return sections.value.find((section) => section.id === sectionId)?.name ?? '';
-}
-
-function resolveSectionType(entry: any): string {
-    const relationType = entry.operation_section?.type ?? entry.operationSection?.type ?? '';
-    if (relationType) return relationType;
-    const sectionId = entry.operation_section_id ?? entry.section_id ?? null;
-    if (!sectionId) return '';
-    return sections.value.find((section) => section.id === sectionId)?.type ?? '';
-}
-
-function isConfeccionSection(entry: any): boolean {
-    const st = normalizeText(resolveSectionType(entry));
-    return st === 'confeccion';
-}
-
-function isPresentacionSection(entry: any): boolean {
-    const st = normalizeText(resolveSectionType(entry));
-    return st === 'presentacion';
-}
-
-function getSamValue(row: any): number {
-    const v = row.sam_total_operacion ?? row.sam ?? row.optimal_time ?? 0;
-    const n = typeof v === 'string' ? Number(v) : v;
-    return Number.isFinite(n) ? n : 0;
-}
-
-function calculateTotals(rows: any[], params: CostParameters) {
-    let totalSamConfeccion = 0;
-    let totalSamTerminacion = 0;
-    let totalSamOtros = 0;
-    let isActive = rows.length > 0;
-    const searchParts: string[] = [];
-
-    rows.forEach((row) => {
-        const samValue = getSamValue(row);
-        const sectionName = resolveSectionName(row);
-
-        if (sectionName) searchParts.push(sectionName);
-        if (row.operation?.name) searchParts.push(row.operation.name);
-        if (row.machine?.name) searchParts.push(row.machine.name);
-        if (row.machine?.code) searchParts.push(row.machine.code);
-
-        if (isConfeccionSection(row)) {
-            totalSamConfeccion += samValue;
-        } else if (isPresentacionSection(row)) {
-            totalSamTerminacion += samValue;
-        } else {
-            totalSamOtros += samValue;
-        }
-
-        if (row.is_active === false) isActive = false;
-    });
-
-    // Total = suma de todo (confección + terminación + otros) + costo hilo
-    const totalSam = totalSamConfeccion + totalSamTerminacion + totalSamOtros;
-    const operationCost = params.operation_cost ?? 406;
-    const yarnCost = params.yarn_cost ?? 0;
-    const totalCostProduct = totalSam * operationCost + yarnCost;
-
-    return {
-        totalSam,
-        totalSamConfeccion,
-        totalSamTerminacion,
-        totalCostProduct,
-        isActive,
-        searchText: searchParts.join(' '),
-    };
-}
+let summariesRequestSeq = 0;
 
 async function fetchOperationSummaries() {
+    const requestId = ++summariesRequestSeq;
     if (productSheets.value.length === 0) {
         operationSummaries.value = [];
         return;
@@ -226,6 +156,9 @@ async function fetchOperationSummaries() {
             },
         });
 
+
+        // Si hubo otra carga después de esta, la respuesta vieja no debe pisar la lista.
+        if (requestId !== summariesRequestSeq) return;
 
         const rows = Array.isArray(data?.data) ? data.data : [];
 
@@ -251,6 +184,7 @@ async function fetchOperationSummaries() {
                     total_sam_terminacion: totalSamTerminacion,
                     total_cost_product: totalCostProduct,
                     is_active: Boolean(row.is_active),
+                    operational_list_completed: Boolean(row.operational_list_completed),
                     search_text: normalizeText(`${reference} ${searchBlob}`.trim()),
                 } as ProductOperationListSummary;
             })
@@ -258,16 +192,18 @@ async function fetchOperationSummaries() {
 
         totalItems.value = operationSummaries.value.length;
     } catch (error) {
+        if (requestId !== summariesRequestSeq) return;
         console.error('Error al cargar resúmenes de operaciones:', error);
         operationSummaries.value = [];
         totalItems.value = 0;
     } finally {
-        isLoading.value = false;
+        if (requestId === summariesRequestSeq) isLoading.value = false;
     }
 }
 
 
 
+// eslint-disable-next-line @typescript-eslint/no-unused-vars -- parámetro conservado por los llamadores
 function reloadFromDatabase(showSuccessAlert = true) {
     router.reload({
         only: ['sections', 'operations', 'machines', 'productSheets', 'actions', 'garmentParts', 'fabric_bases', 'preparation_groups', 'costParameters'],
@@ -277,8 +213,26 @@ function reloadFromDatabase(showSuccessAlert = true) {
     });
 }
 
-async function handleDialogSave(payloads: ProductOperationPayload[]) {
+/** Recarga las props de la página y luego la lista, en orden (una sola vez). */
+async function refreshAfterSave() {
+    await new Promise<void>((resolve) => {
+        router.reload({
+            only: ['sections', 'operations', 'machines', 'productSheets', 'actions', 'garmentParts', 'fabric_bases', 'preparation_groups', 'costParameters'],
+            onFinish: () => resolve(),
+        });
+    });
+    await fetchOperationSummaries();
+}
+
+function handleCompletionChanged(message: string) {
+    showSuccess(message);
+    void fetchOperationSummaries();
+}
+
+async function handleDialogSave(payloads: ProductOperationPayload[], options?: ProductOperationSaveOptions) {
     isSavingAndRefreshing.value = true;
+    // El dialog se cierra (y vuelve a modo 'create') apenas emite: se guarda el modo antes de los await.
+    const wasEditing = dialogMode.value === 'edit';
     try {
         const validPayloads = payloads.filter((payload) => payload.product_sheet_id && payload.operation_id);
 
@@ -320,7 +274,7 @@ async function handleDialogSave(payloads: ProductOperationPayload[]) {
                 notes: payload.notes,
             }));
 
-            if (dialogMode.value === 'edit') {
+            if (wasEditing) {
                 await axios.post('/produccion/listados-operacionales/sync', {
                     product_sheet_id: targetSheetId,
                     operations: operationsPayload,
@@ -331,18 +285,27 @@ async function handleDialogSave(payloads: ProductOperationPayload[]) {
                 });
             }
 
-            showSuccess(
-                dialogMode.value === 'edit'
+            let successText =
+                wasEditing
                     ? 'Operaciones actualizadas correctamente.'
-                    : `${operationsPayload.length} operación(es) guardada(s) correctamente.`,
-            );
+                    : `${operationsPayload.length} operación(es) guardada(s) correctamente.`;
 
-            if (hasValidTargetSheet) {
-                selectedProductSheetId.value = targetSheetId;
+            // Se completa DESPUÉS de guardar: el sync reabre el listado si cambió su contenido.
+            if (options?.markComplete) {
+                try {
+                    await axios.post(`/produccion/listados-operacionales/sabana/${targetSheetId}/completar`);
+                    successText += ' Listado marcado como completo.';
+                } catch (completeError: any) {
+                    showError(
+                        completeError?.response?.data?.message ??
+                            'Las operaciones se guardaron, pero no se pudo marcar el listado como completo.',
+                    );
+                }
             }
 
-            await fetchOperationSummaries();
-            reloadFromDatabase(false);
+            showSuccess(successText);
+
+            await refreshAfterSave();
 
             setTimeout(() => {
                 clearSuccess();
@@ -658,16 +621,17 @@ watch(productSheets, () => {
                                             Costo Total Producto {{ sortBy === 'total_cost_product' ? (sortDir === 'asc' ? '↑' : '↓') : '' }}
                                         </button>
                                     </TableHead>
+                                    <TableHead class="text-center">Estado</TableHead>
                                     <TableHead class="text-center">Acciones</TableHead>
                                 </TableRow>
                             </TableHeader>
                             <TableBody>
                                 <TableRow v-if="isLoading">
-                                    <TableCell colspan="6" class="text-center text-sm text-muted-foreground">Cargando totales...</TableCell>
+                                    <TableCell colspan="7" class="text-center text-sm text-muted-foreground">Cargando totales...</TableCell>
                                 </TableRow>
                                 <TableRow v-else-if="paginatedSummaries.length === 0">
-                                    <TableCell colspan="6" class="text-center text-sm text-muted-foreground"
-                                        >Aun no se han guardado operaciones.</TableCell
+                                    <TableCell colspan="7" class="text-center text-sm text-muted-foreground"
+                                        >Aún no se han guardado operaciones.</TableCell
                                     >
                                 </TableRow>
                                 <TableRow v-for="summary in paginatedSummaries" :key="summary.product_sheet_id" class="text-sm">
@@ -678,6 +642,12 @@ watch(productSheets, () => {
                                     <TableCell class="text-center font-mono font-semibold"
                                         >$ {{ formatCurrency(summary.total_cost_product) }}</TableCell
                                     >
+                                    <TableCell class="text-center">
+                                        <TableStatusBadge
+                                            :label="summary.operational_list_completed ? 'Completo' : 'Pendiente'"
+                                            :tone="summary.operational_list_completed ? 'green' : 'amber'"
+                                        />
+                                    </TableCell>
                                     <TableCell class="text-center">
                                         <div class="flex items-center justify-center gap-2">
                                             <Tooltip>
@@ -746,6 +716,7 @@ watch(productSheets, () => {
                 :garmentParts="garmentParts"
                 :fabricBases="fabricBases"
                 :preparation-groups="preparationGroups"
+                allow-mark-complete
                 @save="handleDialogSave"
                 @close="closeDialog"
             />
@@ -760,6 +731,7 @@ watch(productSheets, () => {
                 @edit="handleEditFromView"
                 @deleted="handleViewDeleted"
                 @delete-error="showError"
+                @completion-changed="handleCompletionChanged"
             />
 
             <ConfirmDialog

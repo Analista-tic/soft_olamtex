@@ -1,6 +1,5 @@
 <script setup lang="ts">
 import FormDialogContent from '@/components/FormDialogContent.vue';
-import FormHeader from '@/components/FormHeader.vue';
 import ImagePreviewDialog from '@/components/ImagePreviewDialog.vue';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';

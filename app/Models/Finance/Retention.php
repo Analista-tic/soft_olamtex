@@ -6,6 +6,13 @@ use Illuminate\Database\Eloquent\Model;
 
 class Retention extends Model implements \App\Contracts\HasAuditLabel
 {
+    use \App\Models\Concerns\NormalizesAttributes;
+
+    /** Reglas de normalización al guardar (ver NormalizesAttributes). */
+    protected array $normalizedAttributes = [
+        'description' => 'freeText',
+    ];
+
     protected $fillable = [
         'name',
         'percent',

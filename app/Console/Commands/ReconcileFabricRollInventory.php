@@ -50,7 +50,7 @@ class ReconcileFabricRollInventory extends Command
         // Calcular suma de metros disponibles por item_id desde fabric_rolls aprobados
         $rollSums = DB::table('fabric_rolls as fr')
             ->selectRaw('COALESCE(fr.item_id, pdi.item_id) AS item_id')
-            ->selectRaw('SUM(fr.quantity - fr.actual_output) AS roll_quantity')
+            ->selectRaw('SUM(fr.quantity + fr.length_adjustment_meters - fr.actual_output) AS roll_quantity')
             ->leftJoin('purchase_document_items as pdi', 'pdi.id', '=', 'fr.purchase_document_item_id')
             ->whereNull('fr.deleted_at')
             ->where('fr.approval_status', FabricRoll::APPROVAL_APPROVED)

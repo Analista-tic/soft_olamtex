@@ -8,13 +8,13 @@ use App\Support\TextNormalizer;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Str;
+use Illuminate\Validation\ValidationException;
 
 class ParameterService
 {
     public function __construct(
         protected ParameterUsageService $usageService,
-    ) {
-    }
+    ) {}
 
     public function list(array $filters = []): Collection
     {
@@ -45,6 +45,7 @@ class ParameterService
         $data['kind'] = Setting::KIND_PARAMETER;
         $data['key'] = $this->determineKey($data);
         $data['value'] = $this->normalizeValue($data['value'] ?? null);
+        $this->assertSectionsHaveGarmentType((string) $data['key'], $data['value']);
 
         return Setting::create($data);
     }
@@ -57,6 +58,11 @@ class ParameterService
 
         if (array_key_exists('value', $data)) {
             $data['value'] = $this->normalizeValue($data['value']);
+
+            if (is_array($data['value'])) {
+                $this->usageService->assertNoRemovedOptionsInUse($setting, $data['value']);
+            }
+            $this->assertSectionsHaveGarmentType((string) $setting->key, $data['value']);
         }
 
         $setting->fill($data);
@@ -90,6 +96,31 @@ class ParameterService
         return $this->usageService->inspect($this->find($id));
     }
 
+    /**
+     * Cada sección de producto debe decir si es de prenda superior, inferior o ambas: con eso la sábana
+     * bloquea o deja elegir el tipo de prenda. Sin este dato la sección queda "abierta" por omisión.
+     */
+    protected function assertSectionsHaveGarmentType(string $key, mixed $value): void
+    {
+        if ($key !== 'sections' || ! is_array($value)) {
+            return;
+        }
+
+        $invalid = [];
+        foreach ($value as $section) {
+            $type = is_array($section) ? ($section['allowed_garment_type'] ?? null) : null;
+            if (! in_array($type, ['superior', 'inferior', 'ambos'], true)) {
+                $invalid[] = is_array($section) ? (string) ($section['name'] ?? '') : (string) $section;
+            }
+        }
+
+        if ($invalid !== []) {
+            throw ValidationException::withMessages([
+                'value' => ['Indica el tipo de prenda (superior, inferior o ambos) de: '.implode(', ', $invalid).'.'],
+            ]);
+        }
+    }
+
     protected function normalizeValue(mixed $value): mixed
     {
         if (is_string($value)) {
@@ -120,6 +151,7 @@ class ParameterService
         if ($this->isNamedChipList($value)) {
             $normalized = [];
             $seen = [];
+            $nextId = $this->nextAvailableOptionId($value);
 
             foreach ($value as $entry) {
                 if (! is_array($entry)) {
@@ -134,10 +166,21 @@ class ParameterService
                 }
 
                 $seen[$semanticKey] = true;
-                $normalized[] = [
+                $normalizedEntry = [
                     ...$entry,
                     'name' => $display,
                 ];
+
+                // Una opción sin id numérico (recién agregada desde el chip input, que
+                // solo maneja strings) se queda sin identidad estable: cualquier consumidor
+                // que guarde su id como FK (ej. product_sheets.section_id) terminaría
+                // guardando el nombre. Se le asigna aquí el siguiente id disponible.
+                if (! isset($normalizedEntry['id']) || ! is_numeric($normalizedEntry['id'])) {
+                    $normalizedEntry['id'] = $nextId;
+                    $nextId++;
+                }
+
+                $normalized[] = $normalizedEntry;
             }
 
             return $normalized;
@@ -163,6 +206,19 @@ class ParameterService
         }
 
         return $value;
+    }
+
+    private function nextAvailableOptionId(array $value): int
+    {
+        $max = 0;
+
+        foreach ($value as $entry) {
+            if (is_array($entry) && isset($entry['id']) && is_numeric($entry['id'])) {
+                $max = max($max, (int) $entry['id']);
+            }
+        }
+
+        return $max + 1;
     }
 
     private function isNamedChipList(array $value): bool

@@ -8,19 +8,19 @@ use App\Helpers\ScopeHelper;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Production\StoreProgrammerRequest;
 use App\Http\Requests\Production\UpdateProgrammerRequest;
-use App\Models\Production\FabricRollProgrammingLine;
-use App\Models\Production\ManualRollProgramming;
 use App\Models\Production\ProductSheet;
 use App\Models\Production\ProductionOrder;
 use App\Models\Production\TechnicalSheet;
 use App\Models\Production\TechnicalSheetSupply;
 use App\Models\Textil\FabricRoll;
+use App\Services\Audit\AuditLogService;
 use App\Services\Production\FabricBaseService;
 use App\Services\Production\ProductionOrderService;
 use App\Services\Production\ProductionOrderSchedulingService;
 use App\Services\Production\ProductSheetStatusService;
 use App\Services\Production\YarnBaseService;
 use App\Services\Settings\SettingService;
+use App\Support\Textil\FabricRollBalance;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -416,7 +416,20 @@ class ProgrammerController extends Controller
                     }
                 }
 
-                DB::table('production_orders')->where('id', $programador->id)->update($dbValues);
+                $affected = DB::table('production_orders')->where('id', $programador->id)->update($dbValues);
+
+                // El save() anterior ya quedó auditado; solo se registra si esta escritura
+                // directa cambió algo que el modelo no había persistido.
+                if ($affected > 0) {
+                    app(AuditLogService::class)->logBulk(
+                        ProductionOrder::class,
+                        'updated',
+                        [$programador->id],
+                        $dbValues,
+                        'Persistencia directa de campos de la orden de producción',
+                    );
+                }
+
                 $programador->refresh();
             } catch (\Throwable $e) {
                 Log::warning('production_order.update.force_db_update_failed', ['error' => $e->getMessage()]);
@@ -1123,13 +1136,13 @@ class ProgrammerController extends Controller
             $decoded = json_decode($value, true);
             if (json_last_error() !== JSON_ERROR_NONE) {
                 throw ValidationException::withMessages([
-                    'ecommerce_units' => 'El formato de ecommerce_units no es valido.',
+                    'ecommerce_units' => 'El formato de ecommerce_units no es válido.',
                 ]);
             }
 
             if ($decoded !== null && !is_array($decoded)) {
                 throw ValidationException::withMessages([
-                    'ecommerce_units' => 'El formato de ecommerce_units no es valido.',
+                    'ecommerce_units' => 'El formato de ecommerce_units no es válido.',
                 ]);
             }
 
@@ -1137,7 +1150,7 @@ class ProgrammerController extends Controller
         }
 
         throw ValidationException::withMessages([
-            'ecommerce_units' => 'El formato de ecommerce_units no es valido.',
+            'ecommerce_units' => 'El formato de ecommerce_units no es válido.',
         ]);
     }
 
@@ -1196,7 +1209,12 @@ class ProgrammerController extends Controller
     private function resetTechnicalSheet(int $orderId): void
     {
         // TechnicalSheetSupply usa SoftDeletes → forceDelete
-        TechnicalSheetSupply::where('production_order_id', $orderId)->forceDelete();
+        // Por instancia (incluye las ya eliminadas) para que el AuditObserver registre cada fila.
+        TechnicalSheetSupply::withTrashed()
+            ->where('production_order_id', $orderId)
+            ->get()
+            ->each
+            ->forceDelete();
 
         // Incluye registros soft-deleted para evitar violación de clave única al recrear
         $sheets = TechnicalSheet::withTrashed()->where('production_order_id', $orderId)->get();
@@ -1213,13 +1231,14 @@ class ProgrammerController extends Controller
         }
 
         foreach ($sheets as $sheet) {
-            // Los siguientes modelos NO usan SoftDeletes → delete()
-            $sheet->rollsSnapshot()->delete();
-            $sheet->rollProgrammingLines()->delete();
-            $sheet->threadsSnapshot()->delete();
-            $sheet->rawMaterialsSnapshot()->delete();
-            $sheet->sizes()->delete();
-            $sheet->stampingImages()->delete();
+            // Los siguientes modelos NO usan SoftDeletes → delete(). Por instancia para que
+            // el AuditObserver registre cada fila eliminada.
+            $sheet->rollsSnapshot()->get()->each->delete();
+            $sheet->rollProgrammingLines()->get()->each->delete();
+            $sheet->threadsSnapshot()->get()->each->delete();
+            $sheet->rawMaterialsSnapshot()->get()->each->delete();
+            $sheet->sizes()->get()->each->delete();
+            $sheet->stampingImages()->get()->each->delete();
             // TechnicalSheet sí usa SoftDeletes → forceDelete para eliminar definitivamente
             $sheet->forceDelete();
         }
@@ -1241,42 +1260,23 @@ class ProgrammerController extends Controller
     }
 
     /**
+     * Reserva comprometida por rollo según las programaciones vigentes (ficha técnica
+     * pendiente de liberar + manuales pendientes). Misma fórmula que el reporte y la
+     * recalibración: FabricRollBalance::committedByRoll().
+     *
      * @param  int[]  $rollIds
      * @return array<string, float>
      */
     private function buildRollTotalsFromSnapshots(array $rollIds): array
     {
         $totals = [];
-
-        // Fase 15: la fuente de verdad de líneas programadas es fabric_roll_programming_lines,
-        // ya no TechnicalSheetRoll::lines (JSON).
-        FabricRollProgrammingLine::query()
-            ->whereIn('fabric_roll_id', $rollIds)
-            ->where('programmed_meters', '>', 0)
-            ->select(['fabric_roll_id', 'programmed_meters'])
-            ->cursor()
-            ->each(function (FabricRollProgrammingLine $line) use (&$totals): void {
-                $rollId = (string) $line->fabric_roll_id;
-                $totals[$rollId] = ($totals[$rollId] ?? 0.0) + (float) $line->programmed_meters;
-            });
-
-        // Reservas manuales pendientes (manual_roll_programmings) — sin sumarlas aquí,
-        // el update de partial_output más abajo las borraría de la contabilidad del
-        // rollo aunque la línea manual siga activa (mismo bug que RecalibrarPartialOutput).
-        ManualRollProgramming::query()
-            ->whereIn('fabric_roll_id', $rollIds)
-            ->get(['fabric_roll_id', 'programmed_meters', 'consumed_meters'])
-            ->each(function (ManualRollProgramming $line) use (&$totals): void {
-                $pending = (float) $line->programmed_meters - (float) $line->consumed_meters;
-                if ($pending <= 0) {
-                    return;
-                }
-                $rollId = (string) $line->fabric_roll_id;
-                $totals[$rollId] = ($totals[$rollId] ?? 0.0) + $pending;
-            });
+        foreach (FabricRollBalance::committedByRoll(array_values($rollIds)) as $rollId => $meters) {
+            $totals[(string) $rollId] = $meters;
+        }
 
         return $totals;
     }
+
 
     private function summarizeLot(?array $lot): array
     {

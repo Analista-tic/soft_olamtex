@@ -5,7 +5,7 @@ import { Label } from '@/components/ui/label';
 import type { Option } from '@/domain/shared';
 import { autoUpdate, computePosition, flip, offset, shift } from '@floating-ui/dom';
 import { Combobox, ComboboxButton, ComboboxInput, ComboboxOption, ComboboxOptions } from '@headlessui/vue';
-import { Check, ChevronDown, Plus, X } from 'lucide-vue-next';
+import { Check, ChevronDown, Pencil, Plus, Trash2, X } from 'lucide-vue-next';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
 
 // Copiado desde SelectField.vue porque el flujo de creacion inline necesita
@@ -51,12 +51,17 @@ const props = withDefaults(
         invalid?: boolean;
         errorMessage?: string;
         loading?: boolean;
+        serverSearch?: boolean;
         creatable?: boolean;
         createLabel?: string;
         createButtonLabel?: string;
         createPlaceholder?: string;
         instanceId?: string;
         onCreate?: (name: string) => Promise<Option>;
+        editable?: boolean;
+        deletable?: boolean;
+        onUpdateOption?: (option: Option, name: string) => Promise<Option>;
+        onDeleteOption?: (option: Option) => Promise<void>;
     }>(),
     {
         required: false,
@@ -79,10 +84,13 @@ const props = withDefaults(
         invalid: false,
         errorMessage: '',
         loading: false,
+        serverSearch: false,
         creatable: false,
         createLabel: '',
         createButtonLabel: '',
         createPlaceholder: 'Nombre',
+        editable: false,
+        deletable: false,
     },
 );
 defineOptions({ inheritAttrs: false });
@@ -92,11 +100,15 @@ const emit = defineEmits<{
     (e: 'search', searchTerm: string): void;
     (e: 'action', searchTerm: string): void;
     (e: 'created', option: Option): void;
+    (e: 'optionUpdated', option: Option): void;
+    (e: 'optionDeleted', option: Option): void;
     (e: 'inline-opened', instanceId: string | undefined): void;
 }>();
 
 const localModelValue = ref<LocalModelValue>(normalizeModelValue(props.modelValue, props.multiple));
 const pendingCreatedOption = ref<Option | null>(null);
+const editingOption = ref<Option | null>(null);
+const deletingOption = ref<Option | null>(null);
 
 watch(
     () => props.modelValue,
@@ -182,6 +194,15 @@ const customOption = computed<Option | null>(() => {
     return { id: normalizedSearchTerm.value, name: label };
 });
 
+// Recuerda todas las opciones vistas: si una búsqueda reemplaza `options` y la seleccionada
+// desaparece, se sigue mostrando su nombre en vez del ID.
+const knownOptions = new Map<string, Option>();
+watch(
+    () => props.options,
+    (options) => options.forEach((option) => knownOptions.set(String(option.id), option)),
+    { immediate: true },
+);
+
 const customSelection = computed<Option | null>(() => {
     if (props.multiple) return null;
     const modelValue = localModelValue.value;
@@ -193,12 +214,16 @@ const customSelection = computed<Option | null>(() => {
     if (pendingCreatedOption.value && pendingCreatedOption.value.id == modelValue) {
         return pendingCreatedOption.value;
     }
+    const known = knownOptions.get(String(modelValue));
+    if (known) return known;
+    // Sin allowCustom un valor sin opción asociada es un ID: mejor vacío que mostrar el número.
+    if (!props.allowCustom) return null;
     const label = String(modelValue);
     return label ? { id: modelValue, name: label } : null;
 });
 
 const filteredOptions = computed(() => {
-    if (!isSearchEnabled.value) {
+    if (!isSearchEnabled.value || props.serverSearch) {
         return props.options;
     }
     const term = searchTerm.value.trim().toLowerCase();
@@ -230,7 +255,9 @@ const comboboxValue = computed<Option | Option[] | null>(() => {
         if (!isLocalModelArray(modelValue)) {
             return [];
         }
-        return props.options.filter((option) => modelValue.some((selectedId) => selectedId == option.id));
+        return modelValue
+            .map((selectedId) => props.options.find((option) => option.id == selectedId) ?? knownOptions.get(String(selectedId)))
+            .filter((option): option is Option => Boolean(option));
     }
     const modelValue = localModelValue.value;
     if (modelValue === null || isLocalModelArray(modelValue)) {
@@ -334,6 +361,20 @@ function handleInput(event: Event) {
     searchTerm.value = target.value;
 }
 
+// Con allowCustom el texto escrito a mano se confirma al salir del campo (sin exigir elegir "Usar ...").
+// Se difiere para no pisar el click sobre una opción del dropdown, que limpia searchTerm al seleccionar.
+function commitTypedValue() {
+    if (!props.allowCustom || props.multiple || isCreating.value) return;
+    setTimeout(() => {
+        const typed = normalizedSearchTerm.value;
+        if (!typed) return;
+        const term = typed.toLowerCase();
+        const match = props.options.find((option) => option.name.toLowerCase() === term);
+        localModelValue.value = match ? match.id : typed;
+        searchTerm.value = '';
+    }, 150);
+}
+
 const hasLabel = computed(() => Boolean(props.label?.trim()));
 const hasAction = computed(() => Boolean(props.actionLabel?.trim()));
 const actionButtonClass = computed(() => {
@@ -418,8 +459,60 @@ function resetInlineCreateState({ clearSearch = false }: { clearSearch?: boolean
     inlineValue.value = '';
     inlineLoading.value = false;
     inlineError.value = '';
+    editingOption.value = null;
+    deletingOption.value = null;
     if (clearSearch) {
         searchTerm.value = '';
+    }
+}
+
+function openInlineEdit(option: Option) {
+    if (props.disabled || !props.editable || !props.onUpdateOption) return;
+    editingOption.value = option;
+    deletingOption.value = null;
+    inlineValue.value = labelOf(option);
+    inlineError.value = '';
+    isCreating.value = true;
+    emit('inline-opened', props.instanceId);
+    setTimeout(() => {
+        inlineInputRef.value?.focus();
+        inlineInputRef.value?.select();
+    }, 80);
+}
+
+function openInlineDelete(option: Option) {
+    if (props.disabled || !props.deletable || !props.onDeleteOption) return;
+    deletingOption.value = option;
+    editingOption.value = null;
+    inlineError.value = '';
+    isCreating.value = true;
+    emit('inline-opened', props.instanceId);
+}
+
+async function submitInlineDelete() {
+    const option = deletingOption.value;
+    if (!option || !props.onDeleteOption) return;
+
+    inlineLoading.value = true;
+    inlineError.value = '';
+
+    try {
+        await props.onDeleteOption(option);
+
+        if (props.multiple) {
+            if (isLocalModelArray(localModelValue.value)) {
+                localModelValue.value = localModelValue.value.filter((id) => id != option.id);
+            }
+        } else if (localModelValue.value == option.id) {
+            localModelValue.value = null;
+        }
+
+        emit('optionDeleted', option);
+        resetInlineCreateState({ clearSearch: true });
+    } catch (error) {
+        inlineError.value = resolveCreateErrorMessage(error);
+    } finally {
+        inlineLoading.value = false;
     }
 }
 
@@ -459,20 +552,15 @@ function cancelInlineCreate() {
 }
 
 function resolveCreateErrorMessage(error: unknown) {
-    const responseMessage =
-        typeof error === 'object' &&
-        error !== null &&
-        'response' in error &&
-        typeof error.response === 'object' &&
-        error.response !== null &&
-        'data' in error.response &&
-        typeof error.response.data === 'object' &&
-        error.response.data !== null &&
-        'message' in error.response.data &&
-        typeof error.response.data.message === 'string'
-            ? error.response.data.message
-            : '';
+    const data = (error as { response?: { data?: { message?: unknown; errors?: Record<string, unknown> } } } | null)?.response?.data;
 
+    // Laravel 422: el detalle real viene en `errors.<campo>[0]`; `message` es genérico.
+    const firstFieldError = Object.values(data?.errors ?? {})
+        .flat()
+        .find((entry): entry is string => typeof entry === 'string' && entry.trim() !== '');
+    if (firstFieldError) return firstFieldError.trim();
+
+    const responseMessage = typeof data?.message === 'string' ? data.message : '';
     if (responseMessage.trim()) return responseMessage.trim();
 
     const message = error instanceof Error ? error.message.trim() : '';
@@ -488,6 +576,30 @@ async function submitInlineCreate() {
         nextTick(() => {
             inlineInputRef.value?.focus();
         });
+        return;
+    }
+
+    if (editingOption.value) {
+        if (!props.onUpdateOption) {
+            inlineError.value = `No se pudo editar el ${createEntityLabel.value}.`;
+            return;
+        }
+
+        inlineLoading.value = true;
+        inlineError.value = '';
+
+        try {
+            const updatedOption = await props.onUpdateOption(editingOption.value, value);
+            if (!props.multiple) {
+                localModelValue.value = updatedOption.id;
+            }
+            emit('optionUpdated', updatedOption);
+            resetInlineCreateState({ clearSearch: true });
+        } catch (error) {
+            inlineError.value = resolveCreateErrorMessage(error);
+        } finally {
+            inlineLoading.value = false;
+        }
         return;
     }
 
@@ -586,7 +698,7 @@ defineExpose({ closeInlineFromParent });
                                 !isSearchEnabled ? 'cursor-default' : '',
                                 buttonClass,
                                 multiple ? 'pl-28' : '',
-                                invalid ? 'border-destructive focus-visible:ring-destructive/40' : '',
+                                invalid ? 'border-destructive ring-1 ring-destructive/40 focus-visible:ring-destructive/40' : '',
                             ]"
                             :aria-invalid="invalid ? 'true' : undefined"
                             :data-invalid="invalid ? 'true' : undefined"
@@ -594,6 +706,7 @@ defineExpose({ closeInlineFromParent });
                             :display-value="displayValueForInput"
                             :disabled="disabled || isCreating"
                             @input="handleInput"
+                            @blur="commitTypedValue"
                         />
                         <button
                             v-if="
@@ -629,15 +742,17 @@ defineExpose({ closeInlineFromParent });
                                         v-if="createButtonLabel && creatable && !disabled"
                                         class="relative sticky top-0 isolate z-20 border-b border-border bg-popover px-3 py-1.5 shadow-sm"
                                     >
-                                        <button
+                                        <Button
                                             type="button"
-                                            class="inline-flex h-8 w-full items-center justify-center gap-2 rounded-md border border-input bg-background px-3 py-1 text-sm font-medium text-foreground shadow-sm hover:bg-accent hover:text-accent-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                                            size="sm"
+                                            variant="outline"
+                                            class="w-full justify-center gap-1 border-border text-xs text-muted-foreground shadow-none hover:bg-muted/70"
                                             @mousedown.prevent
                                             @click.stop.prevent="openInlineCreateFromButton"
                                         >
-                                            <Plus class="h-4 w-4" />
+                                            <Plus class="h-3 w-3" />
                                             {{ createButtonLabel }}
-                                        </button>
+                                        </Button>
                                     </div>
                                     <div
                                         v-if="hasAction"
@@ -668,7 +783,7 @@ defineExpose({ closeInlineFromParent });
                                             <div
                                                 :class="[
                                                     'relative cursor-pointer select-none py-1.5 pl-3 pr-9 text-sm transition-colors',
-                                                    active ? 'bg-accent text-accent-foreground' : 'text-popover-foreground',
+                                                    active ? 'bg-muted text-foreground' : 'text-popover-foreground',
                                                 ]"
                                             >
                                                 <span>
@@ -706,15 +821,15 @@ defineExpose({ closeInlineFromParent });
                                                 <template #default="{ active }">
                                                     <div
                                                         :class="[
-                                                            'relative cursor-pointer select-none py-1.5 pl-3 pr-9 text-sm transition-colors',
-                                                            active ? 'bg-accent text-accent-foreground' : 'text-popover-foreground',
+                                                            'relative flex cursor-pointer select-none items-center gap-2 py-1.5 pl-3 pr-2 text-sm transition-colors',
+                                                            active ? 'bg-muted text-foreground' : 'text-popover-foreground',
                                                         ]"
                                                     >
-                                                        <span>
+                                                        <span class="min-w-0 flex-1 truncate" :class="[(editable || deletable) ? '' : 'pr-7']">
                                                             {{ labelOf(option) }}
                                                         </span>
                                                         <span
-                                                            v-if="isOptionSelected(option)"
+                                                            v-if="isOptionSelected(option) && !(editable || deletable)"
                                                             :class="[
                                                                 'absolute inset-y-0 right-0 flex items-center pr-4 transition-colors',
                                                                 active ? 'text-accent-foreground' : 'text-primary',
@@ -722,6 +837,32 @@ defineExpose({ closeInlineFromParent });
                                                         >
                                                             <Check class="h-4 w-4" />
                                                         </span>
+                                                        <Check
+                                                            v-if="isOptionSelected(option) && (editable || deletable)"
+                                                            :class="['h-4 w-4 shrink-0', active ? 'text-accent-foreground' : 'text-primary']"
+                                                        />
+                                                        <div v-if="(editable || deletable) && !disabled" class="flex shrink-0 items-center gap-0.5">
+                                                            <button
+                                                                v-if="editable"
+                                                                type="button"
+                                                                title="Editar"
+                                                                class="rounded p-1 text-muted-foreground/70 transition hover:bg-background hover:text-foreground"
+                                                                @mousedown.prevent
+                                                                @click.stop.prevent="openInlineEdit(option)"
+                                                            >
+                                                                <Pencil class="h-3.5 w-3.5" />
+                                                            </button>
+                                                            <button
+                                                                v-if="deletable"
+                                                                type="button"
+                                                                title="Eliminar"
+                                                                class="rounded p-1 text-muted-foreground/70 transition hover:bg-destructive/10 hover:text-destructive"
+                                                                @mousedown.prevent
+                                                                @click.stop.prevent="openInlineDelete(option)"
+                                                            >
+                                                                <Trash2 class="h-3.5 w-3.5" />
+                                                            </button>
+                                                        </div>
                                                     </div>
                                                 </template>
                                             </ComboboxOption>
@@ -753,45 +894,79 @@ defineExpose({ closeInlineFromParent });
                                     class="box-border w-full min-w-0 overflow-hidden rounded-md border border-border bg-popover text-popover-foreground shadow-2xl"
                                 >
                                     <div class="min-w-0 space-y-2 p-3">
-                                        <input
-                                            ref="inlineInputRef"
-                                            v-model="inlineValue"
-                                            type="text"
-                                            tabindex="0"
-                                            :placeholder="inlinePlaceholderText"
-                                            class="h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-                                            :disabled="inlineLoading"
-                                            @keydown.enter.prevent="submitInlineCreate"
-                                            @keydown.esc.prevent="cancelInlineCreate"
-                                        />
-                                        <slot name="inline-extra" :loading="inlineLoading" />
-                                        <p v-if="inlineError" class="break-words text-xs leading-tight text-destructive">
-                                            {{ inlineError }}
-                                        </p>
-                                        <div class="flex flex-wrap items-center justify-end gap-2 pt-1">
-                                            <Button
-                                                type="button"
-                                                variant="outline-primary"
-                                                size="sm"
-                                                class="min-w-0 max-w-full flex-1 px-3 text-xs sm:flex-none"
+                                        <template v-if="deletingOption">
+                                            <p class="break-words text-sm text-foreground">
+                                                ¿Eliminar {{ createEntityLabel }} "<strong>{{ labelOf(deletingOption) }}</strong>"?
+                                            </p>
+                                            <p v-if="inlineError" class="break-words text-xs leading-tight text-destructive">
+                                                {{ inlineError }}
+                                            </p>
+                                            <div class="flex flex-wrap items-center justify-end gap-2 pt-1">
+                                                <Button
+                                                    type="button"
+                                                    variant="outline-primary"
+                                                    size="sm"
+                                                    class="min-w-0 max-w-full flex-1 px-3 text-xs sm:flex-none"
+                                                    :disabled="inlineLoading"
+                                                    @mousedown.prevent
+                                                    @click.stop.prevent="cancelInlineCreate"
+                                                >
+                                                    Cancelar
+                                                </Button>
+                                                <Button
+                                                    type="button"
+                                                    variant="destructive"
+                                                    size="sm"
+                                                    class="min-w-0 max-w-full flex-1 px-3 text-xs sm:flex-none"
+                                                    :disabled="inlineLoading"
+                                                    @mousedown.prevent
+                                                    @click.stop.prevent="submitInlineDelete"
+                                                >
+                                                    {{ inlineLoading ? 'Eliminando...' : 'Eliminar' }}
+                                                </Button>
+                                            </div>
+                                        </template>
+                                        <template v-else>
+                                            <input
+                                                ref="inlineInputRef"
+                                                v-model="inlineValue"
+                                                type="text"
+                                                tabindex="0"
+                                                :placeholder="inlinePlaceholderText"
+                                                class="h-9 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-sm placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
                                                 :disabled="inlineLoading"
-                                                @mousedown.prevent
-                                                @click.stop.prevent="cancelInlineCreate"
-                                            >
-                                                Cancelar
-                                            </Button>
-                                            <Button
-                                                type="button"
-                                                variant="default"
-                                                size="sm"
-                                                class="min-w-0 max-w-full flex-1 px-3 text-xs sm:flex-none"
-                                                :disabled="inlineLoading || !inlineValue.trim()"
-                                                @mousedown.prevent
-                                                @click.stop.prevent="submitInlineCreate"
-                                            >
-                                                {{ inlineLoading ? 'Creando...' : 'Crear' }}
-                                            </Button>
-                                        </div>
+                                                @keydown.enter.prevent="submitInlineCreate"
+                                                @keydown.esc.prevent="cancelInlineCreate"
+                                            />
+                                            <slot name="inline-extra" :loading="inlineLoading" />
+                                            <p v-if="inlineError" class="break-words text-xs leading-tight text-destructive">
+                                                {{ inlineError }}
+                                            </p>
+                                            <div class="flex flex-wrap items-center justify-end gap-2 pt-1">
+                                                <Button
+                                                    type="button"
+                                                    variant="outline-primary"
+                                                    size="sm"
+                                                    class="min-w-0 max-w-full flex-1 px-3 text-xs sm:flex-none"
+                                                    :disabled="inlineLoading"
+                                                    @mousedown.prevent
+                                                    @click.stop.prevent="cancelInlineCreate"
+                                                >
+                                                    Cancelar
+                                                </Button>
+                                                <Button
+                                                    type="button"
+                                                    variant="default"
+                                                    size="sm"
+                                                    class="min-w-0 max-w-full flex-1 px-3 text-xs sm:flex-none"
+                                                    :disabled="inlineLoading || !inlineValue.trim()"
+                                                    @mousedown.prevent
+                                                    @click.stop.prevent="submitInlineCreate"
+                                                >
+                                                    {{ inlineLoading ? (editingOption ? 'Guardando...' : 'Creando...') : editingOption ? 'Guardar' : 'Crear' }}
+                                                </Button>
+                                            </div>
+                                        </template>
                                     </div>
                                 </div>
                             </div>

@@ -39,6 +39,8 @@ type ConfigurationModule = {
     description: string;
     options: ConfigurationOption[];
     permission?: PermissionRequirement;
+    /** Rol exigido (p. ej. 'superadmin'); si se indica, el módulo solo lo ve quien tenga ese rol. */
+    role?: string;
 };
 
 const auth = useAuthStore();
@@ -127,7 +129,7 @@ const modules: ConfigurationModule[] = [
             { name: 'Categorías', href: '/categorias/subgrupos' },
             { name: 'Bodegas', href: '/bodegas' },
             { name: 'Campos adicionales', href: '/campos-adicionales' },
-            { name: 'Parametros', href: '/parametros' },
+            { name: 'Parámetros', href: '/parametros' },
             { name: 'Colores', href: '/colores' },
             { name: 'Catálogo de materiales', href: route('nombres-materiales.index') },
         ],
@@ -154,6 +156,12 @@ const modules: ConfigurationModule[] = [
             { name: 'Salida de telas por orden', href: underConstructionHref('Salida de telas por orden') },
             { name: 'Inventario de retazos', href: underConstructionHref('Inventario de retazos') },
         ],
+    },
+    {
+        title: 'Notificaciones',
+        description: 'Define quién, cómo y cuándo se avisa en cada módulo.',
+        role: 'superadmin',
+        options: [{ name: 'Reglas de notificaciones', href: '/configuracion/reglas-notificaciones' }],
     },
     {
         title: 'Accesos y Permisos',
@@ -190,7 +198,9 @@ const modules: ConfigurationModule[] = [
     },
 ];
 
-const visibleModules = computed(() => modules.filter((module) => hasPermissionAccess(module.permission)));
+const visibleModules = computed(() =>
+    modules.filter((module) => (module.role ? auth.hasRole(module.role) : hasPermissionAccess(module.permission))),
+);
 
 onMounted(() => {
     void auth.fetchUser().catch(() => {

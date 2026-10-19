@@ -64,7 +64,7 @@ class SaleNoteService
 
                 if ($noteNetTotal - $pendingBalance > 0.01) {
                     throw ValidationException::withMessages([
-                        'document' => 'La nota de credito no puede superar el saldo pendiente de la factura.',
+                        'document' => 'La nota de crédito no puede superar el saldo pendiente de la factura.',
                     ]);
                 }
             }
@@ -167,7 +167,7 @@ class SaleNoteService
     private function ensureNoteDocument(SaleDocument $note): void
     {
         if (! $note->isCreditDebitNote()) {
-            throw new \InvalidArgumentException('Solo se pueden operar notas de credito o debito de venta.');
+            throw new \InvalidArgumentException('Solo se pueden operar notas de crédito o débito de venta.');
         }
     }
 

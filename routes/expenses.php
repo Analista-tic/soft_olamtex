@@ -10,11 +10,14 @@ use Illuminate\Support\Facades\Route;
 // === GASTOS (AGRUPADO) ===
 Route::prefix('gastos')->name('gastos.')->group(function () {
     // === SOLICITUD DE COMPRA ===
-    Route::prefix('solicitudes-compra')->name('purchase-requests.')->middleware('permission:ver propios solicitudes compra|ver area solicitudes compra|ver todos solicitudes compra')->group(function () {
+    Route::prefix('solicitudes-compra')->name('purchase-requests.')->middleware('permission:ver propios solicitudes compra|ver area solicitudes compra|ver todos solicitudes compra|ver solicitudes compra a gerencia|ver solicitudes compra a logistica')->group(function () {
         Route::get('/', [PurchaseRequestController::class, 'index'])->name('index');
+        Route::get('/crear', [PurchaseRequestController::class, 'create'])->name('create')->middleware('permission:crear solicitudes compra');
+        Route::get('/{purchaseRequest}/editar', [PurchaseRequestController::class, 'edit'])->name('edit')->middleware('permission:editar solicitudes compra');
         Route::get('/data', [PurchaseRequestController::class, 'getData'])->name('getData');
         Route::post('/', [PurchaseRequestController::class, 'store'])->name('store')->middleware('permission:crear solicitudes compra');
         Route::get('/{purchaseRequest}', [PurchaseRequestController::class, 'show'])->name('show');
+        Route::get('/{purchaseRequest}/trazabilidad', [PurchaseRequestController::class, 'traceability'])->name('traceability');
         Route::put('/{purchaseRequest}', [PurchaseRequestController::class, 'update'])->name('update')->middleware('permission:editar solicitudes compra');
         Route::delete('/{purchaseRequest}', [PurchaseRequestController::class, 'destroy'])->name('destroy')->middleware('permission:eliminar solicitudes compra');
 
@@ -44,17 +47,18 @@ Route::prefix('gastos')->name('gastos.')->group(function () {
         Route::get('/data', [PurchaseOrderController::class, 'getData'])->name('getData');
         Route::post('/', [PurchaseOrderController::class, 'store'])->name('store')->middleware('permission:crear ordenes compra');
         Route::get('/{purchaseDocument}', [PurchaseOrderController::class, 'show'])->name('show');
+        Route::get('/{purchaseDocument}/trazabilidad', [PurchaseOrderController::class, 'traceability'])->name('traceability');
         Route::get('/{purchaseDocument}/print', [PurchaseOrderController::class, 'print'])->name('print');
         Route::put('/{purchaseDocument}', [PurchaseOrderController::class, 'update'])->name('update')->middleware('permission:editar ordenes compra');
         Route::delete('/{purchaseDocument}', [PurchaseOrderController::class, 'destroy'])->name('destroy')->middleware('permission:eliminar ordenes compra');
         Route::post('/{purchaseDocument}/enviar-correo-pdf', [PurchaseOrderController::class, 'sendOrderPdf'])
             ->name('send-pdf')
             ->middleware('permission:editar ordenes compra');
-        Route::post('/{purchaseDocument}/convert-to-invoice', [PurchaseOrderController::class, 'convertToInvoice'])
-            ->name('convert-to-invoice')
-            ->middleware('permission:crear facturas compra');
         Route::patch('/{purchaseDocument}/approve', [PurchaseOrderController::class, 'approve'])
             ->name('approve')
+            ->middleware('permission:aprobar orden compra');
+        Route::patch('/{purchaseDocument}/reject', [PurchaseOrderController::class, 'reject'])
+            ->name('reject')
             ->middleware('permission:aprobar orden compra');
         Route::patch('/{purchaseDocument}/cerrar', [PurchaseOrderController::class, 'close'])
             ->name('close')
@@ -64,12 +68,12 @@ Route::prefix('gastos')->name('gastos.')->group(function () {
     // === FACTURAS DE COMPRA ===
     Route::prefix('facturas-compra')->name('purchase-invoices.')->middleware('permission:ver facturas compra')->group(function () {
         Route::get('/', [PurchaseInvoiceController::class, 'index'])->name('index');
-        // Página completa crear/editar
         Route::get('/crear', [PurchaseInvoiceController::class, 'create'])->name('create')->middleware('permission:crear facturas compra');
         Route::get('/{purchaseDocument}/editar', [PurchaseInvoiceController::class, 'edit'])->name('edit')->middleware('permission:editar facturas compra');
         Route::get('/data', [PurchaseInvoiceController::class, 'getData'])->name('getData');
         Route::get('/{purchaseDocument}/notas-credito-debito', [PurchaseInvoiceController::class, 'creditDebitNotes'])->name('credit-debit-notes');
         Route::get('/{purchaseDocument}/notes-summary', [PurchaseInvoiceController::class, 'notesSummary'])->name('notes-summary');
+        Route::get('/{purchaseDocument}/trazabilidad', [PurchaseInvoiceController::class, 'traceability'])->name('traceability');
         Route::post('/', [PurchaseInvoiceController::class, 'store'])->name('store')->middleware('permission:crear facturas compra');
         Route::get('/{purchaseDocument}', [PurchaseInvoiceController::class, 'show'])->name('show');
         Route::get('/{purchaseDocument}/print', [PurchaseInvoiceController::class, 'print'])->name('print');
@@ -89,18 +93,18 @@ Route::prefix('gastos')->name('gastos.')->group(function () {
 
     // === PAGOS DE FACTURAS (LEGACY TRANSITORIO) ===
     Route::prefix('pagos')->name('payments.')->group(function () {
-        Route::get('/facturas/{purchaseDocument}', [PurchasePaymentController::class, 'byInvoice'])->name('byInvoice');
-        Route::post('/', [PurchasePaymentController::class, 'store'])->name('store');
+        Route::get('/facturas/{purchaseDocument}', [PurchasePaymentController::class, 'byInvoice'])->name('byInvoice')->middleware('permission:ver comprobantes egreso');
+        Route::post('/', [PurchasePaymentController::class, 'store'])->name('store')->middleware('permission:crear comprobantes egreso');
     });
 
     // === FACTURAS DE COMPRA TELAS ===
     Route::prefix('facturas-compra-tela')->name('purchase-invoices-fabric.')->middleware('permission:ver facturas compra')->group(function () {
         Route::get('/', [PurchaseInvoiceTelaController::class, 'indexFabric'])->name('index');
-        // Página completa crear/editar para facturas tela
         Route::get('/crear', [PurchaseInvoiceTelaController::class, 'create'])->name('create')->middleware('permission:crear facturas compra');
         Route::get('/{purchaseInvoice}/editar', [PurchaseInvoiceTelaController::class, 'edit'])->name('edit')->middleware('permission:editar facturas compra');
         Route::get('/data', [PurchaseInvoiceTelaController::class, 'getData'])->name('getData');
         Route::post('/', [PurchaseInvoiceTelaController::class, 'store'])->name('store')->middleware('permission:crear facturas compra');
+        Route::get('/{purchaseInvoice}/trazabilidad', [PurchaseInvoiceTelaController::class, 'traceability'])->name('traceability');
         Route::get('/{purchaseInvoice}', [PurchaseInvoiceTelaController::class, 'show'])->name('show');
         Route::get('/{purchaseInvoice}/print', [PurchaseInvoiceTelaController::class, 'print'])->name('print');
         Route::put('/{purchaseInvoice}', [PurchaseInvoiceTelaController::class, 'update'])->name('update')->middleware('permission:editar facturas compra');

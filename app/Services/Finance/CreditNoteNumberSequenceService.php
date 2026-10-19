@@ -18,7 +18,7 @@ class CreditNoteNumberSequenceService
                 ->first();
 
             if (! $sequence) {
-                throw new RuntimeException('No existe la secuencia para notas credito.');
+                throw new RuntimeException('No existe la secuencia para notas crédito.');
             }
 
             $nextValue = (int) $sequence->current_value + 1;

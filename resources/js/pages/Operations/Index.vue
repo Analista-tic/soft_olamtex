@@ -18,9 +18,9 @@ import AppLayout from '@/layouts/AppLayout.vue';
 import { uiPatterns } from '@/lib/ui-patterns';
 import { Head, usePage } from '@inertiajs/vue3';
 import axios from 'axios';
-import { ChevronLeft, ChevronRight, Database, Eye, Pencil, Plus, Search, Settings2, Trash2 } from 'lucide-vue-next';
+import { Database, Eye, Pencil, Plus, Search, Settings2, Trash2 } from 'lucide-vue-next';
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue';
-import OperationCatalogManagerDialog, { type ManagedMachine, type ManagedSection } from './OperationCatalogManagerDialog.vue';
+import OperationCatalogManagerDialog, { type ManagedMachine, type ManagedSection, type SectionType } from './OperationCatalogManagerDialog.vue';
 import OperationDetailDialog from './OperationDetailDialog.vue';
 import OperationFormDialog from './OperationFormDialog.vue';
 
@@ -81,7 +81,7 @@ const localSections = ref<ManagedSection[]>(
     (page.props.sections || []).map((section) => ({
         id: Number(section.id),
         name: section.name,
-        type: (section.type ?? 'confeccion') as 'confeccion' | 'presentacion',
+        type: (section.type ?? 'PREPARACION') as SectionType,
         is_active: true,
         usage_count: 0,
     })),
@@ -102,8 +102,15 @@ const localMachines = ref<ManagedMachine[]>(
 const sections = computed(() => localSections.value.filter((section) => section.is_active));
 const productSheets = computed(() => page.props.productSheets || []);
 const machines = computed(() => localMachines.value.filter((machine) => machine.is_active));
-const actionOptions = computed(() => localActions.value.map((a: string) => ({ id: a, name: a })));
-const sectionFilterOptions = computed(() => [{ id: '', name: 'Todas las secciones' }, ...sections.value.map((s) => ({ id: s.id, name: s.name }))]);
+const actionOptions = computed(() =>
+    localActions.value.map((a: string) => ({ id: a, name: a })).sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
+);
+const sectionFilterOptions = computed(() => [
+    { id: '', name: 'Todas las secciones' },
+    ...sections.value
+        .map((s) => ({ id: s.id, name: s.name }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
+]);
 
 const sortBy = ref<string>('');
 const sortDir = ref<'asc' | 'desc'>('asc');
@@ -240,12 +247,6 @@ async function fetchOperations(
             isRefreshingRecords.value = false;
         }
     }
-}
-
-function goToPage(p: number) {
-    if (p < 1 || p > pagination.value.last_page) return;
-    clearFetchDebounce();
-    fetchOperations(p, searchQuery.value, filterAction.value || null, filterSectionId.value || null);
 }
 
 const currentPage = computed({

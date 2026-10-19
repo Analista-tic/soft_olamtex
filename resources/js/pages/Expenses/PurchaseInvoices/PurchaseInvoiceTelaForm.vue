@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import HoverTooltip from '@/components/common/HoverTooltip.vue';
+import { formatPersonNameDisplay } from '@/lib/textNormalizer';
 import AppLayout from '@/layouts/AppLayout.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import DateField from '@/components/DateField.vue';
@@ -7,489 +9,529 @@ import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
 import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
 import SelectField from '@/components/SelectField.vue';
-import TextareaField from '@/components/TextareaField.vue';
-import ContactDialog from '@/pages/MasterData/Contact/ContactDialog.vue';
-import PurchaseInvoiceItemsTable from './PurchaseInvoiceItemsTable.vue';
-import PurchaseInvoiceWithholdingsTable from './PurchaseInvoiceWithholdingsTable.vue';
 import { Button } from '@/components/ui/button';
-import { Head, router } from '@inertiajs/vue3';
-import { useCompanyInfo } from '@/composables/useCompanyInfo';
 import { useAlertStack } from '@/composables/useAlert';
+import { useCompanyInfo } from '@/composables/useCompanyInfo';
+import { useSupplierContacts } from '@/composables/useSupplierContacts';
+import { usePurchaseInvoiceTotals } from '@/composables/usePurchaseInvoiceTotals';
+import { usePurchaseOrderDifference } from '@/composables/usePurchaseOrderDifference';
+import type { PurchaseInvoice, PurchaseInvoiceItem } from '@/domain/Expenses';
+import { canEditInvoice as canEditInvoiceRule } from '@/domain/Expenses/rules';
+import type { Contact } from '@/domain/MasterData';
+import type { Option } from '@/domain/shared';
+import { formatRequiredFieldsMessage } from '@/lib/alert-format';
+import { parseToDate, toIsoDateString } from '@/lib/date';
+import { toApiDecimal } from '@/lib/decimalFormat';
+import PurchaseTraceability from '../PurchaseTraceability.vue';
+import PurchaseInvoiceItemsTable from './PurchaseInvoiceItemsTable.vue';
+import PurchaseInvoiceFooter from './PurchaseInvoiceFooter.vue';
+import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
+import { X } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
-import { Plus } from 'lucide-vue-next';
 
-const { company, logoUrl } = useCompanyInfo();
-const { successMessage, errorMessage, errorType, showError, clearError, clearSuccess } = useAlertStack();
+const props = withDefaults(defineProps<{ mode?: 'create' | 'edit'; form?: Partial<PurchaseInvoice> | null }>(), {
+    mode: 'create',
+    form: null,
+});
 
-const props = withDefaults(defineProps<{ mode?: 'create' | 'edit'; form?: any }>(), { mode: 'create', form: null });
 const mode = computed(() => props.mode || 'create');
 
-const localForm = ref<any>({});
-const nextDocumentNumber = ref<string>('');
-const isLoadingDocumentNumber = ref(false);
-const contacts = ref<any[]>([]);
-const isLoadingContacts = ref(false);
-const contactsPage = ref(1);
-const contactsHasMore = ref(false);
-const isLoadingMoreContacts = ref(false);
-const CONTACTS_PER_PAGE = 30;
-const isLoadingPurchaseOrders = ref(false);
-let purchaseOrdersRequestSequence = 0;
-const isContactDialogOpen = ref(false);
-const contactDialogError = ref('');
-const contactDialogForm = ref<any>({ groups: [] });
+const { successMessage, errorMessage, errorType, showSuccess, showError, clearSuccess, clearError } = useAlertStack();
+const { company, logoUrl } = useCompanyInfo();
+
+type PurchaseInvoiceWithProviderName = Partial<PurchaseInvoice> & { provider_name?: string | null };
+
+const localForm = ref<PurchaseInvoiceWithProviderName>(createDefaultForm());
+const { contacts, isLoadingContacts, isLoadingMoreContacts, contactsHasMore, fetchContacts, searchContacts, loadMoreContacts, fetchContactById } =
+    useSupplierContacts<Contact>(30, () => localForm.value.contact_id);
+const isLoading = ref(false);
+const isSubmitting = ref(false);
+const isSendingMail = ref(false);
+const fieldErrors = ref({ contactId: false, invoiceDate: false, deliveryDate: false, supplierInvoiceNumber: false });
 const purchaseOrders = ref<any[]>([]);
 const selectedPurchaseOrderId = ref<number | null>(null);
-const selectedPurchaseOrderValue = ref<number | null>(null);
-const isSubmitting = ref(false);
-const invoiceItemsTableRef = ref<{ addItem: () => void } | null>(null);
-const invoiceDate = ref<Date | null>(null);
-const deliveryDate = ref<Date | null>(null);
-const isReadOnly = computed(() => false);
-
-// ── Flujo de diferencias ──────────────────────────────────────────────────
+const orderTotal = ref<number | null>(null);
 const differenceDialogOpen = ref(false);
 const pendingDifferenceSendMail = ref<boolean | null>(null);
 const differenceReason = ref('');
 const differenceEvidenceData = ref<string | null>(null);
 const savedInvoiceId = ref<number | null>(null);
-const orderTotal = ref<number | null>(null);
+const invoiceItemsTableRef = ref<{ addItem: () => void } | null>(null);
+const invoiceDate = ref<Date | null>(null);
+const deliveryDate = ref<Date | null>(null);
 
-/** Compara precio y longitud (quantity en DB) de cada ítem contra la orden original */
-const hasModifiedPriceOrQuantity = computed(() => {
-    const items: any[] = Array.isArray(localForm.value.items) ? localForm.value.items : [];
-    return items.some((item: any) => {
-        if (!item.original_order_item) return false;
-        const suggestedPrice = Number(item.original_order_item.price);
-        const suggestedQty = Number(item.original_order_item.quantity);
-        const priceChanged = Number.isFinite(suggestedPrice) && Number(item.price) !== suggestedPrice;
-        const qtyChanged = Number.isFinite(suggestedQty) && Number(item.quantity) !== suggestedQty;
-        return priceChanged || qtyChanged;
-    });
-});
-
-const subtotal = computed(() => (localForm.value.items || []).reduce((acc: number, item: any) => acc + (Number(item.total) || 0), 0));
-const iva = computed(() => (localForm.value.items || []).reduce((acc: number, item: any) => acc + (Number(item.total_tax) || 0), 0));
-const total = computed(() => Number(subtotal.value) + Number(iva.value));
-
-const pendingPurchaseOrderOptions = computed(() =>
-    purchaseOrders.value.map((o: any) => ({
-        id: o.id,
-        name: o.document_number ? `${o.document_number}` : `Orden #${o.id}`,
-    }))
+const isReadOnly = computed(
+    () => mode.value === 'edit' && !canEditInvoiceRule(localForm.value.status, localForm.value.approval_status),
 );
 
-function formatCurrency(value: number) {
-    return Number(value || 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 });
-}
+const { subtotal, iva, ivaLabel, total, retencionesTotal, totalPagar, getWithholdingAmount } = usePurchaseInvoiceTotals(localForm);
+const { hasDifference } = usePurchaseOrderDifference(localForm, orderTotal, total);
 
-const selectedContactData = computed(() => {
-    if (!localForm.value.contact_id) return null;
-    return contacts.value.find((c: any) => Number(c.id) === Number(localForm.value.contact_id)) || null;
-});
+const selectedContactData = computed(() => contacts.value.find((c) => Number(c.id) === Number(localForm.value.contact_id)) || null);
 const contactIdNumber = computed(() => selectedContactData.value?.id_number || '');
 const contactPhone = computed(() => selectedContactData.value?.phone || '');
 
-function createDefaultForm() {
-    const today = new Date();
-    const yyyy = today.getFullYear();
-    const mm = String(today.getMonth() + 1).padStart(2, '0');
-    const dd = String(today.getDate()).padStart(2, '0');
-    const currentDate = `${yyyy}-${mm}-${dd}`;
+const pendingPurchaseOrderOptions = computed<Option[]>(() =>
+    purchaseOrders.value.map((order) => {
+        const rawId = order?.id ?? '';
+        const numericId = Number(rawId);
+        const optionId = Number.isNaN(numericId) ? rawId : numericId;
+        const orderNumber = order?.document_number || String(order?.id ?? '');
+        return { id: optionId, name: `${orderNumber}` };
+    }),
+);
+
+const selectedPurchaseOrderValue = computed<Option['id'] | ''>({
+    get: () => selectedPurchaseOrderId.value ?? '',
+    set: (value) => {
+        if (value === '' || value === null) {
+            selectedPurchaseOrderId.value = null;
+            return;
+        }
+        const numeric = Number(value);
+        selectedPurchaseOrderId.value = Number.isNaN(numeric) ? null : numeric;
+    },
+});
+
+const id = computed(() => {
+    if (mode.value === 'edit') {
+        return props.form?.document_number || (props.form?.id ? `FAC-T-${String(props.form.id).padStart(3, '0')}` : '');
+    }
+    // El consecutivo lo asigna el servidor al guardar: uno "sugerido" se repetía entre usuarios simultáneos.
+    return 'Se asigna al guardar';
+});
+
+function createDefaultForm(): PurchaseInvoiceWithProviderName {
+    const currentDate = toIsoDateString(new Date()) || '';
     return {
         contact_id: null,
         date: currentDate,
         delivery_date: '',
         supplier_invoice_number: '',
         description: '',
-        items: [createEmptyItem()],
+        reason: '',
+        evidence_path: '',
+        items: [],
+        id: undefined,
+        purchase_order_id: null,
         withholdings: [],
+        provider_name: '',
     };
 }
-function createEmptyItem() {
-    return { item_id: null, price: '', tax: 0, quantity: '', description: '', total: 0, total_tax: 0, supplier_code: '', supplier_color: '', order_width: '' };
+
+function createEmptyItem(): PurchaseInvoiceItem {
+    return {
+        item_id: null,
+        price: '',
+        tax: 0,
+        quantity: '',
+        description: '',
+        total: 0,
+        total_tax: 0,
+        supplier_code: '',
+        supplier_color: '',
+        order_width: '',
+    };
 }
 
-function resetForm() {
-    if (props.form && Object.keys(props.form).length > 0) {
-        localForm.value = JSON.parse(JSON.stringify(props.form));
-    } else {
-        localForm.value = createDefaultForm();
+function normalizeIsoDate(value: unknown, fallback: string | null = null): string {
+    if (value instanceof Date) {
+        return toIsoDateString(value) || fallback || '';
     }
-    invoiceDate.value = localForm.value.date ? new Date(localForm.value.date) : new Date();
-    deliveryDate.value = localForm.value.delivery_date ? new Date(localForm.value.delivery_date) : null;
+    if (typeof value === 'string') {
+        const normalized = toIsoDateString(value);
+        if (normalized) return normalized;
+    }
+    return fallback || '';
 }
 
-async function fetchContacts(page = 1) {
-    if (page === 1) {
-        isLoadingContacts.value = true;
-        contacts.value = [];
-        contactsPage.value = 1;
-    } else {
-        isLoadingMoreContacts.value = true;
-    }
-    try {
-        const [res1, res2] = await Promise.all([
-            axios.get('/contactos/data', { params: { contact_type: 'proveedor', per_page: CONTACTS_PER_PAGE, page } }),
-            axios.get('/contactos/data', { params: { contact_type: 'cliente_proveedor', per_page: CONTACTS_PER_PAGE, page } }),
-        ]);
-        const p1: any[] = res1.data?.data ?? [];
-        const p2: any[] = res2.data?.data ?? [];
-        const newItems = [...p1, ...p2];
-        if (page === 1) {
-            contacts.value = newItems;
-        } else {
-            const seen = new Set(contacts.value.map((c: any) => c.id));
-            contacts.value = [...contacts.value, ...newItems.filter((c: any) => !seen.has(c.id))];
-        }
-        const total1: number = res1.data?.total ?? 0;
-        const total2: number = res2.data?.total ?? 0;
-        contactsHasMore.value = page * CONTACTS_PER_PAGE < total1 || page * CONTACTS_PER_PAGE < total2;
-        const contactId = Number(localForm.value.contact_id ?? 0);
-        if (page === 1 && contactId > 0 && !contacts.value.some((c: any) => Number(c.id) === contactId)) {
-            void fetchContactById(contactId);
-        }
-    } catch {
-        if (page === 1) contacts.value = [];
-        contactsHasMore.value = false;
-    } finally {
-        isLoadingContacts.value = false;
-        isLoadingMoreContacts.value = false;
-    }
+function syncDateRefsFromForm() {
+    invoiceDate.value = parseToDate(localForm.value.date) ?? parseToDate(new Date());
+    deliveryDate.value = parseToDate(localForm.value.delivery_date);
 }
 
-async function loadMoreContacts() {
-    if (!contactsHasMore.value || isLoadingMoreContacts.value) return;
-    contactsPage.value++;
-    await fetchContacts(contactsPage.value);
+function initializeFromForm() {
+    const f = props.form;
+    if (!f) return;
+    const clone: PurchaseInvoiceWithProviderName = JSON.parse(JSON.stringify(f));
+    if (!Array.isArray(clone.items)) clone.items = [];
+    if (!Array.isArray(clone.withholdings)) clone.withholdings = [];
+    clone.date = normalizeIsoDate(clone.date, toIsoDateString(new Date()));
+    clone.delivery_date = normalizeIsoDate(clone.delivery_date, '');
+    if (clone.items.length === 0) {
+        clone.items = [createEmptyItem()];
+    }
+    const pid = (f as any)?.parent_document_id ?? f?.purchase_order_id;
+    if (pid != null) {
+        clone.purchase_order_id = Number(pid);
+        (clone as any).parent_document_id = Number(pid);
+    }
+    localForm.value = clone;
+    syncDateRefsFromForm();
 }
 
-async function fetchContactById(contactId: number) {
-    if (!Number.isFinite(contactId) || contactId <= 0) {
-        return;
-    }
-
-    try {
-        const response = await axios.get(`/contactos/${contactId}`);
-        const contact = response.data;
-        if (!contact || !contact.id) {
-            return;
-        }
-
-        contacts.value = [...contacts.value, contact].reduce((acc: any[], current: any) => {
-            if (!current?.id) return acc;
-            if (!acc.some((existing) => Number(existing.id) === Number(current.id))) {
-                acc.push(current);
-            }
-            return acc;
-        }, []);
-    } catch {
-    }
-}
-
-async function fetchPendingPurchaseOrders(search = '') {
-    const currentSequence = ++purchaseOrdersRequestSequence;
-    isLoadingPurchaseOrders.value = true;
-
+async function fetchPendingPurchaseOrders() {
+    purchaseOrders.value = [];
     try {
         const { data } = await axios.get('/gastos/ordenes-compra/data', {
-            params: { status: 'approved', per_page: 80, fabric_only: true, search: search.trim() },
+            params: { status: 'approved,partially_invoiced', per_page: 1000, fabric_only: true },
         });
-
-        if (currentSequence !== purchaseOrdersRequestSequence) {
-            return;
-        }
-
         purchaseOrders.value = Array.isArray(data.data) ? data.data : [];
     } catch {
-        if (currentSequence !== purchaseOrdersRequestSequence) {
-            return;
-        }
-
         purchaseOrders.value = [];
-    } finally {
-        if (currentSequence === purchaseOrdersRequestSequence) {
-            isLoadingPurchaseOrders.value = false;
-        }
     }
 }
-
-function handlePurchaseOrderSearch(term: string) {
-    void fetchPendingPurchaseOrders(term);
-}
-
-function handleContactFormUpdate(updatedContact: Partial<any>) { contactDialogForm.value = updatedContact; }
-async function handleContactDialogSubmit(contactData: Partial<any>) {
-    try {
-        const previousIds = contacts.value.map((c) => Number(c.id)).filter((id) => Number.isFinite(id));
-        await axios.post('/contactos', contactData);
-        isContactDialogOpen.value = false;
-        await fetchContacts();
-        const newContact = contacts.value.find((c) => !previousIds.includes(Number(c.id)));
-        if (newContact?.id) localForm.value.contact_id = Number(newContact.id);
-    } catch (error: any) {
-        const validationErrors = error?.response?.data?.errors;
-        if (validationErrors) {
-            const messages = Object.values(validationErrors).flat().join(' ');
-            contactDialogError.value = messages;
-        } else {
-            contactDialogError.value = 'Ocurrió un error al guardar el contacto.';
-        }
-    }
-}
-
-onMounted(async () => {
-    resetForm();
-    void fetchContacts();
-
-    if (mode.value === 'create') {
-        void fetchPendingPurchaseOrders();
-    }
-
-    if (mode.value === 'create') {
-        await fetchNextDocumentNumber();
-    }
-});
-
-// fetch next fabric invoice number for preview when creating
-async function fetchNextDocumentNumber() {
-    isLoadingDocumentNumber.value = true;
-    try {
-        const { data } = await axios.get('/gastos/facturas-compra-tela/data', {
-            params: { per_page: 1, order_by: 'id', order_direction: 'desc' },
-        });
-
-        const last: string = Array.isArray(data.data) && data.data.length > 0
-            ? (data.data[0].document_number || '')
-            : '';
-        const lastNum = last ? parseInt(String(last).replace('FAC-T-', ''), 10) : 0;
-        const next = Number.isNaN(lastNum) ? 1 : lastNum + 1;
-        nextDocumentNumber.value = `FAC-T-${String(next).padStart(4, '0')}`;
-    } catch {
-        nextDocumentNumber.value = 'FAC-T-0001';
-    } finally {
-        isLoadingDocumentNumber.value = false;
-    }
-}
-
-function handleInvoiceAddLine() { invoiceItemsTableRef.value?.addItem(); }
 
 async function loadPurchaseOrderToInvoice(orderId: number) {
-    const order = purchaseOrders.value.find((o: any) => Number(o.id) === Number(orderId));
+    const listedOrder = purchaseOrders.value.find((o) => Number(o.id) === Number(orderId));
+    let order: any = listedOrder;
+    try {
+        const { data } = await axios.get(`/gastos/ordenes-compra/${orderId}`);
+        order = data?.data ?? listedOrder;
+    } catch {
+        order = listedOrder;
+    }
     if (!order) return;
     if (!contacts.value.length) await fetchContacts();
-    const foundContact = contacts.value.find((c: any) => Number(c.id) === Number(order.contact_id));
+    const foundContact = contacts.value.find((c) => Number(c.id) === Number(order.contact_id));
     if (foundContact) {
         localForm.value.contact_id = Number(order.contact_id);
     } else if (Number(order.contact_id) > 0) {
-        // Si el contacto no está en la lista, cargarlo por ID
         await fetchContactById(Number(order.contact_id));
         localForm.value.contact_id = Number(order.contact_id);
     } else {
         localForm.value.contact_id = null;
     }
     localForm.value.supplier_invoice_number = '';
-    localForm.value.delivery_date = order.delivery_date || '';
+    localForm.value.delivery_date = normalizeIsoDate(order.delivery_date, '');
     localForm.value.description = order.description || '';
-    localForm.value.items = Array.isArray(order.items) && order.items.length
+    localForm.value.items = Array.isArray(order.items)
         ? order.items.map((item: any) => ({
-              item_id: item.item_id ?? null,
+              item_id: item.item_id,
               price: item.price || '',
               tax: item.tax || 0,
-              quantity: item.quantity || '',
+              quantity: (() => {
+                  const pending = Math.max(0, Number(item.quantity || 0) - Number(item.already_invoiced_qty ?? 0));
+                  return pending > 0 ? pending : item.quantity || '';
+              })(),
               description: item.description || '',
               total: item.total || 0,
               total_tax: item.total_tax || 0,
               supplier_code: item.supplier_code || '',
               supplier_color: item.supplier_color || '',
               order_width: item.order_width || '',
+              id: item.id,
+              created_at: item.created_at || '',
+              updated_at: item.updated_at || '',
               original_order_item: { ...item },
           }))
-        : [createEmptyItem()];
+        : [];
+    if (!Array.isArray(localForm.value.items) || localForm.value.items.length === 0) {
+        localForm.value.items = [createEmptyItem()];
+    }
     selectedPurchaseOrderId.value = Number(orderId);
     localForm.value.purchase_order_id = Number(orderId);
-    localForm.value.parent_document_id = Number(orderId);
     orderTotal.value = (Array.isArray(order.items) ? order.items : []).reduce(
         (acc: number, item: any) => acc + (Number(item.total) || 0) + (Number(item.total_tax) || 0),
         0,
     );
-    if (order.delivery_date) deliveryDate.value = new Date(order.delivery_date);
+    syncDateRefsFromForm();
 }
 
-watch(selectedPurchaseOrderValue, (val) => {
-    selectedPurchaseOrderId.value = val ? Number(val) : null;
+function clearSelectedPurchaseOrder() {
+    selectedPurchaseOrderId.value = null;
+    localForm.value = createDefaultForm();
+    syncDateRefsFromForm();
+    orderTotal.value = null;
+}
+
+watch(invoiceDate, (value) => {
+    localForm.value.date = toIsoDateString(value) || '';
 });
 
-watch(selectedPurchaseOrderId, async (id, oldVal) => {
-    if (id) {
-        await loadPurchaseOrderToInvoice(id);
-    } else if (oldVal) {
-        resetForm();
+watch(deliveryDate, (value) => {
+    localForm.value.delivery_date = toIsoDateString(value) || '';
+});
+
+function handleInvoiceAddLine() {
+    invoiceItemsTableRef.value?.addItem();
+}
+
+function cancel() {
+    router.visit('/gastos/facturas-compra-tela');
+}
+
+async function handleSubmit(sendMail = false, skipDifferenceCheck = false, keepOpen = false) {
+    if (isReadOnly.value) return;
+    clearError();
+    clearSuccess();
+    if (!validateForm()) return;
+
+    if (!skipDifferenceCheck && hasDifference.value && !differenceReason.value.trim()) {
+        pendingDifferenceSendMail.value = sendMail;
+        differenceDialogOpen.value = true;
+        return;
     }
-});
 
-watch(
-    () => localForm.value.contact_id,
-    (contactId) => {
-        const numericId = Number(contactId ?? 0);
-        if (numericId > 0 && !contacts.value.some((contact: any) => Number(contact.id) === numericId)) {
-            void fetchContactById(numericId);
+    isLoading.value = true;
+    isSubmitting.value = true;
+    isSendingMail.value = sendMail;
+    const formToSend: PurchaseInvoiceWithProviderName = { ...localForm.value };
+    const selectedContact = contacts.value.find((c) => Number(c.id) === Number(localForm.value.contact_id));
+    formToSend.provider_name = selectedContact?.full_name ?? '';
+    formToSend.date = toIsoDateString(invoiceDate.value) || normalizeIsoDate(localForm.value.date, '');
+    formToSend.delivery_date = toIsoDateString(deliveryDate.value) || normalizeIsoDate(localForm.value.delivery_date, '');
+    const orderId = selectedPurchaseOrderId.value ?? localForm.value.purchase_order_id ?? (localForm.value as any).parent_document_id ?? null;
+    if (orderId) {
+        (formToSend as any).parent_document_id = Number(orderId);
+    }
+    delete formToSend.purchase_order_id;
+    formToSend.items = (formToSend.items ?? []).map((it) => ({ ...it, order_width: toApiDecimal(it.order_width) }));
+    if (mode.value === 'create') delete formToSend.id;
+    if (!Array.isArray(formToSend.withholdings)) {
+        formToSend.withholdings = [];
+    }
+    formToSend.withholdings = formToSend.withholdings
+        .filter((w: { name?: string }) => w && String(w.name ?? '').trim() !== '')
+        .map((w: { name?: string; percentage?: number; base_amount?: number | null }) => {
+            const raw = w.base_amount;
+            const base = raw != null && Number.isFinite(Number(raw)) ? Number(raw) : null;
+            return {
+                name: String(w.name ?? '').trim(),
+                percentage: Number(w.percentage) || 0,
+                base_amount: base,
+            };
+        });
+    const trimmedLocalReason = String(localForm.value.reason || '').trim();
+    const normalizedReason = differenceReason.value.trim() || trimmedLocalReason;
+    formToSend.reason = normalizedReason || null;
+    formToSend.evidence_path = differenceEvidenceData.value ?? localForm.value.evidence_path ?? null;
+    const url = mode.value === 'create' ? '/gastos/facturas-compra-tela' : `/gastos/facturas-compra-tela/${localForm.value.id}`;
+    const method = mode.value === 'create' ? 'POST' : 'PUT';
+    try {
+        const { data } = await axios({ method, url, data: formToSend });
+        savedInvoiceId.value = data.data.id;
+        if (keepOpen) {
+            return;
         }
-    },
-);
+        if (sendMail) {
+            await axios.post(`/gastos/facturas-compra/${data.data.id}/enviar-correo`);
+        }
+        router.visit('/gastos/facturas-compra-tela');
+    } catch (e: any) {
+        const serverMessage =
+            e?.response?.data?.message ||
+            Object.values(e?.response?.data?.errors || {})?.flat()?.[0] ||
+            'Error al guardar la factura. Por favor intente nuevamente.';
+        showError(serverMessage);
+    } finally {
+        isLoading.value = false;
+        isSendingMail.value = false;
+        isSubmitting.value = false;
+    }
+}
 
-function cancel() { router.visit('/gastos/facturas-compra-tela'); }
+async function handleDifferenceDialogSave(payload: { reason: string; evidenceData: string | null; evidenceName: string }) {
+    const trimmedReason = payload.reason.trim();
+    differenceReason.value = trimmedReason;
+    differenceEvidenceData.value = payload.evidenceData;
+    const sendMail = pendingDifferenceSendMail.value ?? false;
+    pendingDifferenceSendMail.value = null;
+    differenceDialogOpen.value = false;
+
+    await handleSubmit(sendMail, true, true);
+
+    const invoiceId = savedInvoiceId.value ?? (localForm.value.id ? Number(localForm.value.id) : null);
+    if (invoiceId) {
+        try {
+            await axios.post(`/gastos/facturas-compra-tela/${invoiceId}/justificar`, {
+                difference_reason: trimmedReason,
+                difference_evidence_path: payload.evidenceData,
+                difference_notes: null,
+            });
+        } catch (e) {
+            console.error('Error al registrar diferencia en tela:', e);
+        }
+    }
+
+    differenceReason.value = '';
+    differenceEvidenceData.value = null;
+    router.visit('/gastos/facturas-compra-tela');
+}
+
+function closeDifferenceDialog() {
+    differenceDialogOpen.value = false;
+    pendingDifferenceSendMail.value = null;
+}
+
+const REQUIRED_FIELD_MESSAGE = 'Este campo es obligatorio.';
+
+// Limpia el rojo del campo en cuanto tiene valor (SelectField no emite update de forma fiable).
+watch(() => localForm.value.contact_id, () => (fieldErrors.value.contactId = false));
+watch(invoiceDate, () => (fieldErrors.value.invoiceDate = false));
+watch(deliveryDate, () => (fieldErrors.value.deliveryDate = false));
+watch(() => localForm.value.supplier_invoice_number, () => (fieldErrors.value.supplierInvoiceNumber = false));
 
 function validateForm(): boolean {
+    function getItems() {
+        return Array.isArray(localForm.value.items) ? localForm.value.items : [];
+    }
+
+    const items = getItems();
     const missingFields: string[] = [];
 
-    if (!localForm.value.contact_id) missingFields.push('Proveedor');
-    if (!invoiceDate.value) missingFields.push('Fecha factura');
-    if (!deliveryDate.value) missingFields.push('Fecha de entrega');
-    if (!String(localForm.value.supplier_invoice_number || '').trim()) missingFields.push('N° factura proveedor');
+    fieldErrors.value = { contactId: false, invoiceDate: false, deliveryDate: false, supplierInvoiceNumber: false };
+    if (!localForm.value.contact_id) {
+        missingFields.push('Proveedor');
+        fieldErrors.value.contactId = true;
+    }
+    if (!invoiceDate.value) {
+        missingFields.push('Fecha factura');
+        fieldErrors.value.invoiceDate = true;
+    }
+    if (!deliveryDate.value) {
+        missingFields.push('Fecha entrega');
+        fieldErrors.value.deliveryDate = true;
+    }
+    if (!String(localForm.value.supplier_invoice_number || '').trim()) {
+        missingFields.push('N° factura proveedor');
+        fieldErrors.value.supplierInvoiceNumber = true;
+    }
 
-    if (missingFields.length > 0) {
-        showError(`Completa los campos obligatorios: ${missingFields.join(', ')}.`);
+    if (missingFields.length) {
+        showError(formatRequiredFieldsMessage('Por favor completa todos los campos obligatorios', missingFields), 'warning');
         return false;
     }
 
-    const items = Array.isArray(localForm.value.items) ? localForm.value.items : [];
+    const errors: string[] = [];
 
-    if (items.length === 0) {
-        showError('La factura debe contener al menos un ítem.');
-        return false;
+    if (!items.length) {
+        errors.push('La factura debe contener al menos un ítem.');
     }
-
-    const invalidItemIndex = items.findIndex((item: any) =>
-        !item.item_id ||
-        Number(item.item_id) <= 0 ||
-        Number(item.price) <= 0 ||
-        Number(item.quantity) <= 0
+    const invalidItems = items.filter(
+        (it) =>
+            it.item_id == null ||
+            Number(it.item_id) <= 0 ||
+            it.price === '' ||
+            it.quantity === '' ||
+            Number(it.price) <= 0 ||
+            Number(it.quantity) <= 0,
     );
-
-    if (invalidItemIndex !== -1) {
-        showError(`El ítem ${invalidItemIndex + 1} debe tener producto, precio mayor a cero y cantidad mayor a cero.`);
-        return false;
+    if (invalidItems.length > 0) {
+        errors.push('Cada ítem debe tener item, Precio SIN Impuesto y cantidad.');
     }
 
-    const missingFabricFieldIndex = items.findIndex((item: any) =>
-        !String(item.supplier_code || '').trim() ||
-        !String(item.supplier_color || '').trim() ||
-        !String(item.order_width || '').trim() ||
-        Number(item.order_width) <= 0
-    );
+    const itemsMissingFabricFields: Array<{ idx: number; missing: string[] }> = [];
+    items.forEach((it, idx) => {
+        const missing: string[] = [];
+        if (!it.supplier_code || String(it.supplier_code).trim() === '') missing.push('Código proveedor');
+        if (!it.supplier_color || String(it.supplier_color).trim() === '') missing.push('Color proveedor');
+        if (!it.order_width || String(it.order_width).trim() === '') missing.push('Ancho pedido');
+        if (missing.length) itemsMissingFabricFields.push({ idx: idx + 1, missing });
+    });
 
-    if (missingFabricFieldIndex !== -1) {
-        showError(`El ítem ${missingFabricFieldIndex + 1} debe tener código proveedor, color proveedor y ancho de pedido válidos.`);
+    if (itemsMissingFabricFields.length) {
+        const lines = itemsMissingFabricFields.map((i) => `Ítem ${i.idx}: ${i.missing.join(', ')}`);
+        errors.push(
+            `Faltan campos obligatorios en ítems de telas:\n${lines.join('\n')}\n\nEstos datos (código proveedor, color y ancho) se usan en recepción para identificar rollos y validar el ancho real respecto al pedido.`,
+        );
+    }
+
+    if (errors.length) {
+        showError(errors[0], 'warning');
         return false;
     }
 
     return true;
 }
 
-async function handleSubmit(sendMail = false, options: { skipDifferenceCheck?: boolean; suppressRedirect?: boolean } = {}): Promise<boolean> {
-    if (!validateForm()) return false;
+watch(
+    () => localForm.value.contact_id,
+    (val) => {
+        if (val !== null && typeof val !== 'number' && val !== '') {
+            localForm.value.contact_id = Number(val);
+        }
+    },
+);
 
-    // Interceptar guardado si hay diferencias respecto a la orden
-    if (!options.skipDifferenceCheck && hasModifiedPriceOrQuantity.value) {
-        pendingDifferenceSendMail.value = sendMail;
-        differenceDialogOpen.value = true;
-        return false;
+watch(selectedPurchaseOrderId, (orderId) => {
+    if (orderId) {
+        loadPurchaseOrderToInvoice(orderId);
+    } else {
+        localForm.value.purchase_order_id = null;
+        orderTotal.value = null;
     }
+});
 
-    isSubmitting.value = true;
-    const formToSend = { ...localForm.value };
-    const selectedContact = contacts.value.find((contact: any) => Number(contact.id) === Number(localForm.value.contact_id));
-    formToSend.date = invoiceDate.value ? invoiceDate.value.toISOString().slice(0, 10) : localForm.value.date;
-    formToSend.delivery_date = deliveryDate.value ? deliveryDate.value.toISOString().slice(0, 10) : localForm.value.delivery_date;
-    formToSend.provider_name = String(selectedContact?.full_name ?? localForm.value.provider_name ?? '').trim();
-    formToSend.reason = differenceReason.value.trim() || localForm.value.reason || null;
-    formToSend.evidence_path = differenceEvidenceData.value ?? localForm.value.evidence_path ?? null;
+onMounted(async () => {
+    isLoading.value = true;
     try {
-        const url = mode.value === 'create' ? '/gastos/facturas-compra-tela' : `/gastos/facturas-compra-tela/${localForm.value.id}`;
-        const method = mode.value === 'create' ? 'POST' : 'PUT';
-        const { data } = await axios({ method, url, data: formToSend });
-        const invoiceId = data?.data?.id ?? data?.id ?? localForm.value.id ?? null;
-        savedInvoiceId.value = invoiceId;
-        if (sendMail && invoiceId) await axios.post(`/gastos/facturas-compra-tela/${invoiceId}/enviar-correo`);
-        if (!options.suppressRedirect) router.visit('/gastos/facturas-compra-tela');
-        return true;
-    } catch (e: any) {
-        showError(e?.response?.data?.message || 'Error al guardar la factura.');
-        return false;
+        await Promise.all([fetchContacts(), mode.value === 'create' ? fetchPendingPurchaseOrders() : Promise.resolve()]);
+        if (mode.value === 'edit' && props.form) {
+            initializeFromForm();
+        }
+        const contactId = Number(localForm.value.contact_id ?? 0);
+        if (contactId > 0 && !contacts.value.some((c) => Number(c.id) === contactId)) {
+            await fetchContactById(contactId);
+        }
+        if (!invoiceDate.value && !deliveryDate.value) {
+            syncDateRefsFromForm();
+        }
     } finally {
-        isSubmitting.value = false;
+        isLoading.value = false;
     }
-}
+});
 
-async function handleDifferenceDialogSave(payload: {
-    reason: string;
-    evidenceData: string | null;
-    evidenceName: string;
-    evidenceUrl: string | null;
-}): Promise<void> {
-    differenceReason.value = payload.reason.trim();
-    differenceEvidenceData.value = payload.evidenceData ?? payload.evidenceUrl;
-    differenceDialogOpen.value = false;
-
-    const sendMail = pendingDifferenceSendMail.value ?? false;
-    pendingDifferenceSendMail.value = null;
-
-    const wasSaved = await handleSubmit(sendMail, { skipDifferenceCheck: true, suppressRedirect: true });
-    if (!wasSaved || !savedInvoiceId.value) return;
-
-    try {
-        await axios.post(`/gastos/facturas-compra-tela/${savedInvoiceId.value}/justificar`, {
-            difference_reason: differenceReason.value,
-            difference_evidence_path: differenceEvidenceData.value,
-            difference_notes: null,
-        });
-        router.visit('/gastos/facturas-compra-tela');
-    } catch (error: any) {
-        showError(error?.response?.data?.message || 'La factura se guardó, pero no se pudo enviar la diferencia para aprobación.');
-    }
-}
-
-function closeDifferenceDialog(): void {
-    differenceDialogOpen.value = false;
-    pendingDifferenceSendMail.value = null;
-}
-
-function handleDifferenceDialogOpenChange(isOpen: boolean): void {
-    differenceDialogOpen.value = isOpen;
-    if (!isOpen) pendingDifferenceSendMail.value = null;
-}
-
+watch(
+    () => props.form,
+    (newVal) => {
+        if (mode.value === 'edit' && newVal) initializeFromForm();
+    },
+);
 </script>
 
 <template>
-    <Head :title="mode === 'create' ? 'Nueva Factura de Compra - Tela' : 'Editar Factura de Compra - Tela'" />
-    <AppLayout :breadcrumbs="mode === 'create' ? [{ title: 'Facturas de Compra (Tela)', href: '/gastos/facturas-compra-tela' }, { title: 'Nueva Factura', href: '' }] : [{ title: 'Facturas de Compra (Tela)', href: '/gastos/facturas-compra-tela' }, { title: localForm.id ? localForm.document_number || 'Editar' : 'Editar', href: '' }]">
+    <Head :title="mode === 'create' ? 'Nueva Factura de Compra Tela' : 'Editar Factura de Compra Tela'" />
+    <AppLayout
+        :breadcrumbs="
+            mode === 'create'
+                ? [{ title: 'Facturas de Compra Tela', href: '/gastos/facturas-compra-tela' }, { title: 'Nueva Factura', href: '' }]
+                : [{ title: 'Facturas de Compra Tela', href: '/gastos/facturas-compra-tela' }, { title: props.form?.document_number || 'Editar', href: '' }]
+        "
+    >
         <div class="flex flex-col gap-4 p-3">
             <div class="flex items-start justify-between gap-4">
                 <div class="flex flex-col gap-1">
-                    <h1 class="text-lg font-bold">{{ mode === 'create' ? 'Nueva Factura de Compra - Tela' : 'Editar Factura de Compra - Tela' }}</h1>
-                    <p class="text-sm text-muted-foreground">Registra una factura de compra de tela para trazabilidad y recepción.</p>
+                    <h1 class="text-lg font-bold">{{ mode === 'create' ? 'Nueva Factura de Compra Tela' : 'Editar Factura de Compra Tela' }}</h1>
+                    <p class="text-sm text-muted-foreground">Completa los campos y añade los ítems de la factura.</p>
                 </div>
-                <div v-if="mode === 'create'" class="w-full sm:w-[340px] shrink-0">
+                <div v-if="mode === 'create'" class="w-full shrink-0 sm:w-[340px]">
                     <div class="space-y-1">
                         <label class="text-sm font-medium leading-none text-foreground">Cargar desde orden pendiente</label>
                         <div class="flex items-center gap-2">
-                            <div class="flex-1 min-w-0">
+                            <div class="min-w-0 flex-1">
                                 <SelectField
                                     v-model="selectedPurchaseOrderValue"
                                     :options="pendingPurchaseOrderOptions"
                                     label=""
-                                    placeholder="Selecciona una orden de tela"
+                                    placeholder="Selecciona una orden existente"
                                     :searchable="pendingPurchaseOrderOptions.length >= 6"
-                                    :loading="isLoadingPurchaseOrders"
-                                    search-placeholder="Buscar orden..."
-                                    tooltip-text="Selecciona una orden de compra de tela aprobada para pre-llenar automáticamente los ítems de esta factura."
-                                    :clearable="true"
-                                    @search="handlePurchaseOrderSearch"
+                                    search-placeholder="Buscar orden de compra..."
+                                    tooltip-text="Selecciona una orden de compra aprobada para pre-llenar automáticamente los ítems de esta factura."
                                 />
                             </div>
+                            <HoverTooltip text="Limpiar selección">
+                                <button
+                                    type="button"
+                                    class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border border-border bg-background text-muted-foreground transition-colors hover:border-destructive/60 hover:bg-destructive/10 hover:text-destructive disabled:cursor-not-allowed disabled:opacity-40"
+                                    :disabled="!selectedPurchaseOrderId"
+                                    aria-label="Limpiar selección"
+                                    @click="clearSelectedPurchaseOrder()"
+                                >
+                                    <X class="h-3.5 w-3.5" />
+                                </button>
+                            </HoverTooltip>
                         </div>
                     </div>
                 </div>
@@ -497,206 +539,165 @@ function handleDifferenceDialogOpenChange(isOpen: boolean): void {
 
             <AlertStack :successMessage="successMessage" :errorMessage="errorMessage" :errorType="errorType" @close-success="clearSuccess" @close-error="clearError" />
 
-            <div class="space-y-6">
-                <div class="overflow-hidden rounded-xl border border-sidebar-border/70">
-                    <!-- Cabecera del documento (copiada de PurchaseOrderForm.vue y adaptada para telas) -->
-                    <div class="doc-header">
+            <p v-if="isReadOnly" class="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-800">
+                Esta factura ya no se puede modificar según su estado actual.
+            </p>
 
-                        <!-- Columna izquierda: fechas -->
-                        <div class="doc-col-left">
-                            <div class="doc-date-row">
-                                <span class="doc-date-label">Fecha factura</span>
-                                <span class="text-sm">{{ localForm.date }}</span>
-                            </div>
-                            <div class="doc-date-row">
-                                <div class="flex shrink-0 items-center gap-1">
-                                    <span class="doc-date-label">Fecha de entrega</span>
-                                    <span class="text-destructive text-sm">*</span>
-                                    <HelpTooltip
-                                        text="Fecha estimada en la que el proveedor debe entregar los productos."
-                                        aria-label="Ayuda sobre fecha de entrega"
-                                    />
-                                </div>
-                                <DateField v-model="deliveryDate" label="" :clearable="true" />
-                            </div>
-                        </div>
+            <fieldset :disabled="isReadOnly" class="m-0 min-w-0 space-y-6 border-0 p-0">
+                <div class="min-w-0 space-y-4">
+                    <PurchaseTraceability v-if="mode === 'edit'" :url="localForm.id ? `/gastos/facturas-compra-tela/${localForm.id}/trazabilidad` : null" />
 
-                        <!-- Columna central: logo + datos empresa -->
-                        <div class="doc-col-center">
-                            <img :src="logoUrl" alt="logo" class="max-h-16 object-contain" />
-                            <div class="flex flex-col items-center gap-0.5 text-center">
-                                <p class="text-sm font-semibold">{{ company?.name || '-' }}</p>
-                                <p class="text-xs text-muted-foreground">NIT: {{ company?.nit || '-' }}</p>
-                                <p class="text-xs text-muted-foreground">{{ company?.email || '-' }}</p>
-                            </div>
-                        </div>
-
-                        <!-- Columna derecha: N° factura tela -->
-                        <div class="doc-col-right">
-                            <span class="doc-type-label">Factura de Compra - Tela</span>
-                            <div style="width: 160px;">
-                                <InputField
-                                    label=""
-                                    :modelValue="mode === 'create' ? nextDocumentNumber : (localForm.document_number || localForm.supplier_invoice_number || '')"
-                                    :placeholder="isLoadingDocumentNumber ? 'Generando...' : ''"
-                                    readonly
-                                    class="text-center"
+                    <div class="grid grid-cols-3 items-start gap-4">
+                        <div class="flex flex-col gap-1">
+                            <div class="flex items-center gap-2">
+                                <label class="text-sm font-medium">N° Factura de Compra Tela</label>
+                                <HelpTooltip
+                                    text="Número interno del sistema para esta factura. Es diferente al número de la factura del proveedor."
+                                    aria-label="Ayuda sobre número de factura"
                                 />
                             </div>
+                            <InputField label="" :modelValue="id" readonly />
                         </div>
-
+                        <div class="flex h-full items-center justify-center rounded p-4">
+                            <img :src="logoUrl" alt="Logotipo de la empresa" class="max-h-24 w-auto max-w-[160px] object-contain" />
+                        </div>
+                        <div>
+                            <div class="text-sm font-semibold">Datos empresa</div>
+                            <p class="text-xs">Razón Social: <span class="font-normal">{{ company?.name || 'Sin nombre' }}</span></p>
+                            <p class="text-xs">NIT: <span class="font-normal">{{ company?.nit || 'Sin NIT' }}</span></p>
+                            <p class="text-xs">Correo: <span class="font-normal">{{ company?.email || 'Sin correo' }}</span></p>
+                        </div>
                     </div>
 
-                    <div class="grid grid-cols-2 gap-4 p-4">
-                        <div>
+                    <div class="grid grid-cols-3 gap-4">
+                        <div class="flex flex-col gap-1">
+                            <label class="text-sm font-medium">Proveedor<span class="text-red-500">*</span></label>
                             <SelectField
+                                dusk="tela-select-proveedor"
                                 v-model="localForm.contact_id"
-                                label="Proveedor"
-                                :options="contacts.map(c => ({ id: c.id, name: c.full_name }))"
+                                label=""
+                                :options="
+                                    contacts
+                                        .map((c) => ({ id: Number(c.id), name: formatPersonNameDisplay(c.full_name, c.person_type) }))
+                                        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }))
+                                "
                                 :searchable="true"
+                                :server-search="true"
                                 :loading="isLoadingContacts"
                                 :has-more="contactsHasMore"
                                 :loading-more="isLoadingMoreContacts"
-                                :action-label="'Nuevo contacto'"
-                                :action-disabled="false"
-                                :clearable="true"
-                                @action="() => isContactDialogOpen = true"
-                                @load-more="loadMoreContacts"
                                 required
+                                :invalid="fieldErrors.contactId"
+                                :error-message="fieldErrors.contactId ? REQUIRED_FIELD_MESSAGE : ''"
+                                @search="searchContacts"
+                                @load-more="loadMoreContacts"
+                                @update:model-value="fieldErrors.contactId = false"
                             />
                         </div>
-                        <div>
-                            <InputField label="Teléfono" :modelValue="contactPhone" readonly />
-                        </div>
-
-                        <div>
-                            <InputField label="N° identificación" :modelValue="contactIdNumber" readonly />
+                        <InputField :key="`idnumber-${localForm.contact_id ?? ''}`" label="Número de identificación" :modelValue="contactIdNumber" readonly />
+                        <InputField :key="`phone-${localForm.contact_id ?? ''}`" label="Número de contacto" :modelValue="contactPhone" readonly />
+                    </div>
+                    <div class="grid grid-cols-3 gap-4">
+                        <DateField
+                            dusk="tela-input-fecha-factura"
+                            v-model="invoiceDate"
+                            label="Fecha de factura"
+                            :clearable="true"
+                            :show-today="true"
+                            required
+                            :error="fieldErrors.invoiceDate ? REQUIRED_FIELD_MESSAGE : false"
+                            @update:model-value="fieldErrors.invoiceDate = false"
+                        />
+                        <div class="flex flex-col gap-1">
+                            <div class="flex items-center gap-2">
+                                <label class="text-sm font-medium">Fecha de entrega<span class="text-red-500">*</span></label>
+                                <HelpTooltip
+                                    text="Fecha en que se recibe la mercancía en bodega. Puede ser diferente a la fecha de la factura."
+                                    aria-label="Ayuda sobre fecha de entrega"
+                                />
+                            </div>
+                            <DateField
+                                dusk="tela-input-fecha-entrega"
+                                v-model="deliveryDate"
+                                label=""
+                                :clearable="true"
+                                :show-today="true"
+                                required
+                                :error="fieldErrors.deliveryDate ? REQUIRED_FIELD_MESSAGE : false"
+                                @update:model-value="fieldErrors.deliveryDate = false"
+                            />
                         </div>
                         <div class="flex flex-col gap-1">
                             <div class="flex items-center gap-2">
-                                <span class="text-sm font-medium">N° factura proveedor<span class="text-destructive">*</span></span>
-                                <HelpTooltip text="Número de la factura suministrado por el proveedor." aria-label="Ayuda sobre número de factura proveedor" />
+                                <label class="text-sm font-medium">N° factura proveedor<span class="text-red-500">*</span></label>
+                                <HelpTooltip
+                                    text="Número que aparece impreso en la factura física del proveedor. Es obligatorio para la trazabilidad."
+                                    aria-label="Ayuda sobre número de factura proveedor"
+                                />
                             </div>
-                                <InputField v-model="localForm.supplier_invoice_number" label="" required />
+                            <InputField
+                                dusk="tela-input-numero-proveedor"
+                                v-model="localForm.supplier_invoice_number"
+                                label=""
+                                required
+                                :error="fieldErrors.supplierInvoiceNumber ? REQUIRED_FIELD_MESSAGE : false"
+                                @update:model-value="fieldErrors.supplierInvoiceNumber = false"
+                            />
                         </div>
-
                     </div>
-                    <div class="border-t border-sidebar-border/70 px-4 py-3">
-                        <PurchaseInvoiceWithholdingsTable
-                            :modelValue="localForm.withholdings || []"
-                            @update:modelValue="(val) => (localForm.withholdings = val)"
-                            :invoiceSubtotal="subtotal"
+                    <InventoryDetailTableLayout @create-line="handleInvoiceAddLine" :showCreateLineButton="!isReadOnly" :createLineButtonDisabled="isReadOnly">
+                        <PurchaseInvoiceItemsTable
+                            ref="invoiceItemsTableRef"
+                            :items="localForm.items || []"
+                            :isCreating="mode === 'create'"
+                            :isReadOnly="isReadOnly"
+                            :telaMode="true"
+                            @update:items="(items) => (localForm.items = items)"
+                            @success="(m: string) => showSuccess(m)"
+                            @error="(m: string) => showError(m)"
                         />
-                    </div>
+                    </InventoryDetailTableLayout>
+                    <PurchaseInvoiceFooter
+                        :withholdings="localForm.withholdings || []"
+                        :description="localForm.description"
+                        :subtotal="subtotal"
+                        :iva="iva"
+                        :iva-label="ivaLabel"
+                        :retenciones-total="retencionesTotal"
+                        :total="total"
+                        :total-pagar="totalPagar"
+                        :get-withholding-amount="getWithholdingAmount"
+                        :is-read-only="isReadOnly"
+                        @update:withholdings="(value) => (localForm.withholdings = value)"
+                        @update:description="(value) => (localForm.description = value)"
+                    />
                 </div>
+            </fieldset>
 
-                <InventoryDetailTableLayout :show-create-line-button="false">
-                    <template #actions>
-                        <div class="flex items-center gap-2">
-                            <Button
-                                v-if="!isReadOnly"
-                                type="button"
-                                variant="outline"
-                                size="pill"
-                                dusk="btn-agregar-item"
-                                class="border-primary/40 text-primary shadow-sm hover:bg-primary/10"
-                                @click="handleInvoiceAddLine"
-                            >
-                                <Plus class="h-4 w-4" />
-                                Agregar ítem
-                            </Button>
-                        </div>
-                    </template>
-                    <PurchaseInvoiceItemsTable ref="invoiceItemsTableRef" :items="localForm.items || []" :telaMode="true" @update:items="(items) => (localForm.items = items)" />
-                </InventoryDetailTableLayout>
-
-                <div class="flex items-start justify-between gap-6">
-                    <div class="flex-1">
-                        <TextareaField v-model="localForm.description" label="Observación" />
-                    </div>
-                    <div class="shrink-0 rounded-lg border border-sidebar-border/70" style="min-width: 420px; width: auto">
-    <div class="flex justify-between" style="padding: 12px 20px; font-size: 14px; border-bottom: 1px solid hsl(var(--border))">
-        <span class="text-muted-foreground">Subtotal</span>
-        <span class="font-medium">{{ formatCurrency(subtotal) }}</span>
-    </div>
-    <div class="flex justify-between" style="padding: 12px 20px; font-size: 14px; border-bottom: 1px solid hsl(var(--border))">
-        <span class="text-muted-foreground">Impuestos</span>
-        <span class="font-medium">{{ formatCurrency(iva) }}</span>
-    </div>
-    <div class="flex justify-between" style="padding: 14px 20px; font-size: 15px; font-weight: 500; border-top: 1px solid hsl(var(--border))">
-        <span>Total</span>
-        <span class="font-bold">{{ formatCurrency(total) }}</span>
-    </div>
-</div>
-                </div>
-
+            <div class="flex justify-end gap-4 pt-2">
+                <Button type="button" variant="outline" size="pill" @click="cancel"> Cancelar </Button>
+                <Button
+                    v-if="!isReadOnly"
+                    type="button"
+                    variant="default"
+                    size="pill"
+                    dusk="btn-guardar-factura-tela"
+                    :disabled="isLoading || isSendingMail"
+                    @click.prevent="handleSubmit(false)"
+                >
+                    {{ isLoading ? 'Guardando...' : mode === 'edit' ? 'Actualizar' : 'Guardar' }}
+                </Button>
+                <Button v-if="!isReadOnly" type="button" variant="default" size="pill" :disabled="isLoading || isSendingMail" @click.prevent="handleSubmit(true)">
+                    {{ isSendingMail ? 'Enviando...' : 'Guardar y enviar por correo' }}
+                </Button>
             </div>
-
-            <div class="flex justify-end gap-2 pt-2">
-                <Button variant="outline" size="pill" @click="cancel">Cancelar</Button>
-                <Button variant="default" size="pill" :disabled="isSubmitting" @click.prevent="handleSubmit(false)">{{ mode === 'create' ? 'Guardar factura' : 'Actualizar' }}</Button>
-                <Button variant="default" size="pill" :disabled="isSubmitting" @click.prevent="handleSubmit(true)">Guardar y enviar por correo</Button>
-            </div>
-            <ContactDialog v-if="isContactDialogOpen" :isOpen="isContactDialogOpen" dialog-type="create" :contactData="contactDialogForm" :externalError="contactDialogError" @close="isContactDialogOpen = false; contactDialogError = ''" @submit="handleContactDialogSubmit" @update:contactData="handleContactFormUpdate" />
-            <DifferenceDialog
-                :open="differenceDialogOpen"
-                :total="total"
-                :orderTotal="orderTotal"
-                description="El precio o longitud (mts) de uno o más ítems difiere de la orden de compra referenciada."
-                :requireEvidence="false"
-                :allowEvidenceUrl="true"
-                :enableCamera="false"
-                @update:open="handleDifferenceDialogOpenChange"
-                @save="handleDifferenceDialogSave"
-                @cancel="closeDifferenceDialog"
-            />
         </div>
     </AppLayout>
+    <DifferenceDialog
+        v-model:open="differenceDialogOpen"
+        :total="total"
+        :order-total="orderTotal ?? 0"
+        @save="handleDifferenceDialogSave"
+        @cancel="closeDifferenceDialog"
+    />
 </template>
-
-<style scoped>
-.doc-header {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr;
-    align-items: start;
-    gap: 24px;
-    padding: 20px 24px;
-    border-bottom: 1px solid hsl(var(--border));
-}
-
-.doc-col-left {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
-
-.doc-date-row {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-}
-
-.doc-date-label {
-    color: hsl(var(--muted-foreground));
-    white-space: nowrap;
-}
-
-.doc-col-center {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    text-align: center;
-}
-
-.doc-col-right {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-end;
-    gap: 8px;
-}
-
-.doc-type-label {
-    color: hsl(var(--muted-foreground));
-}
-</style>

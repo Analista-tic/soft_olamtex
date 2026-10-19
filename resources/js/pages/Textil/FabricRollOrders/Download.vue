@@ -16,7 +16,7 @@ import ManualRollProgramEditDialog from '@/pages/Textil/FabricRollOrders/ManualR
 import { useAuthStore } from '@/stores/auth';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Plus } from 'lucide-vue-next';
+import { ArrowDownToLine, Plus } from 'lucide-vue-next';
 import { computed, onMounted, ref } from 'vue';
 
 const props = defineProps<{
@@ -54,6 +54,7 @@ const totals = computed(() => ({
     programmed: lines.value.reduce((sum, l) => sum + l.programmed_meters, 0),
     consumed: lines.value.reduce((sum, l) => sum + l.consumed_meters, 0),
     remaining: lines.value.reduce((sum, l) => sum + l.remaining_meters, 0),
+    overconsumed: lines.value.reduce((sum, l) => sum + (l.overconsumed_meters ?? 0), 0),
 }));
 
 async function fetchLines() {
@@ -61,6 +62,10 @@ async function fetchLines() {
     try {
         const { data } = await axios.get(`/kardex-telas/descargue-orden/${encodeURIComponent(props.manualOrderCode)}/lineas`);
         lines.value = Array.isArray(data?.data) ? data.data : [];
+        // El diálogo de descargue sigue abierto tras corregir un descargue: se le pasa la línea fresca.
+        if (selectedLine.value) {
+            selectedLine.value = lines.value.find((l) => l.id === selectedLine.value?.id) ?? selectedLine.value;
+        }
     } catch {
         lines.value = [];
         error('No se pudo cargar el detalle de esta orden de producción.');
@@ -94,8 +99,8 @@ function handleEditSuccess() {
     void fetchLines();
 }
 
-function handleDischargeSuccess() {
-    success('Descargue registrado correctamente.');
+function handleDischargeSuccess(message: string) {
+    success(message);
     void fetchLines();
 }
 
@@ -128,6 +133,9 @@ onMounted(fetchLines);
                     <p class="text-sm text-muted-foreground">
                         Programado {{ fmtMeters(totals.programmed) }} · Consumido {{ fmtMeters(totals.consumed) }} · Pendiente
                         {{ fmtMeters(totals.remaining) }}
+                        <template v-if="totals.overconsumed > 0">
+                            · <span class="font-medium text-amber-600 dark:text-amber-400">Sobreconsumo {{ fmtMeters(totals.overconsumed) }}</span>
+                        </template>
                     </p>
                 </div>
                 <Button v-if="canCreate" variant="default" class="shrink-0 gap-1.5 rounded-full" @click="isProgramDialogOpen = true">
@@ -150,6 +158,7 @@ onMounted(fetchLines);
                                 <TableHead>Programado</TableHead>
                                 <TableHead>Consumido</TableHead>
                                 <TableHead>Pendiente</TableHead>
+                                <TableHead>Sobreconsumo</TableHead>
                                 <TableHead>Notas</TableHead>
                                 <TableHead>Acciones</TableHead>
                             </TableRow>
@@ -157,13 +166,13 @@ onMounted(fetchLines);
                         <TableBody>
                             <template v-if="isLoading">
                                 <TableRow v-for="i in 5" :key="`manual-line-skeleton-${i}`">
-                                    <TableCell v-for="col in 11" :key="`manual-line-skeleton-${i}-${col}`" class="px-4 py-3">
+                                    <TableCell v-for="col in 12" :key="`manual-line-skeleton-${i}-${col}`" class="px-4 py-3">
                                         <Skeleton class="h-4 w-full" />
                                     </TableCell>
                                 </TableRow>
                             </template>
                             <TableRow v-else-if="lines.length === 0">
-                                <TableCell colspan="11" class="py-8 text-center text-sm text-muted-foreground">
+                                <TableCell colspan="12" class="py-8 text-center text-sm text-muted-foreground">
                                     Todavía no hay rollos programados en esta orden.
                                 </TableCell>
                             </TableRow>
@@ -178,6 +187,14 @@ onMounted(fetchLines);
                                     >
                                         Sin ítem
                                     </Badge>
+                                    <Badge
+                                        v-if="line.roll_length_review_status === 'pending'"
+                                        variant="outline"
+                                        class="ml-1 border-amber-400 text-[0.65rem] text-amber-700 dark:text-amber-300"
+                                        title="El rollo tiene un sobrante o faltante de metraje pendiente de revisión por un supervisor."
+                                    >
+                                        Metraje en revisión
+                                    </Badge>
                                 </TableCell>
                                 <TableCell class="text-center text-sm">{{ line.location ?? '-' }}</TableCell>
                                 <TableCell class="max-w-[160px] truncate text-center text-sm" :title="line.fabric_name ?? ''">
@@ -189,6 +206,12 @@ onMounted(fetchLines);
                                 <TableCell class="text-center text-sm">{{ fmtMeters(line.programmed_meters) }}</TableCell>
                                 <TableCell class="text-center text-sm">{{ fmtMeters(line.consumed_meters) }}</TableCell>
                                 <TableCell class="text-center text-sm">{{ fmtMeters(line.remaining_meters) }}</TableCell>
+                                <TableCell
+                                    class="text-center text-sm"
+                                    :class="line.overconsumed_meters > 0 ? 'font-medium text-amber-600 dark:text-amber-400' : 'text-muted-foreground'"
+                                >
+                                    {{ line.overconsumed_meters > 0 ? fmtMeters(line.overconsumed_meters) : '-' }}
+                                </TableCell>
                                 <TableCell class="max-w-[180px] truncate text-sm text-muted-foreground" :title="line.notes ?? ''">
                                     {{ line.notes ?? '-' }}
                                 </TableCell>
@@ -196,11 +219,12 @@ onMounted(fetchLines);
                                     <div class="flex items-center justify-center gap-1">
                                         <Button
                                             v-if="canDischarge"
-                                            variant="outline"
-                                            size="sm"
-                                            :disabled="line.remaining_meters <= 0"
+                                            variant="default"
+                                            class="mr-1 gap-1.5 rounded-full px-4"
+                                            title="Registrar el consumo real de este rollo"
                                             @click="openDischargeDialog(line)"
                                         >
+                                            <ArrowDownToLine class="h-4 w-4" />
                                             Descargar
                                         </Button>
                                         <EditButton v-if="canEdit" title="Editar programación" @click="openEditDialog(line)" />

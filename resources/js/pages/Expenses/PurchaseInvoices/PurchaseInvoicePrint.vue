@@ -5,8 +5,7 @@ import { useCompanyInfo } from '@/composables/useCompanyInfo';
 import { printElement } from '@/utils/print';
 
 const page = usePage();
-const props = page.props;
-const invoice = computed(() => props.value.invoice || {});
+const invoice = computed(() => ((page.props as Record<string, any>).invoice || {}) as Record<string, any>);
 const { company, logoUrl } = useCompanyInfo();
 
 async function doPrint() {
@@ -23,10 +22,10 @@ async function doPrint() {
       </div>
       <div style="text-align:center">
         <h1 style="margin:0">Factura de Compra</h1>
-        <div>{{ invoice.value.document_number || invoice.value.id }}</div>
+        <div>{{ invoice.document_number || invoice.id }}</div>
       </div>
       <div>
-        <img :src="logoUrl.value" alt="Logo" style="max-height:48px;object-fit:contain" />
+        <img :src="logoUrl" alt="Logo" style="max-height:48px;object-fit:contain" />
       </div>
     </div>
 
@@ -36,15 +35,15 @@ async function doPrint() {
     <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px">
       <div>
         <strong>Proveedor</strong>
-        <div>{{ invoice.value.supplier?.full_name || invoice.value.contact?.full_name || '-' }}</div>
+        <div>{{ invoice.supplier?.full_name || invoice.contact?.full_name || '-' }}</div>
       </div>
       <div>
         <strong>Identificación</strong>
-        <div>{{ invoice.value.supplier?.id_number || invoice.value.contact?.id_number || '-' }}</div>
+        <div>{{ invoice.supplier?.id_number || invoice.contact?.id_number || '-' }}</div>
       </div>
       <div>
         <strong>Fecha</strong>
-        <div>{{ invoice.value.date || '-' }}</div>
+        <div>{{ invoice.date || '-' }}</div>
       </div>
     </div>
 
@@ -57,11 +56,11 @@ async function doPrint() {
           <th style="border:1px solid #ddd;padding:6px;text-align:right">Cantidad</th>
           <th style="border:1px solid #ddd;padding:6px;text-align:right">Precio</th>
           <th style="border:1px solid #ddd;padding:6px;text-align:right">IVA</th>
-          <th style="border:1px solid #ddd;padding:6px;text-align:right">Total</th>
+          <th style="border:1px solid #ddd;padding:6px;text-align:right">Subtotal</th>
         </tr>
       </thead>
       <tbody>
-        <tr v-for="(item, idx) in invoice.value.items || []" :key="idx">
+        <tr v-for="(item, idx) in invoice.items || []" :key="idx">
           <td style="border:1px solid #ddd;padding:6px">{{ idx + 1 }}</td>
           <td style="border:1px solid #ddd;padding:6px">{{ item.item?.name || '-' }}</td>
           <td style="border:1px solid #ddd;padding:6px">{{ item.description || '-' }}</td>
@@ -75,9 +74,9 @@ async function doPrint() {
 
     <div style="display:flex;justify-content:flex-end;margin-top:12px">
       <div style="width:260px;border:1px solid #ddd;padding:8px;background:#f7f7f7">
-        <div style="display:flex;justify-content:space-between"><span>Subtotal</span><span>{{ Number(invoice.value.subtotal || 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }) }}</span></div>
-        <div style="display:flex;justify-content:space-between"><span>IVA</span><span>{{ Number(invoice.value.iva || 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }) }}</span></div>
-        <div style="display:flex;justify-content:space-between;font-weight:bold;margin-top:8px"><span>Total</span><span>{{ Number(invoice.value.total || 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }) }}</span></div>
+        <div style="display:flex;justify-content:space-between"><span>Subtotal</span><span>{{ Number(invoice.subtotal || 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }) }}</span></div>
+        <div style="display:flex;justify-content:space-between"><span>IVA</span><span>{{ Number(invoice.iva || 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }) }}</span></div>
+        <div style="display:flex;justify-content:space-between;font-weight:bold;margin-top:8px"><span>Total</span><span>{{ Number(invoice.total || 0).toLocaleString('es-CO', { style: 'currency', currency: 'COP', minimumFractionDigits: 0 }) }}</span></div>
       </div>
     </div>
 

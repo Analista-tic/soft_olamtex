@@ -1,35 +1,57 @@
 <script setup lang="ts">
+import HoverTooltip from '@/components/common/HoverTooltip.vue';
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
+import SearchInput from '@/components/common/SearchInput.vue';
+import TableActionsMenu from '@/components/common/TableActionsMenu.vue';
+import PurchaseListTable, { type ListColumn } from '@/components/common/PurchaseListTable.vue';
+import TableRowActions from '@/components/common/TableRowActions.vue';
+import ViewButton from '@/components/common/ViewButton.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import EditButton from '@/components/common/EditButton.vue';
 import TableStatusBadge from '@/components/common/TableStatusBadge.vue';
 import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
-import InputDate from '@/components/InputDate.vue';
+import AccountingDateRangePicker from '@/components/AccountingDateRangePicker.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
-import Input from '@/components/ui/input/Input.vue';
-import { Skeleton } from '@/components/ui/skeleton';
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
+import { DropdownMenuItem } from '@/components/ui/dropdown-menu';
 import { useAlertStack } from '@/composables/useAlert';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import type { PurchaseInvoice } from '@/domain/Expenses';
+import { formatCurrency, formatDate } from '@/domain/Expenses/format';
+import { getPurchaseInvoiceStatus, getPurchaseInvoiceStatusHint, hasApprovedDifference, PURCHASE_INVOICE_STATUS_OPTIONS } from '@/domain/Expenses/statuses';
+import { formatPersonNameDisplay } from '@/lib/textNormalizer';
+import {
+    canCreateInvoiceNote,
+    canDeleteInvoice as canDeleteInvoiceRule,
+    canEditInvoice as canEditInvoiceRule,
+    canSendInvoiceByEmail,
+    invoiceLockReason,
+    pendingCreditNoteLabel,
+} from '@/domain/Expenses/rules';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { useAuthStore } from '@/stores/auth';
 import { Head, router } from '@inertiajs/vue3';
 import axios from 'axios';
 import { route } from 'ziggy-js';
-import { Eye, Mail, MinusCircle, MoreVertical, Package, PlusCircle, Printer, Search, ShieldCheck } from 'lucide-vue-next';
+import { Info, Mail, MinusCircle, Package, PlusCircle, Printer, ShieldCheck } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import InvoiceDifferenceApprovalDialog from './InvoiceDifferenceApprovalDialog.vue';
 import PurchaseInvoiceDialogTelas from './PurchaseInvoiceDialogTelas.vue';
-import ServerPagination from '@/components/common/ServerPagination.vue';
 
 const breadcrumbs = [{ title: 'Facturas de Compra Tela', href: '/gastos/facturas-compra-tela' }];
 
 
+const columns: ListColumn[] = [
+    { key: 'document_number', label: 'N° Factura' },
+    { key: 'date', label: 'Fecha de creación', sortField: 'date' },
+    { key: 'delivery_date', label: 'Fecha de entrega', sortField: 'delivery_date' },
+    { key: 'supplier', label: 'Proveedor' },
+    { key: 'description', label: 'Descripción', align: 'start', class: 'max-w-[200px] truncate' },
+    { key: 'total', label: 'Total', sortField: 'total' },
+    { key: 'status', label: 'Estado' },
+];
 const sortBy = ref<string>('date');
 const sortDir = ref<'asc' | 'desc'>('desc');
 const invoices = ref<PurchaseInvoice[]>([]);
@@ -49,6 +71,11 @@ const isApprovalDialogOpen = ref(false);
 const invoiceForApproval = ref<PurchaseInvoice | null>(null);
 const authStore = useAuthStore();
 const canApproveDifference = computed(() => authStore.can('gestionar diferencias factura compra'));
+const canEdit = computed(() => authStore.can('editar facturas compra'));
+const canDelete = computed(() => authStore.can('eliminar facturas compra'));
+const canCreateNotes = computed(() => authStore.can('crear notas credito debito'));
+const canCreateInvoice = computed(() => authStore.can('crear facturas compra'));
+const canViewReception = computed(() => authStore.can('ver recepcion telas'));
 const { successMessage, errorMessage, errorType, showSuccess, showError, clearSuccess, clearError } = useAlertStack();
 function toggleSort(column: string) {
     if (sortBy.value === column) {
@@ -57,13 +84,14 @@ function toggleSort(column: string) {
         sortBy.value = column;
         sortDir.value = 'desc';
     }
-    fetchInvoices(currentPage.value, searchQuery.value);
+    currentPage.value = 1;
+    fetchInvoices(1, searchQuery.value);
 }
 
 const statusFilter = ref<string | null>(null);
 const providerFilter = ref<number | string | null>(null);
-const dateFilter = ref<string | null>('');
-const providers = ref<{ id: number; full_name: string }[]>([]);
+const dateFilter = ref<{ from: string | null; to: string | null }>({ from: null, to: null });
+const providers = ref<{ id: number; full_name: string; person_type?: string | null; id_number?: string | null }[]>([]);
 const facturasFabricRoute = '/gastos/facturas-compra-tela';
 const receptionBaseRoute = '/kardex-telas/recepcion';
 const receptionReturnParam = 'return_to';
@@ -72,44 +100,17 @@ const receptionScopeValue = 'fabric';
 
 // const DEFAULT_STATUS_FILTER and DEFAULT_PROVIDER_FILTER removed (unused)
 
-const statusOptions = [
-    { id: 'status_pending', name: 'Pendiente' },
-    { id: 'status_approved', name: 'Aprobado' },
-    { id: 'status_rejected', name: 'Rechazado' },
-    { id: 'approval_pending_difference', name: 'Aprobación pendiente' },
-    { id: 'approval_approved', name: 'Diferencia aprobada' },
-    { id: 'approval_difference_rejected', name: 'Diferencia rechazada' },
-];
+const statusOptions = PURCHASE_INVOICE_STATUS_OPTIONS;
 
 const isSendingMail = ref(false);
 
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isStatusFilterActive = computed(() => statusFilter.value != null);
 const isProviderFilterActive = computed(() => providerFilter.value != null);
-const isDateFilterActive = computed(() => Boolean(dateFilter.value));
+const isDateFilterActive = computed(() => Boolean(dateFilter.value.from || dateFilter.value.to));
 
 const statusButtonClasses = useFilterButtonClasses(isStatusFilterActive);
 const providerButtonClasses = useFilterButtonClasses(isProviderFilterActive);
-const actionButtonClass =
-    'inline-flex h-9 w-9 items-center justify-center rounded-md text-foreground/80 transition hover:bg-muted/60 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2';
-const actionIconClass = 'h-4 w-4';
-
-const formatDate = (value?: string | null) => {
-    if (!value) return '-';
-    const d = new Date(value);
-    if (Number.isNaN(d.getTime())) return String(value);
-    return d.toLocaleDateString('es-CO');
-};
-
-const formatCurrency = (value: number) => {
-    if (!Number.isFinite(value)) return '-';
-    return value.toLocaleString('es-CO', {
-        style: 'currency',
-        currency: 'COP',
-        minimumFractionDigits: 0,
-        maximumFractionDigits: 0,
-    });
-};
 
 const computeInvoiceTotal = (invoice: PurchaseInvoice) => {
     if (!invoice.items?.length) return 0;
@@ -131,15 +132,24 @@ function buildReceptionUrl(invoiceId?: number | string) {
 
 async function fetchProviders() {
     try {
-        const response = await axios.get('/contactos/data', { params: { per_page: 1000 } });
-        providers.value = response.data.data;
+        const [providerResponse, sharedResponse] = await Promise.all([
+            axios.get('/contactos/data', { params: { contact_type: 'proveedor', per_page: 1000 } }),
+            axios.get('/contactos/data', { params: { contact_type: 'cliente_proveedor', per_page: 1000 } }),
+        ]);
+        providers.value = [...(providerResponse.data?.data ?? []), ...(sharedResponse.data?.data ?? [])];
     } catch (e) {
         console.log('Error al cargar proveedores:', e);
         providers.value = [];
     }
 }
 
-/* openDialogWithPreparation removed — navigation uses dedicated pages for create/edit */
+function openCreateDialog() {
+    router.visit('/gastos/facturas-compra-tela/crear');
+}
+
+function openEditDialog(invoice: PurchaseInvoice) {
+    router.visit(`/gastos/facturas-compra-tela/${invoice.id}/editar`);
+}
 
 function closeDialog() {
     isDialogReadOnly.value = false;
@@ -147,9 +157,9 @@ function closeDialog() {
 }
 
 function confirmDeleteInvoice(invoice: PurchaseInvoice) {
-    // Evitar petición al servidor si la factura ya está aprobada
-    if (invoice.status === 'received') {
-        showError('No se puede eliminar una factura que está recibida.');
+    // Evitar petición al servidor si la factura ya no es eliminable por su estado
+    if (!canDeleteInvoiceRule(invoice.status, invoice.approval_status)) {
+        showError('Solo se puede eliminar una factura pendiente de recepción y sin diferencia en curso.');
         return;
     }
     invoiceToDelete.value = invoice;
@@ -182,6 +192,14 @@ async function deleteInvoice(): Promise<void> {
 
 /* Removed unused helpers isInvoiceLocked and isInvoiceDeleteLocked to avoid dead code. */
 
+function hasDifferenceDetail(invoice: PurchaseInvoice) {
+    return (
+        invoice.approval_status === 'pending_difference_approval' ||
+        invoice.approval_status === 'difference_rejected' ||
+        (invoice.approval_status === 'approved' && !!invoice.has_difference)
+    );
+}
+
 function openApprovalDialog(invoice: PurchaseInvoice, event?: Event) {
     stopMenuEvent(event);
     invoiceForApproval.value = invoice;
@@ -201,19 +219,12 @@ async function fetchInvoices(page = 1, search = ''): Promise<void> {
             page,
             per_page: itemsPerPage.value,
             search,
-            date_from: dateFilter.value || undefined,
-            date_to: dateFilter.value || undefined,
+            date_from: dateFilter.value.from || undefined,
+            date_to: dateFilter.value.to || undefined,
             sort_by: sortBy.value,
             sort_dir: sortDir.value,
         };
-        if (statusFilter.value != null) {
-            if (statusFilter.value === 'status_pending') params.status = 'pending';
-            else if (statusFilter.value === 'status_approved') params.status = 'approved';
-            else if (statusFilter.value === 'status_rejected') params.status = 'rejected';
-            else if (statusFilter.value === 'approval_pending_difference') params.approval_status = 'pending_difference_approval';
-            else if (statusFilter.value === 'approval_approved') params.approval_status = 'approved';
-            else if (statusFilter.value === 'approval_difference_rejected') params.approval_status = 'difference_rejected';
-        }
+        if (statusFilter.value != null) params.invoice_status = statusFilter.value;
         if (providerFilter.value != null) {
             params.provider_id = isNaN(Number(providerFilter.value)) ? providerFilter.value : Number(providerFilter.value);
         }
@@ -237,13 +248,6 @@ watch([statusFilter, providerFilter, dateFilter, searchQuery], () => {
     fetchInvoices(1, searchQuery.value);
 });
 
-// 2. Si el usuario cambia de página manualmente (sin tocar filtros)
-watch(currentPage, (newPage) => {
-    if (newPage !== 1) {
-        fetchInvoices(newPage, searchQuery.value);
-    }
-});
-
 onMounted(async () => {
     try {
         await authStore.fetchUser();
@@ -252,7 +256,16 @@ onMounted(async () => {
     }
     fetchInvoices();
     fetchProviders();
+    openFromViewParam();
 });
+
+// Enlace desde la cadena de documentos: ?ver=<id> abre la factura en solo lectura.
+function openFromViewParam() {
+    const id = Number(new URLSearchParams(window.location.search).get('ver'));
+    if (!Number.isInteger(id) || id <= 0) return;
+    window.history.replaceState({}, '', window.location.pathname);
+    viewInvoiceDetails({ id } as PurchaseInvoice);
+}
 
 function openPrintDialog(invoice: PurchaseInvoice) {
     window.open(
@@ -267,7 +280,7 @@ async function sendInvoiceByEmail(invoice: PurchaseInvoice, event?: Event) {
     if (isSendingMail.value) return;
     isSendingMail.value = true;
     try {
-        await axios.post(`/gastos/facturas-compra-tela/${invoice.id}/enviar-correo`);
+        await axios.post(`/gastos/facturas-compra/${invoice.id}/enviar-correo`);
         showSuccess('Factura enviada por correo correctamente.');
     } catch {
         showError('Error al enviar el correo.');
@@ -315,7 +328,7 @@ function isReceptionBlockedForInvoice(invoice: PurchaseInvoice): boolean {
     );
 }
 
-async function viewInvoiceDetails(invoice: PurchaseInvoice) {
+async function loadInvoiceIntoDialog(invoice: PurchaseInvoice, readOnly: boolean) {
     if (!invoice.id) return;
     if (isPreparingDialog.value) return;
     isPreparingDialog.value = true;
@@ -323,7 +336,7 @@ async function viewInvoiceDetails(invoice: PurchaseInvoice) {
     try {
         const response = await axios.get(`/gastos/facturas-compra-tela/${invoice.id}`);
         dialogType.value = 'edit';
-        isDialogReadOnly.value = true;
+        isDialogReadOnly.value = readOnly;
         form.value = response.data?.data || {};
         clearError();
         clearSuccess();
@@ -334,6 +347,10 @@ async function viewInvoiceDetails(invoice: PurchaseInvoice) {
     } finally {
         isPreparingDialog.value = false;
     }
+}
+
+async function viewInvoiceDetails(invoice: PurchaseInvoice) {
+    await loadInvoiceIntoDialog(invoice, true);
 }
 
 async function handleDialogRefresh(message?: string) {
@@ -361,24 +378,20 @@ function handleDialogError(message?: string) {
             @close-success="clearSuccess"
             @close-error="clearError"
         />
-        <div class="flex h-full flex-col gap-4 rounded-xl p-3">
-            <div class="flex items-center justify-between">
-                <div class="flex flex-col gap-1">
+        <div class="flex h-full flex-1 flex-col gap-4 rounded-xl p-3">
+            <div class="flex flex-wrap items-center justify-between gap-4">
+                <div class="space-y-1">
                     <h1 class="text-lg font-bold">Facturas de Compras Tela</h1>
                     <p class="text-sm text-muted-foreground">
                         Registra facturas de tela para llevar la trazabilidad de la recepción y la aprobación.
                     </p>
                 </div>
                 <div class="flex gap-2">
-                    <button
-                        type="button"
-                        class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-background px-4 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                        @click="router.visit(buildReceptionUrl())"
-                    >
+                    <Button v-if="canViewReception" variant="outline" size="pill" @click="router.visit(buildReceptionUrl())">
                         <Package class="h-4 w-4" />
                         Ver Recepciones
-                    </button>
-                    <Button variant="default" size="pill" :disabled="isPreparingDialog" @click="router.visit('/gastos/facturas-compra-tela/crear')">
+                    </Button>
+                    <Button v-if="canCreateInvoice" variant="default" size="pill" :disabled="isPreparingDialog" @click="openCreateDialog()" dusk="btn-nueva-factura-tela">
                         <PlusCircle class="h-4 w-4" />
                         Nueva Factura
                     </Button>
@@ -386,12 +399,7 @@ function handleDialogError(message?: string) {
             </div>
             <FilterBar align="start">
                 <FilterField label="Buscar factura" :active="isSearchActive" class="min-w-[220px] flex-1">
-                    <div class="relative">
-                        <Input v-model="searchQuery" placeholder="Buscar factura" class="h-10 w-full pl-10" />
-                        <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
-                            <Search :size="20" class="text-muted-foreground" />
-                        </span>
-                    </div>
+                    <SearchInput v-model="searchQuery" placeholder="Buscar factura" />
                 </FilterField>
                 <FilterField label="Estado" :active="isStatusFilterActive" class="min-w-[180px]">
                     <SelectField
@@ -407,161 +415,108 @@ function handleDialogError(message?: string) {
                     <SelectField
                         v-model="providerFilter"
                         label=""
-                        :options="providers.map((prov) => ({ id: String(prov.id), name: prov.full_name }))"
+                        :options="
+                            providers
+                                .map((prov) => ({
+                                    id: String(prov.id),
+                                    name: `${formatPersonNameDisplay(prov.full_name, prov.person_type)}${prov.id_number ? ` (${prov.id_number})` : ''}`,
+                                }))
+                                .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }))
+                        "
                         placeholder="Proveedor"
                         :button-class="providerButtonClasses"
                         :clearable="true"
                     />
                 </FilterField>
-                <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[140px]">
-                    <InputDate v-model="dateFilter" placeholder="Fecha" :clearable="true" :show-today="true" />
+                <FilterField label="Fecha" :active="isDateFilterActive" class="min-w-[240px]">
+                    <AccountingDateRangePicker v-model="dateFilter" placeholder="Rango de fechas" />
                 </FilterField>
             </FilterBar>
-            <div class="relative overflow-auto rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
-                <Table>
-                    <TableHeader>
-                        <TableRow>
-                            <TableHead>N° Factura</TableHead>
-                            <TableHead
-                                class="cursor-pointer select-none whitespace-nowrap"
-                                @click="toggleSort('date')"
-                            >
-                                <span class="inline-flex items-center gap-1">
-                                    Fecha de creación
-                                    <span class="text-muted-foreground">
-                                        <template v-if="sortBy === 'date'">
-                                            {{ sortDir === 'asc' ? '↑' : '↓' }}
-                                        </template>
-                                        <template v-else>
-                                            <span class="opacity-30">↕</span>
-                                        </template>
-                                    </span>
-                                </span>
-                            </TableHead>
-                            <TableHead
-                                class="cursor-pointer select-none whitespace-nowrap"
-                                @click="toggleSort('delivery_date')"
-                            >
-                                <span class="inline-flex items-center gap-1">
-                                    Fecha de entrega
-                                    <span class="text-muted-foreground">
-                                        <template v-if="sortBy === 'delivery_date'">
-                                            {{ sortDir === 'asc' ? '↑' : '↓' }}
-                                        </template>
-                                        <template v-else>
-                                            <span class="opacity-30">↕</span>
-                                        </template>
-                                    </span>
-                                </span>
-                            </TableHead>
-                            <TableHead>Proveedor</TableHead>
-                            <TableHead
-                                class="cursor-pointer select-none whitespace-nowrap"
-                                @click="toggleSort('total')"
-                            >
-                                <span class="inline-flex items-center gap-1">
-                                    Total
-                                    <span class="text-muted-foreground">
-                                        <template v-if="sortBy === 'total'">
-                                            {{ sortDir === 'asc' ? '↑' : '↓' }}
-                                        </template>
-                                        <template v-else>
-                                            <span class="opacity-30">↕</span>
-                                        </template>
-                                    </span>
-                                </span>
-                            </TableHead>
-                            <TableHead>Descripción</TableHead>
-                            <TableHead>Estado</TableHead>
-                            <TableHead>Acciones</TableHead>
-                        </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                        <template v-if="isLoading">
-                            <TableRow v-for="i in 5" :key="`purchase-invoice-fabric-skeleton-${i}`">
-                                <TableCell v-for="col in 8" :key="`purchase-invoice-fabric-skeleton-${i}-${col}`" class="px-4 py-3">
-                                    <Skeleton class="h-4 w-full" />
-                                </TableCell>
-                            </TableRow>
-                        </template>
-                        <template v-else-if="!invoices.length">
-                            <TableRow>
-                                <TableCell colspan="8">
-                                    <div class="py-6 text-center text-sm text-muted-foreground">No se encontraron facturas de tela.</div>
-                                </TableCell>
-                            </TableRow>
-                        </template>
-                        <template v-else>
-                            <TableRow v-for="invoice in invoices" :key="invoice.id" class="text-center">
-                                <TableCell class="text-start font-medium">
-                                    {{ invoice.document_number || (invoice.id ? `FAC-${String(invoice.id).padStart(3, '0')}` : '-') }}
-                                </TableCell>
-                                <TableCell>{{ formatDate(invoice.date) }}</TableCell>
-                                <TableCell>{{ formatDate(invoice.delivery_date) }}</TableCell>
-                                <TableCell>{{ invoice.supplier?.full_name || invoice.contact?.full_name || '-' }}</TableCell>
-                                <TableCell>{{ formatCurrency(computeInvoiceTotal(invoice)) }}</TableCell>
-                                <TableCell class="max-w-32 truncate text-start">{{ invoice.description || '-' }}</TableCell>
-                                <TableCell>
-                                    <TableStatusBadge
-                                        v-if="invoice.approval_status === 'pending_difference_approval'"
-                                        label="Aprobación pendiente"
-                                        tone="yellow"
-                                    />
-                                    <TableStatusBadge
-                                        v-else-if="invoice.approval_status === 'difference_rejected'"
-                                        label="Diferencia rechazada"
-                                        tone="red"
-                                    />
-                                    <TableStatusBadge
-                                        v-else-if="invoice.status === 'pending_receipt' || invoice.status === 'pending' || !invoice.status"
-                                        label="Pendiente"
-                                        tone="yellow"
-                                    />
-                                    <TableStatusBadge
-                                        v-else-if="invoice.status === 'received'"
-                                        label="Recibida"
-                                        tone="green"
-                                    />
-                                    <TableStatusBadge
-                                        v-else-if="invoice.status === 'approved'"
-                                        label="Aprobada"
-                                        tone="green"
-                                    />
-                                    <TableStatusBadge
-                                        v-else-if="invoice.status === 'rejected'"
-                                        label="Rechazada"
-                                        tone="red"
-                                    />
-                                    <TableStatusBadge
-                                        v-else
-                                        label="Sin estado"
-                                        tone="gray"
-                                    />
-                                </TableCell>
-                                <TableCell>
-                                    <div class="flex items-center justify-center gap-1">
-
-                                        <!-- Ver -->
-                                        <Button variant="ghost" size="icon" :class="actionButtonClass" title="Ver detalles" @click="viewInvoiceDetails(invoice)">
-                                            <Eye :class="actionIconClass" />
-                                            <span class="sr-only">Ver detalles</span>
-                                        </Button>
-
-                                        <!-- Editar -->
-                                        <EditButton :onClick="() => router.visit('/gastos/facturas-compra-tela/' + invoice.id + '/editar')" title="Editar factura" />
-
-                                        <!-- Eliminar -->
-                                        <DeleteButton @click="confirmDeleteInvoice(invoice)" title="Eliminar factura" />
+            <PurchaseListTable
+                :columns="columns"
+                :rows="invoices"
+                :loading="isLoading"
+                empty-text="No se encontraron facturas de tela."
+                :sort-by="sortBy"
+                :sort-dir="sortDir"
+                v-model:current-page="currentPage"
+                v-model:page-size="itemsPerPage"
+                :total-items="totalItems"
+                @sort="toggleSort"
+                @fetch-data="() => fetchInvoices(currentPage, searchQuery)"
+            >
+                <template #cell-document_number="{ row: invoice }">
+                    <span class="font-medium">{{ invoice.document_number || (invoice.id ? `FAC-${String(invoice.id).padStart(3, '0')}` : '-') }}</span>
+                </template>
+                <template #cell-date="{ row: invoice }">{{ formatDate(invoice.date) }}</template>
+                <template #cell-delivery_date="{ row: invoice }">{{ formatDate(invoice.delivery_date) }}</template>
+                <template #cell-supplier="{ row: invoice }">{{ invoice.supplier?.full_name || invoice.contact?.full_name || '-' }}</template>
+                <template #cell-description="{ row: invoice }">{{ invoice.description || '-' }}</template>
+                <template #cell-total="{ row: invoice }">
+                    <span class="inline-flex items-center gap-1">
+                        {{ formatCurrency(computeInvoiceTotal(invoice)) }}
+                        <HoverTooltip
+                            v-if="hasApprovedDifference(invoice.approval_status, invoice.has_difference)"
+                            text="Tiene una diferencia frente a la orden, ya aprobada"
+                        >
+                            <Info class="h-3.5 w-3.5 cursor-help text-sky-600" aria-label="Tiene una diferencia frente a la orden, ya aprobada" />
+                        </HoverTooltip>
+                    </span>
+                </template>
+                <template #cell-status="{ row: invoice }">
+                  <div class="flex flex-wrap items-center gap-1.5">
+                    <HoverTooltip
+                        :text="
+                            getPurchaseInvoiceStatusHint(invoice.status, invoice.approval_status) +
+                            (hasDifferenceDetail(invoice) ? ' Clic para ver el detalle de la diferencia.' : '')
+                        "
+                    >
+                        <button
+                            v-if="hasDifferenceDetail(invoice)"
+                            type="button"
+                            class="cursor-pointer rounded-full focus:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                            aria-label="Ver detalle de la diferencia"
+                            @click.stop="openApprovalDialog(invoice, $event)"
+                        >
+                            <TableStatusBadge
+                                :label="getPurchaseInvoiceStatus(invoice.status, invoice.approval_status).label"
+                                :tone="getPurchaseInvoiceStatus(invoice.status, invoice.approval_status).tone"
+                                :dusk="`estado-factura-${invoice.id}`"
+                            />
+                        </button>
+                        <TableStatusBadge
+                            v-else
+                            :label="getPurchaseInvoiceStatus(invoice.status, invoice.approval_status).label"
+                            :tone="getPurchaseInvoiceStatus(invoice.status, invoice.approval_status).tone"
+                            :dusk="`estado-factura-${invoice.id}`"
+                        />
+                    </HoverTooltip>
+                    <!-- Rollos rechazados en recepción sin nota crédito aprobada: el monto queda retenido del pago -->
+                    <HoverTooltip
+                        v-if="Number(invoice.pending_credit_note_rolls_count ?? 0) > 0"
+                        :text="`Monto retenido del pago: ${formatCurrency(invoice.pending_credit_note_amount ?? 0)}`"
+                    >
+                        <TableStatusBadge
+                            :label="pendingCreditNoteLabel(Number(invoice.pending_credit_note_rolls_count))"
+                            tone="warning"
+                            :dusk="`rollos-pendientes-nota-credito-${invoice.id}`"
+                        />
+                    </HoverTooltip>
+                  </div>
+                </template>
+                <template #actions="{ row: invoice }">
+                                    <TableRowActions>
+                                        <HoverTooltip text="Ver detalles"><ViewButton :onClick="() => viewInvoiceDetails(invoice)" /></HoverTooltip>
+                                        <HoverTooltip v-if="canEdit && canEditInvoiceRule(invoice.status, invoice.approval_status)" text="Editar factura"><EditButton :onClick="() => openEditDialog(invoice)" /></HoverTooltip>
+                                        <HoverTooltip v-else-if="canEdit" :text="invoiceLockReason(invoice.status, invoice.approval_status)">
+                                            <span class="inline-flex cursor-not-allowed">
+                                                <EditButton disabled class="pointer-events-none opacity-40" />
+                                            </span>
+                                        </HoverTooltip>
+                                        <HoverTooltip v-if="canDelete && canDeleteInvoiceRule(invoice.status, invoice.approval_status)" text="Eliminar factura"><DeleteButton @click="confirmDeleteInvoice(invoice)" /></HoverTooltip>
 
                                         <!-- Más acciones -->
-                                        <DropdownMenu>
-                                            <DropdownMenuTrigger as-child>
-                                                <Button variant="ghost" size="icon" :class="actionButtonClass" title="Más acciones">
-                                                    <MoreVertical :class="actionIconClass" />
-                                                    <span class="sr-only">Más acciones</span>
-                                                </Button>
-                                            </DropdownMenuTrigger>
-                                            <DropdownMenuContent align="end" class="w-56">
+                                        <TableActionsMenu title="Más acciones" trigger-class="h-8 w-8" content-class="w-56">
                                                 <DropdownMenuItem
                                                     v-if="canApproveDifference && invoice.approval_status === 'pending_difference_approval'"
                                                     class="cursor-pointer gap-2 text-amber-600"
@@ -574,42 +529,28 @@ function handleDialogError(message?: string) {
                                                     <Printer class="mr-2 h-4 w-4" />
                                                     Imprimir
                                                 </DropdownMenuItem>
-                                                <DropdownMenuItem v-if="!isReceptionBlockedForInvoice(invoice)" @select="goToReception(invoice, $event)">
+                                                <DropdownMenuItem v-if="canViewReception && !isReceptionBlockedForInvoice(invoice)" @select="goToReception(invoice, $event)">
                                                     <Package class="mr-2 h-4 w-4" />
                                                     Ir a recepción
                                                 </DropdownMenuItem>
 
-                                                <DropdownMenuItem @select="goToCreditDebitNote(invoice, 'purchase_credit_note', $event)">
+                                                <DropdownMenuItem v-if="canCreateNotes && canCreateInvoiceNote(invoice.status)" @select="goToCreditDebitNote(invoice, 'purchase_credit_note', $event)">
                                                     <MinusCircle class="mr-2 h-4 w-4" />
                                                     Crear Nota Crédito
                                                 </DropdownMenuItem>
-                                                <DropdownMenuItem @select="goToCreditDebitNote(invoice, 'purchase_debit_note', $event)">
+                                                <DropdownMenuItem v-if="canCreateNotes && canCreateInvoiceNote(invoice.status)" @select="goToCreditDebitNote(invoice, 'purchase_debit_note', $event)">
                                                     <PlusCircle class="mr-2 h-4 w-4" />
                                                     Crear Nota Débito
                                                 </DropdownMenuItem>
 
-                                                <DropdownMenuItem :disabled="isSendingMail" @select="sendInvoiceByEmail(invoice, $event)">
+                                                <DropdownMenuItem v-if="canEdit && canSendInvoiceByEmail(invoice.status, invoice.approval_status)" :disabled="isSendingMail" @select="sendInvoiceByEmail(invoice, $event)">
                                                     <Mail class="mr-2 h-4 w-4" />
                                                     Enviar al correo
                                                 </DropdownMenuItem>
-                                            </DropdownMenuContent>
-                                        </DropdownMenu>
-
-                                    </div>
-                                </TableCell>
-                            </TableRow>
-                        </template>
-                    </TableBody>
-                </Table>
-                <div class="flex flex-col gap-2 border-t border-border/70 bg-card/50 px-4 py-3 md:flex-row md:items-center md:justify-between">
-                  <ServerPagination
-                    v-model:current-page="currentPage"
-                    v-model:page-size="itemsPerPage"
-                    :total-items="totalItems"
-                    @fetch-data="() => fetchInvoices(currentPage, searchQuery)"
-                  />
-                </div>
-            </div>
+                                        </TableActionsMenu>
+                                    </TableRowActions>
+                </template>
+            </PurchaseListTable>
         </div>
         <PurchaseInvoiceDialogTelas
             v-if="isDialogOpen"
@@ -624,7 +565,7 @@ function handleDialogError(message?: string) {
         <ConfirmDialog
             v-model:open="isDeleteDialogOpen"
             title="Confirmar eliminación"
-            description="¿Deseas eliminar esta solicitud de compra? Esta acción no se puede deshacer."
+            description="¿Deseas eliminar esta factura de compra? Esta acción no se puede deshacer."
             confirm-text="Eliminar"
             cancel-text="Cancelar"
             :destructive="true"
@@ -633,6 +574,7 @@ function handleDialogError(message?: string) {
         <InvoiceDifferenceApprovalDialog
             v-model:open="isApprovalDialogOpen"
             :invoice="invoiceForApproval"
+            :can-decide="canApproveDifference"
             base-route="/gastos/facturas-compra-tela"
             @approved="handleDifferenceDecision"
             @rejected="handleDifferenceDecision"

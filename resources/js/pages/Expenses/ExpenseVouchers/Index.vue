@@ -127,9 +127,11 @@ const createdDateFilter = ref<string | null>(null);
 
 const providers = ref<{ id: number; name: string }[]>([]);
 
-const providerOptions = computed(() => [
-    ...providers.value.map((p) => ({ id: String(p.id), name: p.name })),
-]);
+const providerOptions = computed(() =>
+    providers.value
+        .map((p) => ({ id: String(p.id), name: p.name }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
+);
 
 const isSearchActive = computed(() => searchQuery.value.trim().length > 0);
 const isProviderActive = computed(() => providerFilter.value != null);
@@ -467,7 +469,7 @@ onBeforeUnmount(() => window.clearTimeout(searchDebounce));
                 </label>
                 <Textarea
                     id="void-reason"
-                    v-model="voidReason"
+                    v-model="voidReason" data-no-uppercase
                     rows="3"
                     :disabled="isVoiding"
                     placeholder="Describe el motivo de la anulación"

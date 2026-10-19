@@ -114,7 +114,7 @@ function handleInputClick() {
             <div
                 v-for="option in filteredOptions"
                 :key="option.id"
-                class="cursor-pointer px-3 py-2 text-sm text-popover-foreground transition-colors hover:bg-accent hover:text-accent-foreground"
+                class="cursor-pointer px-3 py-2 text-sm text-popover-foreground transition-colors hover:bg-muted hover:text-foreground"
                 @click="selectOption(option)"
             >
                 {{ option.name }}

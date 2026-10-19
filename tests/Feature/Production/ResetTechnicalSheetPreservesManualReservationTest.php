@@ -78,7 +78,6 @@ it('keeps a manual reservation in partial_output when a technical sheet is reset
     // al cambiar la referencia de una orden en I&D.
     $controller = app(ProgrammerController::class);
     $method = new ReflectionMethod(ProgrammerController::class, 'resetTechnicalSheet');
-    $method->setAccessible(true);
     $method->invoke($controller, $order->id);
 
     $roll->refresh();

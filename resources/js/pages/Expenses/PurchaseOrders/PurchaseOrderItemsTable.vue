@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import HoverTooltip from '@/components/common/HoverTooltip.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
@@ -9,8 +10,8 @@ import type { Item } from '@/domain/MasterData';
 
 import { DEFAULT_TAX_LABEL, formatTaxOptionLabel, isDefaultTax } from '@/lib/taxes';
 import axios from 'axios';
-import { ImagePlus, Lightbulb, PlusCircle, X as XIcon } from 'lucide-vue-next';
-import { computed, defineAsyncComponent, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { Image, Lightbulb, PlusCircle } from 'lucide-vue-next';
+import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue';
 
 const ImagePreviewDialog = defineAsyncComponent(() => import('@/components/ImagePreviewDialog.vue'));
 const TaxDialog = defineAsyncComponent(() => import('@/pages/Finance/Taxes/TaxDialog.vue'));
@@ -22,7 +23,7 @@ const props = defineProps<{
     purchaseRequestId?: number | null;
     readonly?: boolean;
 }>();
-const emit = defineEmits(['update:items']);
+const emit = defineEmits(['update:items', 'success', 'error']);
 
 const localItems = ref<PurchaseOrderItem[]>([]);
 
@@ -42,8 +43,6 @@ const taxDialogLoading = ref(false);
 type TaxDialogForm = Pick<Tax, 'name' | 'percentage' | 'status'> & { id?: number };
 const taxForm = ref<TaxDialogForm>({ name: '', percentage: 0, status: true });
 
-const fileInputRefs = ref<Record<string, HTMLInputElement | null>>({});
-const persistedImageUrls = ref<Record<string, string | null>>({});
 const itemTypedNames = ref<Record<number, string>>({});
 
 // Catálogo unificado de todos los ítems conocidos (base + por fila) para lookups (isTela, etc.)
@@ -71,7 +70,7 @@ function itemOptionsForRow(rowIdx: number): { id: number; name: string }[] {
         .map(([id, name]) => ({ id: Number(id), name: String(name || '').trim() }))
         .filter((o) => Number.isFinite(o.id) && o.id > 0 && o.name && !existingIds.has(o.id));
 
-    return [...persistedOptions, ...optionsFromSource];
+    return [...persistedOptions, ...optionsFromSource].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
 }
 
 function onItemSearch(rowIdx: number, term: string) {
@@ -80,7 +79,6 @@ function onItemSearch(rowIdx: number, term: string) {
 }
 const showLightbox = ref(false);
 const lightboxUrl = ref<string | null>(null);
-let lightboxKeydownListenerAttached = false;
 // Item dialog state (quick-create)
 const isItemDialogOpen = ref(false);
 const itemDialogTargetRowIndex = ref<number | null>(null);
@@ -106,7 +104,8 @@ const taxOptions = computed(() => [
         .map((tax) => ({
             id: Number(tax.percentage) || 0,
             name: formatTaxOptionLabel(tax),
-        })),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
 ]);
 const shouldShowFabricColumns = computed(() => localItems.value.some(isTela));
 const allItemsAreTela = computed(() => localItems.value.length > 0 && localItems.value.every(isTela));
@@ -192,8 +191,6 @@ watch(
                       supplier_color: item.supplier_color || '',
                       order_width: typeof item.order_width === 'number' ? item.order_width : Number(item.order_width) || 0,
                       image_url: item.image_url ?? null,
-                      _image_file: null,
-                      _delete_image: false,
                   }))
                 : [];
 
@@ -295,8 +292,9 @@ function buildItemDialogForm(rowIdx: number): Partial<Item> {
     }
 
     const description = typeof suggestedItem.description === 'string' ? suggestedItem.description.trim() : '';
-    if (description) {
-        baseForm.description = description;
+    const label = getSuggestedItemLabel(rowIdx);
+    if (description || label) {
+        baseForm.description = description || label;
     }
 
     if (suggestedItem.image_url) {
@@ -315,6 +313,12 @@ function detectCreatedItemId(previousIds: number[], items: Item[]): number | nul
 
     return createdItems[0] ?? null;
 }
+
+const itemDialogRequestedName = computed(() => {
+    const rowIdx = itemDialogTargetRowIndex.value;
+    if (rowIdx == null) return '';
+    return getSuggestedItemLabel(rowIdx) || (itemTypedNames.value[rowIdx] ?? '').trim();
+});
 
 function openItemDialog(targetRowIdx: number | null = null, prefillFromRequest = false) {
     // Prepare quick-create dialog for item
@@ -340,8 +344,11 @@ async function handleTaxDialogSubmit(formData: TaxDialogForm) {
         await axios.post('/impuestos', formData);
         await fetchTaxes();
         isTaxDialogOpen.value = false;
-    } catch (error) {
+        emit('success', 'Impuesto creado correctamente.');
+    } catch (error: any) {
         console.error('Error creando impuesto', error);
+        const errors = error?.response?.data?.errors;
+        emit('error', errors ? Object.values(errors).flat().join(' ') : error?.response?.data?.message || 'No se pudo crear el impuesto.');
     } finally {
         taxDialogLoading.value = false;
     }
@@ -357,10 +364,16 @@ function validateFabricFields(): string | null {
     for (let idx = 0; idx < localItems.value.length; idx++) {
         const item = localItems.value[idx];
         if (!isTela(item)) continue;
+        const name = itemMap.value.get(Number(item.item_id))?.name || `Ítem ${idx + 1}`;
+        if (!String(item.supplier_code ?? '').trim()) {
+            return `El ítem "${name}" es tela: el código del proveedor es obligatorio.`;
+        }
+        if (!String(item.supplier_color ?? '').trim()) {
+            return `El ítem "${name}" es tela: el color del proveedor es obligatorio.`;
+        }
         const width = item.order_width;
         if (width === undefined || width === null || (typeof width === 'string' && String(width).trim() === '') || Number(width) <= 0) {
-            const name = itemMap.value.get(Number(item.item_id))?.name || `Ítem ${idx + 1}`;
-            return `El ítem "${name}" es tela: el ancho pedido (cm) es obligatorio. En recepción se compara el ancho real del rollo con este valor para validar tolerancias.`;
+            return `El ítem "${name}" es tela: el ancho pedido (m) es obligatorio. En recepción se compara el ancho real del rollo con este valor para validar tolerancias.`;
         }
     }
     return null;
@@ -379,8 +392,6 @@ function addItem() {
         supplier_color: '',
         order_width: 0,
         image_url: null,
-        _image_file: null,
-        _delete_image: false,
     };
 
     localItems.value.push(newItem);
@@ -436,51 +447,6 @@ function setTaxFromItem(item: PurchaseOrderItem) {
     item.tax = Number(taxPercentage) || 0;
 }
 
-function getItemUid(item: any, idx: number): string {
-    return `item-${idx}-${item.item_id ?? 'new'}`;
-}
-
-function revokeBlobUrl(url?: string | null) {
-    if (typeof url === 'string' && url.startsWith('blob:')) {
-        URL.revokeObjectURL(url);
-    }
-}
-
-function registerFileInput(uid: string, element: HTMLInputElement | null) {
-    if (element) {
-        fileInputRefs.value[uid] = element;
-        return;
-    }
-    delete fileInputRefs.value[uid];
-}
-
-function triggerImagePicker(item: any, idx: number) {
-    if (props.readonly) {
-        return;
-    }
-    fileInputRefs.value[getItemUid(item, idx)]?.click();
-}
-
-function handleImageSelected(event: Event, item: any, idx: number) {
-    const input = event.target as HTMLInputElement;
-    const file = input.files?.[0];
-    if (!file) {
-        return;
-    }
-
-    const uid = getItemUid(item, idx);
-    if (!(uid in persistedImageUrls.value)) {
-        persistedImageUrls.value[uid] = item.image_url && !item.image_url.startsWith('blob:') ? item.image_url : null;
-    }
-
-    revokeBlobUrl(item.image_url);
-    item._image_file = file;
-    item.image_url = URL.createObjectURL(file);
-    item._delete_image = false;
-    input.value = '';
-    emit('update:items', localItems.value);
-}
-
 function openLightbox(url?: string | null) {
     if (!url) {
         return;
@@ -488,62 +454,6 @@ function openLightbox(url?: string | null) {
     lightboxUrl.value = url;
     showLightbox.value = true;
 }
-
-function closeLightbox() {
-    showLightbox.value = false;
-    lightboxUrl.value = null;
-}
-
-function handleLightboxKeydown(event: KeyboardEvent) {
-    if (!showLightbox.value || event.key !== 'Escape') {
-        return;
-    }
-    event.preventDefault();
-    event.stopPropagation();
-    closeLightbox();
-}
-
-function syncLightboxKeydownListener(isOpen: boolean) {
-    if (isOpen && !lightboxKeydownListenerAttached) {
-        document.addEventListener('keydown', handleLightboxKeydown, true);
-        lightboxKeydownListenerAttached = true;
-        return;
-    }
-    if (!isOpen && lightboxKeydownListenerAttached) {
-        document.removeEventListener('keydown', handleLightboxKeydown, true);
-        lightboxKeydownListenerAttached = false;
-    }
-}
-
-function removeItemImage(item: any, idx: number) {
-    const uid = getItemUid(item, idx);
-    const hadPersistedImage = Boolean(persistedImageUrls.value[uid]);
-    const removedImageUrl = item.image_url;
-
-    revokeBlobUrl(item.image_url);
-    item._image_file = null;
-    item.image_url = null;
-    item._delete_image = hadPersistedImage;
-
-    if (removedImageUrl && lightboxUrl.value === removedImageUrl) {
-        closeLightbox();
-    }
-
-    const fileInput = fileInputRefs.value[uid];
-    if (fileInput) {
-        fileInput.value = '';
-    }
-    emit('update:items', localItems.value);
-}
-
-watch(showLightbox, (isOpen) => {
-    syncLightboxKeydownListener(isOpen);
-});
-
-onBeforeUnmount(() => {
-    syncLightboxKeydownListener(false);
-    localItems.value.forEach((item) => revokeBlobUrl(item.image_url));
-});
 
 function setDescriptionFromItem(item: any) {
     const catalogItem = itemMap.value.get(Number(item.item_id));
@@ -716,7 +626,7 @@ async function handleItemDialogRefresh() {
     pendingItemDialogRefresh.value = null;
 }
 
-async function handleItemDialogSaved(mode: 'create' | 'edit') {
+async function handleItemDialogSaved(mode: 'create' | 'edit', createdId?: number | null) {
     if (mode !== 'create') return;
 
     if (pendingItemDialogRefresh.value) {
@@ -724,6 +634,10 @@ async function handleItemDialogSaved(mode: 'create' | 'edit') {
     } else {
         await handleItemDialogRefresh();
     }
+
+    // El id devuelto por el servidor tiene prioridad sobre la detección por diferencia de catálogo.
+    if (createdId) createdItemCandidateId.value = Number(createdId);
+    emit('success', 'Ítem creado correctamente.');
 
     const rowIdx = itemDialogTargetRowIndex.value;
     if (rowIdx == null || rowIdx < 0 || rowIdx >= localItems.value.length || createdItemCandidateId.value == null) {
@@ -753,7 +667,7 @@ defineExpose({ addItem, validateFabricFields, openItemDialog, itemTypedNames });
                 <TableHeader>
                     <TableRow class="border-b border-border/60 text-center">
                         <TableHead class="w-[52px]"></TableHead>
-                        <TableHead class="w-[320px] text-left">Item <span class="text-destructive">*</span></TableHead>
+                        <TableHead class="w-[320px] text-left">Ítem <span class="text-destructive">*</span></TableHead>
                         <TableHead class="w-[120px] text-left">Precio SIN Impuesto <span class="text-destructive">*</span></TableHead>
                         <TableHead class="w-[140px] text-left">Impuesto <span class="text-destructive">*</span></TableHead>
                         <TableHead class="w-[96px] text-left">{{ allItemsAreTela ? 'Longitud (mts)' : 'Cantidad' }} <span class="text-destructive">*</span></TableHead>
@@ -761,7 +675,7 @@ defineExpose({ addItem, validateFabricFields, openItemDialog, itemTypedNames });
                         <TableHead v-if="shouldShowFabricColumns" class="w-[120px] text-left">Código proveedor</TableHead>
                         <TableHead v-if="shouldShowFabricColumns" class="w-[120px] text-left">Color proveedor</TableHead>
                         <TableHead v-if="shouldShowFabricColumns" class="w-[110px] text-left">Ancho pedido</TableHead>
-                        <TableHead class="w-[110px] text-left">Total</TableHead>
+                        <TableHead class="w-[110px] text-left">Subtotal</TableHead>
                         <TableHead v-if="showActionsColumn" class="w-[60px]"></TableHead>
                     </TableRow>
                 </TableHeader>
@@ -770,53 +684,16 @@ defineExpose({ addItem, validateFabricFields, openItemDialog, itemTypedNames });
                     <TableRow v-for="(item, idx) in localItems" :key="idx">
                         <TableCell class="w-[52px] p-1 text-center align-middle">
                             <div class="flex items-center justify-center">
-                                <input
-                                    :ref="(el) => registerFileInput(getItemUid(item, idx), el as HTMLInputElement | null)"
-                                    type="file"
-                                    accept="image/*"
-                                    class="hidden"
-                                    @change="handleImageSelected($event, item, idx)"
-                                />
-                                <button
-                                    v-if="!item.image_url && !isReadOnly"
-                                    type="button"
-                                    class="inline-flex h-10 w-10 items-center justify-center text-muted-foreground transition hover:text-foreground"
-                                    title="Agregar imagen"
-                                    @click.stop="triggerImagePicker(item, idx)"
-                                >
-                                    <ImagePlus class="h-5 w-5" />
-                                </button>
-                                <div
-                                    v-else-if="item.image_url"
-                                    class="relative h-10 w-10 overflow-visible rounded-md"
-                                >
-                                    <button
-                                        type="button"
-                                        class="block h-full w-full overflow-hidden rounded-md"
-                                        @click.stop="openLightbox(item.image_url)"
-                                    >
-                                        <img
-                                            :src="item.image_url"
-                                            alt="Imagen del ítem"
-                                            class="h-full w-full rounded-md object-cover"
-                                        />
+                                <HoverTooltip v-if="item.image_url" text="Ver imagen">
+                                    <button type="button" class="block h-10 w-10 overflow-hidden rounded-md" aria-label="Ver imagen" @click.stop="openLightbox(item.image_url)">
+                                        <img :src="item.image_url" alt="Imagen del ítem" class="h-full w-full rounded-md object-cover" />
                                     </button>
-                                    <div v-if="!isReadOnly" class="absolute right-0 top-0 z-10">
-                                        <button
-                                            type="button"
-                                            class="inline-flex h-5 w-5 translate-x-1 -translate-y-1 items-center justify-center rounded-full bg-red-500 text-white shadow-sm transition hover:bg-red-600"
-                                            @click.stop="removeItemImage(item, idx)"
-                                        >
-                                            <XIcon class="h-3 w-3" />
-                                        </button>
-                                    </div>
-                                </div>
-                                <span
-                                    v-else
-                                    class="inline-flex h-10 w-10 items-center justify-center text-muted-foreground"
-                                >
-                                    <ImagePlus class="h-5 w-5 opacity-30" />
-                                </span>
+                                </HoverTooltip>
+                                <HoverTooltip v-else text="Sin imagen">
+                                    <span class="inline-flex h-10 w-10 items-center justify-center text-muted-foreground" aria-label="Sin imagen">
+                                        <Image class="h-5 w-5 opacity-30" />
+                                    </span>
+                                </HoverTooltip>
                             </div>
                         </TableCell>
                         <TableCell class="w-[320px] p-1 text-left align-top">
@@ -829,7 +706,7 @@ defineExpose({ addItem, validateFabricFields, openItemDialog, itemTypedNames });
                                     :options="itemOptionsForRow(idx)"
                                     label=""
                                             :searchable="true"
-                                            placeholder="Selecciona item"
+                                            placeholder="Selecciona ítem"
                                             class="w-full"
                                             :disabled="isReadOnly"
                                             :loading="isLoadingItemsForRow(idx)"
@@ -845,7 +722,7 @@ defineExpose({ addItem, validateFabricFields, openItemDialog, itemTypedNames });
                                             :options="itemOptionsForRow(idx)"
                                             label=""
                                             :searchable="true"
-                                            placeholder="Selecciona item"
+                                            placeholder="Selecciona ítem"
                                             class="w-full"
                                             :disabled="isReadOnly"
                                             :loading="isLoadingItemsForRow(idx)"
@@ -857,23 +734,27 @@ defineExpose({ addItem, validateFabricFields, openItemDialog, itemTypedNames });
                                     v-if="!isReadOnly && shouldShowRequestCreateAction(item, idx)"
                                     class="mt-1 flex items-center justify-between gap-2"
                                 >
-                                    <button
-                                        type="button"
-                                        class="flex min-w-0 flex-1 items-center gap-1 rounded px-1 py-0.5 text-left text-xs text-muted-foreground transition hover:bg-accent hover:text-accent-foreground"
-                                        title="Seleccionar este ítem en la fila"
-                                        @click.stop="selectSuggestedItemInRow(idx)"
-                                    >
-                                        <Lightbulb class="h-3.5 w-3.5 shrink-0 text-amber-400" />
-                                        <span class="min-w-0 flex-1 truncate">{{ getSuggestedItemLabel(idx) }}</span>
-                                    </button>
-                                    <button
-                                        type="button"
-                                        class="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-primary transition hover:bg-accent hover:text-accent-foreground"
-                                        title="Nuevo ítem"
-                                        @click.stop="openCreateItemDialogForRow(idx)"
-                                    >
-                                        <PlusCircle class="h-4 w-4" />
-                                    </button>
+                                    <HoverTooltip text="Seleccionar este ítem en la fila" class="min-w-0 flex-1">
+                                        <button
+                                            type="button"
+                                            class="flex min-w-0 flex-1 items-center gap-1 rounded px-1 py-0.5 text-left text-xs text-muted-foreground transition hover:bg-accent hover:text-accent-foreground"
+                                            aria-label="Seleccionar este ítem en la fila"
+                                            @click.stop="selectSuggestedItemInRow(idx)"
+                                        >
+                                            <Lightbulb class="h-3.5 w-3.5 shrink-0 text-amber-400" />
+                                            <span class="min-w-0 flex-1 truncate">{{ getSuggestedItemLabel(idx) }}</span>
+                                        </button>
+                                    </HoverTooltip>
+                                    <HoverTooltip text="Nuevo ítem">
+                                        <button
+                                            type="button"
+                                            class="inline-flex h-5 w-5 shrink-0 items-center justify-center rounded text-primary transition hover:bg-accent hover:text-accent-foreground"
+                                            aria-label="Nuevo ítem"
+                                            @click.stop="openCreateItemDialogForRow(idx)"
+                                        >
+                                            <PlusCircle class="h-4 w-4" />
+                                        </button>
+                                    </HoverTooltip>
                                 </div>
                             </div>
                         </TableCell>
@@ -922,7 +803,7 @@ defineExpose({ addItem, validateFabricFields, openItemDialog, itemTypedNames });
                             />
                         </TableCell>
                         <TableCell class="w-[160px] p-1 text-left align-top">
-                            <InputField :dusk="`orden-item-${idx}-descripcion`" v-model="item.description" label="" class="h-10 w-full" :disabled="isReadOnly" />
+                            <InputField data-no-uppercase :dusk="`orden-item-${idx}-descripcion`" v-model="item.description" label="" class="h-10 w-full" :disabled="isReadOnly" />
                         </TableCell>
                         <TableCell v-if="isTela(item)" class="w-[120px] p-1 text-left align-top">
                             <InputField
@@ -948,7 +829,7 @@ defineExpose({ addItem, validateFabricFields, openItemDialog, itemTypedNames });
                                 v-model="item.order_width"
                                 type="number"
                                 label=""
-                                placeholder="Ancho pedido (cm) *"
+                                placeholder="Ancho pedido (m) *"
                                 step="any"
                                 class="h-10 w-full"
                                 :disabled="isReadOnly"
@@ -991,6 +872,7 @@ defineExpose({ addItem, validateFabricFields, openItemDialog, itemTypedNames });
             dialog-type="create"
             :form="itemDialogForm"
             :show-advanced-link="true"
+            :requested-name="itemDialogRequestedName"
             @refresh="handleItemDialogRefresh"
             @saved="handleItemDialogSaved"
             @close="isItemDialogOpen = false"
@@ -999,7 +881,7 @@ defineExpose({ addItem, validateFabricFields, openItemDialog, itemTypedNames });
             :open="showLightbox"
             :src="lightboxUrl"
             alt="Imagen ampliada del ítem"
-            @update:open="(value) => (value ? (showLightbox = value) : closeLightbox())"
+            @update:open="(value) => (showLightbox = value)"
         />
     </div>
 </template>

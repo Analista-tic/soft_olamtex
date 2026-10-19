@@ -14,6 +14,7 @@ const props = defineProps<{
     open: boolean;
     invoice: Partial<PurchaseInvoice> | null;
     baseRoute?: string;
+    canDecide?: boolean;
 }>();
 
 const emit = defineEmits<{
@@ -34,6 +35,7 @@ const errorType = ref<'error' | 'warning' | 'info'>('error');
 const lightboxOpen = ref(false);
 
 const isPending = computed(() => props.invoice?.approval_status === 'pending_difference_approval');
+const canDecideNow = computed(() => isPending.value && props.canDecide !== false);
 const isApproved = computed(() => props.invoice?.approval_status === 'approved');
 const isRejected = computed(() => props.invoice?.approval_status === 'difference_rejected');
 
@@ -123,7 +125,7 @@ async function handleReject() {
                     </div>
                     <div class="min-w-0">
                         <DialogTitle class="text-base font-semibold leading-tight">Revisión de diferencia en factura</DialogTitle>
-                        <p class="mt-0.5 text-sm text-muted-foreground">Revisa los detalles y toma una decisión.</p>
+                        <p class="mt-0.5 text-sm text-muted-foreground">{{ canDecideNow || props.canDecide !== false ? 'Revisa los detalles y toma una decisión.' : 'Detalle de la diferencia registrada.' }}</p>
                         <DialogDescription class="mt-0.5 truncate text-xs text-muted-foreground">
                             Factura:
                             <span class="ml-1 font-mono font-semibold text-foreground">{{ invoice?.document_number ?? `#${invoice?.id}` }}</span>
@@ -197,13 +199,17 @@ async function handleReject() {
                     </div>
                 </div>
 
-                <div v-if="isPending" class="rounded-lg border border-amber-200 bg-amber-50 p-4">
+                <div v-if="isPending && !canDecideNow" class="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-yellow-800">
+                    <strong>Aprobación pendiente.</strong> Un usuario autorizado debe aprobar o rechazar esta diferencia.
+                </div>
+
+                <div v-if="canDecideNow" class="rounded-lg border border-amber-200 bg-amber-50 p-4">
                     <p class="mb-3 text-sm text-yellow-800">
                         <strong>Estado pendiente.</strong> Revisa la información anterior y decide si apruebas o rechazas la diferencia.
                         Las notas son obligatorias al rechazar.
                     </p>
                     <TextareaField
-                        v-model="approvalNotes"
+                        v-model="approvalNotes" data-no-uppercase
                         label="Notas de decisión"
                         placeholder="Escribe las notas de tu decisión (obligatorio al rechazar)..."
                         :rows="3"
@@ -213,7 +219,7 @@ async function handleReject() {
 
             <FormDialogFooter>
                 <Button variant="outline" size="pill" class="rounded-full" :disabled="isSubmitting" @click="dialogOpen = false">Cerrar</Button>
-                <template v-if="isPending">
+                <template v-if="canDecideNow">
                     <button
                         type="button"
                         :disabled="isSubmitting"

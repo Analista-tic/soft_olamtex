@@ -9,7 +9,7 @@ class UpdateManualRollProgramRequest extends InventoryFormRequest
     public function rules(): array
     {
         return [
-            'programmed_meters' => ['required', 'numeric', 'min:0.01'],
+            'programmed_meters' => ['required', 'numeric', 'min:0.01', 'decimal:0,2'],
             'notes' => ['nullable', 'string', 'max:500'],
         ];
     }

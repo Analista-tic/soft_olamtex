@@ -7,7 +7,6 @@ use App\Models\Production\Machine;
 use App\Models\Production\Operation;
 use App\Models\Production\ProductOperationList;
 use App\Models\Production\ProductSheet;
-use App\Models\Settings\AuditLog;
 use App\Services\Production\OperationCatalogService;
 use App\Services\Production\OperationSectionService;
 use App\Services\Production\OperationService;
@@ -188,7 +187,7 @@ class OperationController extends Controller
             'anexo'        => ['nullable', 'string', 'max:255'],
             'codigo'       => ['nullable', 'string', 'max:50'],
             'section_id'   => ['required', 'integer', 'exists:operation_sections,id'],
-            'measure'      => ['nullable', 'numeric', 'min:0'],
+            'measure'      => ['required', 'numeric', 'min:0'], // 0 = la medida no aplica
             'quantity'     => ['nullable', 'integer', 'min:1'],
             'description'  => ['nullable', 'string'],
             'sam_base'     => ['required', 'numeric', 'min:0.001'],
@@ -272,7 +271,7 @@ class OperationController extends Controller
             'garment_part' => ['sometimes', 'string', 'max:255'],
             'anexo'        => ['nullable', 'string', 'max:255'],
             'section_id'   => ['nullable', 'integer', 'exists:operation_sections,id'],
-            'measure'      => ['nullable', 'numeric', 'min:0'],
+            'measure'      => ['sometimes', 'required', 'numeric', 'min:0'], // 0 = la medida no aplica
             'quantity'     => ['nullable', 'integer', 'min:1'],
             'sam_base'     => ['nullable', 'numeric', 'min:0'],
             'factor_operario' => ['sometimes', 'numeric', 'min:0.01'],
@@ -345,39 +344,7 @@ class OperationController extends Controller
      */
     public function auditLog(Operation $operation): JsonResponse
     {
-        $logs = AuditLog::query()
-            ->where('auditable_type', Operation::class)
-            ->where('auditable_id', $operation->id)
-            ->where('action', 'updated')
-            ->with('user:id,name')
-            ->orderByDesc('created_at')
-            ->get();
-
-        $normalized = $logs->map(function (AuditLog $log) use ($operation) {
-            $oldValues = is_array($log->old_values) ? $log->old_values : [];
-            $newValues = is_array($log->new_values) ? $log->new_values : [];
-            $field = array_key_first($newValues) ?? array_key_first($oldValues) ?? null;
-
-            $motivo = null;
-            if (is_string($log->description) && preg_match('/Motivo:\s*(.*)$/u', $log->description, $matches) === 1) {
-                $motivo = trim($matches[1]) ?: null;
-            }
-
-            return [
-                'id' => $log->id,
-                'operation_id' => $operation->id,
-                'field_changed' => $field,
-                'old_value' => $field ? ($oldValues[$field] ?? null) : null,
-                'new_value' => $field ? ($newValues[$field] ?? null) : null,
-                'motivo' => $motivo,
-                'changed_by' => $log->user_id,
-                'changed_by_user' => $log->user ? ['id' => $log->user->id, 'name' => $log->user->name] : null,
-                'created_at' => $log->created_at,
-                'updated_at' => $log->updated_at,
-            ];
-        })->values();
-
-        return response()->json(['data' => $normalized]);
+        return response()->json(['data' => $this->service->auditTrail($operation)]);
     }
 
     /**

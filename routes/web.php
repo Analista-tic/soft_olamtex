@@ -3,6 +3,7 @@
 use App\Http\Controllers\Production\TechnicalDataSheetController;
 
 use App\Http\Controllers\Settings\AuditLogController;
+use App\Http\Controllers\Settings\CatalogSyncController;
 use App\Http\Controllers\Settings\CompanySettingsController;
 use App\Http\Controllers\Settings\RoleController;
 use App\Http\Controllers\Settings\UserController;
@@ -35,6 +36,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     })->name('user');
 
     Route::get('profile', fn () => Inertia::render('Profile'))->name('profile');
+
+    // Sincronía de catálogos entre pestañas/equipos — ver resources/js/lib/crossTabSync.ts.
+    Route::get('catalog-sync', [CatalogSyncController::class, 'index'])->name('catalog-sync.index');
+    Route::post('catalog-sync/touch', [CatalogSyncController::class, 'touch'])->name('catalog-sync.touch');
 
     Route::get('settings/parameters', [TechnicalDataSheetController::class, 'settingsParameters'])
         ->name('settings.parameters');

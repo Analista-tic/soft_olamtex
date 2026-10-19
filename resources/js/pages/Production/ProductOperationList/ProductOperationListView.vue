@@ -19,7 +19,7 @@ import type {
     ProductOperationViewSubGroup,
 } from '@/domain/product-sheet/types';
 import axios from 'axios';
-import { ChevronDown, ChevronRight, History, Pencil, Trash2 } from 'lucide-vue-next';
+import { CheckCircle2, ChevronDown, ChevronRight, History, Pencil, RotateCcw, Trash2 } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 import HistoryDialog from './HistoryDialog.vue';
 
@@ -45,6 +45,7 @@ const emit = defineEmits<{
     (event: 'edit'): void;
     (event: 'deleted'): void;
     (event: 'delete-error', message: string): void;
+    (event: 'completion-changed', message: string): void;
 }>();
 
 const localOpen = ref(props.open);
@@ -170,6 +171,32 @@ function toggleSection(name: string) {
     else collapsedSections.value.add(name);
 }
 
+type ListCompletion = { completed: boolean; completed_at: string | null; completed_by: string | null };
+const completion = ref<ListCompletion>({ completed: false, completed_at: null, completed_by: null });
+const isChangingCompletion = ref(false);
+
+const completionLabel = computed(() => {
+    if (!completion.value.completed) return 'Listado en edición';
+    const date = completion.value.completed_at ? new Date(completion.value.completed_at).toLocaleDateString('es-CO') : '';
+    return ['Listado completo', completion.value.completed_by ? `por ${completion.value.completed_by}` : '', date].filter(Boolean).join(' · ');
+});
+
+/** Acción propia, distinta de guardar: el usuario declara que el listado ya está terminado (o lo reabre). */
+async function toggleCompletion() {
+    if (!props.productSheetId || isChangingCompletion.value) return;
+    isChangingCompletion.value = true;
+    const url = `/produccion/listados-operacionales/sabana/${props.productSheetId}/completar`;
+    try {
+        const { data } = completion.value.completed ? await axios.delete(url) : await axios.post(url);
+        completion.value = data.data;
+        emit('completion-changed', data.message);
+    } catch (e: any) {
+        emit('delete-error', e?.response?.data?.message ?? 'No se pudo cambiar el estado del listado.');
+    } finally {
+        isChangingCompletion.value = false;
+    }
+}
+
 async function fetchOperations() {
     if (!props.productSheetId) {
         operations.value = [];
@@ -185,6 +212,7 @@ async function fetchOperations() {
             },
         });
         operations.value = Array.isArray(data?.data) ? data.data : [];
+        completion.value = data?.completion ?? { completed: false, completed_at: null, completed_by: null };
     } catch (e) {
         console.error('Error al cargar operaciones:', e);
         operations.value = [];
@@ -197,7 +225,7 @@ async function fetchParameters() {
         const { data } = await axios.get('/produccion/parametros/data');
         const arr = Array.isArray(data?.data) ? data.data : [];
         parameters.value = Object.fromEntries(arr.map((p: { key?: string; value?: unknown }) => [p.key ?? '', p.value]));
-    } catch (e) {
+    } catch {
         parameters.value = {};
     }
 }
@@ -625,7 +653,21 @@ watch(
 
             <!-- Footer -->
             <FormDialogFooter class="flex flex-wrap items-center justify-between gap-2">
-                <Button variant="outline" size="sm" @click="editOperation"> <Pencil class="mr-1 h-4 w-4" /> Editar listado </Button>
+                <div class="flex flex-wrap items-center gap-2">
+                    <Button variant="outline" size="sm" @click="editOperation"> <Pencil class="mr-1 h-4 w-4" /> Editar listado </Button>
+                    <Button
+                        v-if="operations.length > 0"
+                        :variant="completion.completed ? 'outline' : 'default'"
+                        size="sm"
+                        :disabled="isChangingCompletion"
+                        @click="toggleCompletion"
+                    >
+                        <RotateCcw v-if="completion.completed" class="mr-1 h-4 w-4" />
+                        <CheckCircle2 v-else class="mr-1 h-4 w-4" />
+                        {{ completion.completed ? 'Reabrir listado' : 'Marcar listado como completo' }}
+                    </Button>
+                    <Badge v-if="operations.length > 0" :variant="completion.completed ? 'default' : 'secondary'">{{ completionLabel }}</Badge>
+                </div>
                 <Button variant="outline" @click="localOpen = false">Cerrar</Button>
             </FormDialogFooter>
         </FormDialogContent>

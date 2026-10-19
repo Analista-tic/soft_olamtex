@@ -76,7 +76,7 @@ Datos principales:
 - Línea de factura de compra (`purchase_document_item_id`) — de dónde vino el rollo
 - Ubicación física (`location`) — dónde está guardado en bodega
 - Metros totales (`quantity`) — metraje total del rollo
-- Ancho del rollo (`roll_width`) — en centímetros o metros
+- Ancho del rollo (`roll_width`) — siempre en **metros** (ej. `1.50`), igual que el ancho pedido de la orden/factura (`order_width`). La tolerancia de ancho en recepción es de máx. -0,05 m hacia abajo y sin límite hacia arriba
 - Precio por metro (`price_per_meter`) — heredado de la factura de compra
 - Color interno (`internal_color_name`, `internal_color_code`) — referencia de color propio
 - Salida parcial (`partial_output`) — metros que han salido de forma parcial
@@ -111,11 +111,13 @@ Este modelo está en el módulo de Producción pero es la "puerta de conexión" 
 ## 6. Reglas de negocio importantes (¡no romper!)
 
 1. **Un rollo rechazado (`not_approved`) no puede asignarse a producción** — solo los aprobados están disponibles.
-2. **La cantidad disponible nunca puede ser negativa** — no se pueden consumir más metros de los que tiene el rollo.
-3. **El precio por metro viene de la factura de compra** — pero puede editarse manualmente para rollos sin factura vinculada.
+2. **La cantidad disponible nunca puede ser negativa.** Si el descargue supera el metraje registrado, el rollo traía más tela: se registra un **sobrante de metraje** trazable, no un negativo. Si se acaba antes, se marca **rollo terminado** y el saldo restante queda como **faltante**. Ambos quedan pendientes de revisión.
+3. **El precio por metro viene de la factura de compra.** Se puede editar mientras el rollo no tenga descargues.
 4. **Cada ajuste deja traza** en el historial de ajustes y genera un movimiento en inventario.
-5. **Los rollos importados de datos anteriores** pueden tener `legacy_id` — sirve para rastrear el origen histórico.
-6. **El lote (`batch`) agrupa rollos** que llegaron juntos o son de la misma producción del proveedor.
+5. **Un rollo con descargues no se edita directamente** (cantidad, precio, tela, borrado, importación). Solo admite ajustes y correcciones de descargue, que quedan trazados.
+6. **Saldos:** real = cantidad − consumido; libre = real − reservado. Una reserva o un ajuste de salida solo toma del libre. Detalle, diagramas y fallas corregidas en [textil/FLUJO_ROLLOS_STOCK_Y_DESCARGUE.md](textil/FLUJO_ROLLOS_STOCK_Y_DESCARGUE.md).
+7. **Los rollos importados de datos anteriores** pueden tener `legacy_id` — sirve para rastrear el origen histórico.
+8. **El lote (`batch`) agrupa rollos** que llegaron juntos o son de la misma producción del proveedor.
 
 ---
 

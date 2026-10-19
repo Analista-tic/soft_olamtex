@@ -3,19 +3,17 @@
 namespace App\Notifications;
 
 use App\Models\Expenses\PurchaseDocument;
+use App\Notifications\Concerns\UsesConfiguredChannels;
 use Illuminate\Notifications\Notification;
 
 class PurchaseInvoiceDifferenceNotification extends Notification
 {
+    use UsesConfiguredChannels;
+
     public function __construct(
         protected PurchaseDocument $invoice,
         protected ?string $requesterName = null
     ) {}
-
-    public function via(object $notifiable): array
-    {
-        return ['database'];
-    }
 
     public function toArray(object $notifiable): array
     {

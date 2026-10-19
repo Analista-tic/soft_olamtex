@@ -27,10 +27,12 @@ const taxes = ref<Tax[]>([]);
 
 const isReadOnly = computed(() => Boolean(props.readonly));
 const itemOptions = computed(() =>
-    catalogItems.value.map((item) => ({
-        id: item.id,
-        name: item.name,
-    })),
+    catalogItems.value
+        .map((item) => ({
+            id: item.id,
+            name: item.name,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
 );
 const taxById = computed(() => new Map<number, Tax>(taxes.value.map((tax) => [Number(tax.id), tax])));
 const taxOptions = computed(() => [
@@ -40,7 +42,8 @@ const taxOptions = computed(() => [
         .map((tax) => ({
             id: Number(tax.percentage) || 0,
             name: formatTaxOptionLabel(tax),
-        })),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
 ]);
 
 function createEmptyItem(): DocumentItem {
@@ -218,7 +221,7 @@ defineExpose({ addItem });
                     <TableHead class="min-w-[110px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Desc. %</TableHead>
                     <TableHead class="min-w-[160px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Impuesto</TableHead>
                     <TableHead class="min-w-[140px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Subtotal</TableHead>
-                    <TableHead class="min-w-[180px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Descripcion</TableHead>
+                    <TableHead class="min-w-[180px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground">Descripción</TableHead>
                     <TableHead v-if="!isReadOnly" class="w-[60px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground"></TableHead>
                 </TableRow>
             </TableHeader>
@@ -265,7 +268,7 @@ defineExpose({ addItem });
                         }}
                     </TableCell>
                     <TableCell class="p-2 text-left">
-                        <InputField v-model="item.description" label="" :readonly="isReadOnly" @input="emitItems" />
+                        <InputField data-no-uppercase v-model="item.description" label="" :readonly="isReadOnly" @input="emitItems" />
                     </TableCell>
                     <TableCell v-if="!isReadOnly" class="p-2 text-center">
                         <div class="flex justify-center">

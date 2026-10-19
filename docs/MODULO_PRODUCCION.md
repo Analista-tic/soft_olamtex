@@ -152,6 +152,14 @@ En cada proceso se puede:
 ### 5.5 Lista Operacional (`product_operation_lists`)
 Es el **catálogo de operaciones** que se aplican a un producto. Define qué operaciones de confección lleva una prenda y en qué orden, junto con los tiempos SAM (tiempo estándar por operación).
 
+**Listado completo.** El estado del listado se guarda en la sábana: `product_sheets.operational_list_completed_at` registra cuándo se completó y `operational_list_completed_by_user_id` quién lo hizo.
+- **Cómo se marca:** el dialog de *Listados operacionales* tiene dos botones, **Guardar** y **Guardar y marcar completo**. El segundo primero guarda (`/sync` o `/bulk`) y después llama `POST /produccion/listados-operacionales/sabana/{id}/completar`.
+  - El orden importa: cualquier cambio en las líneas quita la marca (`ProductSheetStatusService::syncForSheet`).
+- **Cómo se reabre:** desde el detalle del listado, con "Reabrir listado".
+- **Dónde se ve:** la tabla de listados operacionales tiene la columna **Estado** (Completo / Pendiente), que sale de `operational_list_completed` en el endpoint `/summaries`.
+- **Para qué sirve:** un listado completo es requisito para que la sábana quede *Completa*.
+- **Alcance del botón:** solo aparece en la pantalla de listados (`allow-mark-complete`). En la ficha técnica y en Control de Lotes el dialog conserva el guardado simple.
+
 ---
 
 ### 5.6 Colecciones (`collections`)

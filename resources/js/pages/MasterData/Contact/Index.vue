@@ -8,6 +8,7 @@ import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Button } from '@/components/ui/button';
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Input from '@/components/ui/input/Input.vue';
 import Skeleton from '@/components/ui/skeleton/Skeleton.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -16,11 +17,13 @@ import { type SmartLoadingTaskId, useSmartLoading } from '@/composables/useSmart
 import type { Contact, ContactType } from '@/domain/MasterData';
 import type { BreadcrumbItem } from '@/domain/shared/types';
 import AppLayout from '@/layouts/AppLayout.vue';
+import { formatPersonNameDisplay } from '@/lib/textNormalizer';
 import { useContactsStore } from '@/stores/masterData/contacts';
 import { Head } from '@inertiajs/vue3';
 import axios, { type AxiosError } from 'axios';
-import { PlusCircle, Search } from 'lucide-vue-next';
+import { Download, FileSpreadsheet, PlusCircle, Search, Upload } from 'lucide-vue-next';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import BulkUploadDialog from './BulkUploadDialog.vue';
 import ContactDialog from './ContactDialog.vue';
 
 const props = defineProps<{
@@ -36,6 +39,7 @@ const contactsStore = useContactsStore();
 const contacts = ref<Contact[]>([]);
 const contactToDelete = ref<Contact | null>(null);
 const isDialogOpen = ref(false);
+const isBulkDialogOpen = ref(false);
 const isDeleteDialogOpen = ref(false);
 const dialogType = ref<'create' | 'edit'>('create');
 const form = ref<Partial<Contact>>({
@@ -53,7 +57,7 @@ let dialogPrepareToken = 0;
 let dialogPrepareFallbackTimer: ReturnType<typeof setTimeout> | null = null;
 let dialogPrepareFinishTimer: ReturnType<typeof setTimeout> | null = null;
 let dialogPreparationLoadingId: SmartLoadingTaskId | null = null;
-const smartLoading = useSmartLoading();
+useSmartLoading();
 const currentPage = ref(1);
 const itemsPerPage = ref(10);
 const totalItems = ref(0);
@@ -64,9 +68,9 @@ const sortBy = ref(props.filters?.sort_by ?? 'id');
 const sortDir = ref<'asc' | 'desc'>(props.filters?.sort_direction ?? 'asc');
 
 const contactTypeOptions = [
-    { id: 'proveedor', name: 'Proveedor' },
     { id: 'cliente', name: 'Cliente' },
     { id: 'cliente_proveedor', name: 'Cliente y Proveedor' },
+    { id: 'proveedor', name: 'Proveedor' },
 ];
 
 const contactTypeLabels: Record<ContactType, string> = {
@@ -213,17 +217,19 @@ async function openDialog(type: 'create' | 'edit', contact: Contact | null = nul
     clearMessages();
 
     if (type === 'edit' && contact) {
-        // Loader local: muestra el modal vacío y luego hidrata
-        form.value = { id: contact.id }; // Solo ID para iniciar
-        isDialogOpen.value = true;
-        armDialogPreparationFallback(token);
-
+        // Los datos se cargan antes de abrir: el diálogo copia `contactData` al abrirse
+        // y no vuelve a sincronizarse si este llega después.
         try {
             const { data } = await axios.get(`/contactos/${contact.id}`);
             form.value = { ...data };
-        } catch (e) {
-            // Manejo de error opcional: podrías mostrar un mensaje si falla la carga
+        } catch {
+            finishDialogPreparation(token);
+            setError('No se pudieron cargar los datos del contacto. Intenta nuevamente.', 'error');
+            return;
         }
+
+        isDialogOpen.value = true;
+        armDialogPreparationFallback(token);
     } else {
         form.value = { id: undefined, full_name: '', email: '', phone: '' };
         await nextTick();
@@ -349,6 +355,32 @@ function formatContactType(contactType?: string): string {
     return contactTypeLabels[contactType as ContactType] ?? contactType;
 }
 
+function downloadTemplate(): void {
+    window.open('/contactos/descargar-plantilla', '_blank');
+}
+
+function exportContactsExcel(): void {
+    window.open('/contactos/exportar-excel', '_blank');
+}
+
+function openBulkDialog(): void {
+    isBulkDialogOpen.value = true;
+}
+
+function closeBulkDialog(): void {
+    isBulkDialogOpen.value = false;
+}
+
+async function handleBulkUploaded(payload: { message: string }): Promise<void> {
+    await fetchContacts(1, searchQuery.value, selectedContactType.value || null);
+    successMessage.value = payload.message;
+    setError('', 'error');
+}
+
+function handleBulkUploadError(payload: { message: string }): void {
+    setError(payload.message);
+}
+
 function toggleSort(column: 'id' | 'id_number'): void {
     if (sortBy.value === column) {
         sortDir.value = sortDir.value === 'asc' ? 'desc' : 'asc';
@@ -397,10 +429,39 @@ onBeforeUnmount(() => {
                         Administra contactos de proveedores y clientes, controla su información de contacto y el tipo asignado.
                     </p>
                 </div>
-                <Button variant="default" size="pill" :disabled="isPreparingDialog" @click="openDialog('create')">
-                    <PlusCircle class="h-4 w-4" />
-                    Nuevo Contacto
-                </Button>
+                <div class="flex items-center gap-2">
+                    <Button variant="default" size="pill" :disabled="isPreparingDialog" @click="openDialog('create')">
+                        <PlusCircle class="h-4 w-4" />
+                        Nuevo Contacto
+                    </Button>
+
+                    <DropdownMenu>
+                        <DropdownMenuTrigger :as-child="true">
+                            <Button
+                                variant="outline"
+                                size="default"
+                                class="flex h-10 items-center justify-center rounded-full px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10"
+                                type="button"
+                            >
+                                <span>Otras acciones</span>
+                            </Button>
+                        </DropdownMenuTrigger>
+
+                        <DropdownMenuContent align="end" side="bottom" class="w-56">
+                            <DropdownMenuItem class="cursor-pointer gap-2" @click="downloadTemplate">
+                                <FileSpreadsheet class="h-4 w-4" /> Descargar plantilla
+                            </DropdownMenuItem>
+
+                            <DropdownMenuItem class="cursor-pointer gap-2" @click="exportContactsExcel">
+                                <Download class="h-4 w-4" /> Exportar contactos
+                            </DropdownMenuItem>
+
+                            <DropdownMenuItem class="cursor-pointer gap-2" @click="openBulkDialog">
+                                <Upload class="h-4 w-4" /> Importar contactos
+                            </DropdownMenuItem>
+                        </DropdownMenuContent>
+                    </DropdownMenu>
+                </div>
             </div>
 
             <!-- Filtros -->
@@ -452,7 +513,7 @@ onBeforeUnmount(() => {
                             <TableHead>Nombre</TableHead>
                             <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('id_number')">
                                 <span class="inline-flex items-center gap-1">
-                                    Numero de identificacion
+                                    Número de identificación
                                     <span class="text-muted-foreground">
                                         <template v-if="sortBy === 'id_number'">
                                             {{ sortDir === 'asc' ? '↑' : '↓' }}
@@ -463,7 +524,7 @@ onBeforeUnmount(() => {
                                     </span>
                                 </span>
                             </TableHead>
-                            <TableHead>Telefono</TableHead>
+                            <TableHead>Teléfono</TableHead>
                             <TableHead>Acciones</TableHead>
                         </TableRow>
                     </TableHeader>
@@ -486,7 +547,7 @@ onBeforeUnmount(() => {
                             <TableRow v-for="(contact, index) in contacts" :key="contact.id ?? `contact-${index}`">
                                 <TableCell class="font-medium">{{ contact.id }}</TableCell>
                                 <TableCell>{{ formatContactType(contact.contact_type) }}</TableCell>
-                                <TableCell class="font-medium">{{ contact.full_name }}</TableCell>
+                                <TableCell class="font-medium">{{ formatPersonNameDisplay(contact.full_name, contact.person_type) }}</TableCell>
                                 <TableCell>{{ contact.id_number }}</TableCell>
                                 <TableCell>{{ contact.phone }}</TableCell>
                                 <TableCell class="flex justify-center gap-1">
@@ -532,4 +593,6 @@ onBeforeUnmount(() => {
         :destructive="true"
         @confirm="deleteContact"
     />
+
+    <BulkUploadDialog :open="isBulkDialogOpen" @close="closeBulkDialog" @uploaded="handleBulkUploaded" @error="handleBulkUploadError" />
 </template>

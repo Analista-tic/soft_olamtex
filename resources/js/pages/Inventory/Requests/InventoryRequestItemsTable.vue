@@ -1,20 +1,12 @@
-<script lang="ts">
-import type { Item as CachedItem } from '@/domain/MasterData';
-
-let cachedCatalogItems: CachedItem[] | null = null;
-let catalogItemsPromise: Promise<CachedItem[]> | null = null;
-</script>
-
 <script setup lang="ts">
 import ImagePreviewDialog from '@/components/ImagePreviewDialog.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
 import InputField from '@/components/InputField.vue';
 import SelectField from '@/components/SelectField.vue';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import type { Item } from '@/domain/MasterData';
+import { useItemsCatalog } from '@/composables/useItemsCatalog';
 import axios from 'axios';
-import { ImagePlus, X } from 'lucide-vue-next';
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue';
+import { onBeforeUnmount, onMounted, computed, ref, watch } from 'vue';
 
 type RequestItem = {
     id?: number | null;
@@ -30,7 +22,8 @@ const props = defineProps<{ items: RequestItem[]; readonly?: boolean }>();
 const emit = defineEmits(['update:items']);
 
 const localItems = ref<RequestItem[]>([]);
-const catalogItems = ref<Item[]>([]);
+const { items: catalogItemsRaw, fetch: fetchItemsCatalog } = useItemsCatalog();
+const catalogItems = computed(() => [...catalogItemsRaw.value].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })));
 const fileInputRefs = ref<Record<number, HTMLInputElement | null>>({});
 const persistedImageUrls = ref<Record<number, string | null>>({});
 const isSyncingItems = ref(false);
@@ -65,20 +58,7 @@ function revokeBlobUrl(url?: string | null) {
 }
 
 async function fetchItems() {
-    if (cachedCatalogItems) {
-        catalogItems.value = cachedCatalogItems;
-        return;
-    }
-    if (!catalogItemsPromise) {
-        catalogItemsPromise = axios
-            .get('/item/data', { params: { per_page: 1000 } })
-            .then((res) => (res.data.data || []) as Item[])
-            .finally(() => {
-                catalogItemsPromise = null;
-            });
-    }
-    cachedCatalogItems = await catalogItemsPromise;
-    catalogItems.value = cachedCatalogItems;
+    await fetchItemsCatalog();
 }
 
 function normalizeItem(item: Partial<RequestItem>, index: number): RequestItem {
@@ -187,6 +167,38 @@ function getSelectionValue(item: RequestItem) {
     return item.name ? item.name : null;
 }
 
+/** Disponible total (todas las bodegas) por ítem del catálogo; no se pide más que esto. */
+const stockByItemId = ref<Record<number, number>>({});
+
+async function loadStock(itemId: number | null | undefined) {
+    if (!itemId || itemId in stockByItemId.value) return;
+    try {
+        const { data } = await axios.get('/warehouse-items', { params: { item_id: itemId } });
+        stockByItemId.value = { ...stockByItemId.value, [itemId]: Number(data?.total_quantity ?? 0) };
+    } catch {
+        // Sin dato de stock no se bloquea en pantalla; el servidor valida igual al guardar.
+    }
+}
+
+function stockOf(item: RequestItem): number | null {
+    return item.item_id && item.item_id in stockByItemId.value ? stockByItemId.value[item.item_id] : null;
+}
+
+function requestedFor(itemId: number | null): number {
+    return localItems.value.filter((i) => i.item_id === itemId).reduce((sum, i) => sum + (Number(i.quantity) || 0), 0);
+}
+
+function isOverStock(item: RequestItem): boolean {
+    const stock = stockOf(item);
+    return stock !== null && requestedFor(item.item_id) > stock + 0.0001;
+}
+
+/** Nombres de los ítems cuya cantidad pedida supera el disponible. */
+function exceededItems(): string[] {
+    const names = localItems.value.filter((item) => isOverStock(item)).map((item) => item.name);
+    return [...new Set(names)];
+}
+
 function handleItemSelection(item: RequestItem, value: unknown) {
     if (props.readonly) return;
 
@@ -201,6 +213,7 @@ function handleItemSelection(item: RequestItem, value: unknown) {
     if (match) {
         item.item_id = Number(match.id);
         item.name = match.name || '';
+        void loadStock(item.item_id);
     } else {
         item.item_id = null;
         item.name = String(value);
@@ -308,6 +321,12 @@ watch(
     { deep: true, immediate: true },
 );
 
+watch(
+    () => localItems.value.map((item) => item.item_id),
+    (ids) => ids.forEach((id) => void loadStock(id)),
+    { immediate: true },
+);
+
 onMounted(() => {
     void fetchItems();
 });
@@ -316,7 +335,7 @@ onBeforeUnmount(() => {
     localItems.value.forEach((item) => revokeBlobUrl(item.image_url));
 });
 
-defineExpose({ addItem });
+defineExpose({ addItem, exceededItems });
 </script>
 
 <template>
@@ -326,7 +345,7 @@ defineExpose({ addItem });
                 <TableHeader>
                     <TableRow class="border-b border-border bg-muted/50">
                         <TableHead class="min-w-[200px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground"
-                            >Item</TableHead
+                            >Ítem</TableHead
                         >
                         <TableHead class="min-w-[120px] px-3 py-2 text-left text-xs font-medium uppercase tracking-wide text-muted-foreground"
                             >Cantidad</TableHead
@@ -364,7 +383,15 @@ defineExpose({ addItem });
                                 class="h-10 w-full"
                                 :readonly="props.readonly"
                                 :disabled="props.readonly"
+                                :error="isOverStock(item) ? 'Supera el disponible' : false"
                             />
+                            <p
+                                v-if="stockOf(item) !== null"
+                                class="mt-1 text-xs"
+                                :class="isOverStock(item) ? 'text-destructive' : 'text-muted-foreground'"
+                            >
+                                Disponible: {{ stockOf(item) }}
+                            </p>
                         </TableCell>
                         <TableCell class="p-2 text-center align-middle">
                             <div class="flex items-center justify-center">

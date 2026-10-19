@@ -17,10 +17,11 @@ import {
     PaginationNext,
     PaginationPrev,
 } from '@/components/ui/pagination';
-import { Skeleton } from '@/components/ui/skeleton';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Skeleton } from '@/components/ui/skeleton';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useAlertStack } from '@/composables/useAlert';
+import { useAreas } from '@/composables/useAreas';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
 import type { NotificationFilters, NotificationRow } from '@/domain/Settings';
 import type { BreadcrumbItem } from '@/domain/shared';
@@ -74,52 +75,11 @@ const selectedDate = ref(props.filters.date ?? '');
 const { successMessage, errorMessage, errorType, showSuccess, showError, clearSuccess, clearError } = useAlertStack();
 
 // ---------- OPCIONES DE ÁREA ----------
-type AreaOption = { id: number | string; name: string };
-type NumericAreaOption = { id: number; name: string };
-const areaOptions = ref<AreaOption[]>([]);
-const areaSelectOptions = computed(() => [{ id: '', name: 'Todas las áreas' }, ...areaOptions.value]);
-
-function normalizeAreas(payload: unknown): AreaOption[] {
-    if (typeof payload === 'string') {
-        try {
-            return normalizeAreas(JSON.parse(payload));
-        } catch {
-            return [];
-        }
-    }
-    if (!Array.isArray(payload)) {
-        if (payload && typeof payload === 'object') {
-            const record = payload as Record<string, unknown>;
-            if ('data' in record) return normalizeAreas(record.data);
-            if ('valor' in record) return normalizeAreas(record.valor);
-        }
-        return [];
-    }
-    return payload
-        .map((area) => {
-            if (area && typeof area === 'object') {
-                const record = area as Record<string, unknown>;
-                const name = String(record.name ?? record.nombre ?? record.label ?? '').trim();
-                if (!name) return null;
-                const rawId = record.id;
-                const parsedId = typeof rawId === 'number' ? rawId : Number(rawId);
-                if (!Number.isFinite(parsedId)) return null;
-                return { id: parsedId, name };
-            }
-            return null;
-        })
-        .filter((area): area is NumericAreaOption => Boolean(area));
-}
-
-async function fetchAreas() {
-    try {
-        const { data } = await axios.get('/api/parameters/areas');
-        areaOptions.value = normalizeAreas(data);
-    } catch (error) {
-        console.error('Error al cargar áreas:', error);
-        areaOptions.value = [];
-    }
-}
+const { areaOptions, fetchAreas } = useAreas();
+const areaSelectOptions = computed(() => [
+    { id: '', name: 'Todas las áreas' },
+    ...[...areaOptions.value].sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
+]);
 
 onMounted(() => {
     fetchAreas();
@@ -493,7 +453,13 @@ watch([searchQuery, selectedArea, selectedStatus, selectedDate], () => {
                                 {{ notification.data?.area ?? notification.area ?? '—' }}
                             </TableCell>
                             <TableCell class="whitespace-nowrap">
-                                {{ notification.reporter ?? notification.data?.reporter ?? notification.data?.user_name ?? notification.user_name ?? '—' }}
+                                {{
+                                    notification.reporter ??
+                                    notification.data?.reporter ??
+                                    notification.data?.user_name ??
+                                    notification.user_name ??
+                                    '—'
+                                }}
                             </TableCell>
                             <TableCell class="whitespace-nowrap">
                                 <div class="flex items-center justify-center gap-1.5">

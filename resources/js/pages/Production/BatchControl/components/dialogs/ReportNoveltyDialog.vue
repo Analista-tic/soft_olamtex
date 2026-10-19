@@ -74,7 +74,7 @@ const emit = defineEmits<{
                     <label class="text-xs font-medium uppercase tracking-wide text-muted-foreground">
                         Descripción <span class="text-red-500">*</span>
                     </label>
-                    <Textarea
+                    <Textarea data-no-uppercase
                         :model-value="noveltyDescription"
                         placeholder="Describe qué falta, qué debe corregirse o la razón de la devolución..."
                         :rows="4"

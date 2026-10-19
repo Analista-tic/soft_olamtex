@@ -40,9 +40,10 @@ class PurchaseRequestTest extends DuskTestCase
 
             // Act — navega al módulo
             $browser->visit('/gastos/solicitudes-compra')
-                    // Abre el dialog de crear
+                    // Navega a la página de creación
                     ->waitFor('[dusk="btn-nueva-solicitud"]')
                     ->click('[dusk="btn-nueva-solicitud"]')
+                    ->waitForLocation('/gastos/solicitudes-compra/crear')
                     ->waitFor('[dusk="input-proveedor"]')
                     ->screenshot('debug-01-dialog-abierto')
 
@@ -92,6 +93,7 @@ class PurchaseRequestTest extends DuskTestCase
             $browser->visit('/gastos/solicitudes-compra')
                     ->waitFor('[dusk="btn-nueva-solicitud"]')
                     ->click('[dusk="btn-nueva-solicitud"]')
+                    ->waitForLocation('/gastos/solicitudes-compra/crear')
                     ->waitFor('[dusk="input-proveedor"]')
                     ->screenshot('debug-c03b-01-dialog-abierto')
 

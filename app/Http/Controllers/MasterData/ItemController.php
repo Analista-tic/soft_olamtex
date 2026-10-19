@@ -5,7 +5,6 @@ namespace App\Http\Controllers\MasterData;
 use App\Http\Controllers\Concerns\HandlesValidationErrors;
 use App\Http\Controllers\Controller;
 use App\Models\MasterData\CategorySubGroup;
-use App\Models\MasterData\Color;
 use App\Models\MasterData\Item;
 use App\Services\MasterData\ItemExcelService;
 use App\Services\MasterData\ItemReferenceSequenceService;
@@ -31,11 +30,7 @@ class ItemController extends Controller
 
     public function index()
     {
-        return Inertia::render('MasterData/Item/Index', [
-            'preloadedColors' => Color::query()
-                ->orderBy('name')
-                ->get(['id', 'name', 'rgb', 'hexadecimal', 'description']),
-        ]);
+        return Inertia::render('MasterData/Item/Index');
     }
 
     public function show($id)
@@ -49,7 +44,7 @@ class ItemController extends Controller
     public function store(Request $request)
     {
         try {
-            $data = $request->validate($this->itemValidationRules(false, null, $request));
+            $data = $request->validate($this->itemValidationRules(false, null, $request), $this->itemValidationMessages($request));
         } catch (ValidationException $e) {
             return $this->validationErrorResponse($e);
         } catch (\Throwable $e) {
@@ -66,7 +61,7 @@ class ItemController extends Controller
         $item = $this->service->find($id);
 
         try {
-            $data = $request->validate($this->itemValidationRules(true, $item, $request));
+            $data = $request->validate($this->itemValidationRules(true, $item, $request), $this->itemValidationMessages($request));
         } catch (ValidationException $e) {
             return $this->validationErrorResponse($e);
         } catch (\Throwable $e) {
@@ -107,9 +102,19 @@ class ItemController extends Controller
         return response()->json($items);
     }
 
-    public function togglestatus($id)
+    public function togglestatus(Request $request, $id)
     {
         $item = $this->service->find($id);
+
+        // Deshabilitar sigue abierto a 'activar desactivar item' (ya lo exige la
+        // ruta). Habilitar un ítem que estaba inactivo requiere además 'habilitar
+        // item' — permiso más restringido, reservado a admin/gerencia.
+        if (! $item->status && ! $request->user()?->can('habilitar item')) {
+            return response()->json([
+                'message' => 'No tienes permiso para habilitar ítems.',
+            ], 403);
+        }
+
         $status = $this->service->toggleStatus($item);
 
         return response()->json([
@@ -118,12 +123,37 @@ class ItemController extends Controller
         ]);
     }
 
+    public function bulkToggleStatus(Request $request)
+    {
+        $data = $request->validate([
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer', 'exists:items,id'],
+            'status' => ['required', 'boolean'],
+        ]);
+
+        if ($data['status'] && ! $request->user()?->can('habilitar item')) {
+            return response()->json([
+                'message' => 'No tienes permiso para habilitar ítems.',
+            ], 403);
+        }
+
+        $updated = $this->service->bulkSetStatus($data['ids'], (bool) $data['status']);
+
+        return response()->json([
+            'status' => $data['status'],
+            'updated' => $updated,
+            'message' => $data['status']
+                ? "{$updated} ítem(s) habilitado(s)"
+                : "{$updated} ítem(s) deshabilitado(s)",
+        ]);
+    }
+
     public function checkDuplicate(Request $request)
     {
         $data = $request->validate([
             'reference' => 'required|string',
             'category_sub_group_id' => 'required|integer',
-            'color_id' => 'nullable|integer|exists:colors,id',
+            'color_id' => 'required|integer|exists:colors,id',
             'fabric_name_id' => 'nullable|integer|exists:fabric_names,id',
             'yarn_name_id' => 'nullable|integer|exists:yarn_names,id',
             'extra_fields' => 'nullable',
@@ -161,7 +191,11 @@ class ItemController extends Controller
 
         $file = $request->file('file');
         $spreadsheet = IOFactory::load($file->getPathname());
-        $sheet = $spreadsheet->getActiveSheet();
+        // La plantilla mueve "Instrucciones" al frente y la deja como hoja activa
+        // (moveInstructionsToFirst()), así que un Excel guardado sin cambiar de
+        // pestaña reabre en "Instrucciones" — buscar la hoja de datos por nombre
+        // evita leer esa hoja en vez de "items".
+        $sheet = $spreadsheet->getSheetByName('items') ?? $spreadsheet->getActiveSheet();
         $rows = $sheet->toArray(null, true, true, true);
 
         // null = sin restricción (comportamiento de siempre: actualiza todos los campos
@@ -283,10 +317,43 @@ class ItemController extends Controller
         ]));
     }
 
-    private function resolveWarehouses(Request $request): array
+    private function resolveWarehouses(Request $request, bool $isCreate): array
     {
-        // Delegar la resolución de payloads de bodegas al servicio
-        return $this->service->resolveWarehousePayload($request->input('warehouses'));
+        // Delegar la resolución de payloads de bodegas al servicio. La cantidad solo se
+        // exige al crear: en edición el saldo no se toca desde la ficha del ítem.
+        return $this->service->resolveWarehousePayload($request->input('warehouses'), $isCreate);
+    }
+
+    /**
+    * La referencia automática es exclusiva de la creación: en edición, aunque
+     * llegara reference_mode=auto por error, no se regenera — cada regeneración
+     * consumiría un consecutivo nuevo y reemplazaría una referencia ya en uso (en
+     * compras, movimientos de inventario, etc.).
+     *
+    * Por defecto la referencia de un ítem nuevo es automática; asignarla a mano
+    * requiere el permiso 'crear referencia manual item' (reservado a un rol de
+    * mayor jerarquía, igual que 'habilitar item'). Se llama tanto desde
+     * itemValidationRules() (para saber si `reference` es obligatoria) como desde
+     * prepareItemPayload() (para decidir si se genera o se respeta la enviada) —
+     * ambas deben resolver siempre lo mismo, así que viven en un solo lugar.
+     */
+    private function resolveReferenceMode(Request $request, bool $isUpdate): string
+    {
+        if ($isUpdate) {
+            return 'manual';
+        }
+
+        if ($request->input('reference_mode', 'auto') !== 'manual') {
+            return 'auto';
+        }
+
+        if (! $request->user()?->can('crear referencia manual item')) {
+            throw ValidationException::withMessages([
+                'reference_mode' => ['No tienes permiso para asignar una referencia manual. La referencia se genera automáticamente.'],
+            ]);
+        }
+
+        return 'manual';
     }
 
     private function prepareItemPayload(Request $request, array $data, ?Item $item = null): array
@@ -295,23 +362,42 @@ class ItemController extends Controller
             $request->input('extra_fields') ?? ($item?->extra_fields ?? [])
         );
         $data['extra_fields'] = $extraFields;
-        $data['color_id'] = $request->filled('color_id') ? (int) $request->input('color_id') : null;
-        $data['fabric_name_id'] = $request->filled('fabric_name_id') ? (int) $request->input('fabric_name_id') : null;
-        $data['yarn_name_id'] = $request->filled('yarn_name_id') ? (int) $request->input('yarn_name_id') : null;
+        // Si el campo no viene en el request (p.ej. una actualización parcial que no
+        // toca el color), se conserva el valor actual del ítem en vez de nulearlo —
+        // antes se forzaba a null siempre que no llegara "filled", incluso en
+        // ediciones que ni mostraban ese campo.
+        $data['color_id'] = $request->has('color_id')
+            ? ($request->filled('color_id') ? (int) $request->input('color_id') : null)
+            : ($item->color_id ?? null);
+        $data['fabric_name_id'] = $request->has('fabric_name_id')
+            ? ($request->filled('fabric_name_id') ? (int) $request->input('fabric_name_id') : null)
+            : ($item->fabric_name_id ?? null);
+        $data['yarn_name_id'] = $request->has('yarn_name_id')
+            ? ($request->filled('yarn_name_id') ? (int) $request->input('yarn_name_id') : null)
+            : ($item->yarn_name_id ?? null);
 
         $subGroupId = $request->has('category_sub_group_id')
             ? (int) $request->input('category_sub_group_id')
             : ($item?->category_sub_group_id ?? null);
 
+        // fabric_name_id/yarn_name_id heredados arriba (no vinieron en el request):
+        // si el subgrupo nuevo ya no es compatible con ese valor heredado, se limpia
+        // en silencio en vez de bloquear la actualización — el cliente no está
+        // tocando ese campo, así que no tiene sentido exigirle que también lo limpie
+        // a mano solo porque cambió el subgrupo.
+        $subGroupForMaterialCheck = $subGroupId ? CategorySubGroup::find($subGroupId) : null;
+        if (! $request->has('fabric_name_id') && $data['fabric_name_id'] && ! MaterialClassifier::isFabricSubgroup($subGroupForMaterialCheck)) {
+            $data['fabric_name_id'] = null;
+        }
+        if (! $request->has('yarn_name_id') && $data['yarn_name_id'] && ! MaterialClassifier::isYarnSubgroup($subGroupForMaterialCheck)) {
+            $data['yarn_name_id'] = null;
+        }
+
         $this->assertMaterialNameMatchesSubgroup($subGroupId, $data['fabric_name_id'], $data['yarn_name_id']);
 
         $colorId = ! empty($data['color_id']) ? (int) $data['color_id'] : null;
 
-        // La referencia automática es exclusiva de la creación: en edición, aunque
-        // llegara reference_mode=auto por error, no se regenera — cada regeneración
-        // consumiría un consecutivo nuevo y reemplazaría una referencia ya en uso
-        // (en compras, movimientos de inventario, etc.).
-        $referenceMode = ! $item && $request->input('reference_mode', 'manual') === 'auto' ? 'auto' : 'manual';
+        $referenceMode = $this->resolveReferenceMode($request, $item !== null);
         if ($referenceMode === 'auto') {
             // La referencia la genera el servicio, sin importar lo que haya llegado en
             // el payload — el frontend no debería enviar nada en modo automático, pero
@@ -364,7 +450,7 @@ class ItemController extends Controller
         }
 
         $this->handleImageUploadIfPresent($request, $data, 'items');
-        $warehouses = $this->resolveWarehouses($request);
+        $warehouses = $this->resolveWarehouses($request, $item === null);
 
         return [
             'data' => $data,
@@ -393,18 +479,31 @@ class ItemController extends Controller
         }
     }
 
+    private function itemValidationMessages(Request $request): array
+    {
+        $reference = trim((string) $request->input('reference', ''));
+
+        return [
+            'reference.unique' => $reference !== ''
+                ? "La referencia \"{$reference}\" ya está asignada a otro ítem. Ingresa una referencia distinta."
+                : 'La referencia ingresada ya está asignada a otro ítem. Ingresa una referencia distinta.',
+            'reference.required' => 'La referencia es obligatoria cuando se ingresa de forma manual.',
+        ];
+    }
+
     private function itemValidationRules(bool $isUpdate = false, $item = null, ?Request $request = null): array
     {
         $rules = [
             'category_sub_group_id' => ($isUpdate ? 'sometimes' : 'required').'|integer',
             'img' => 'nullable|string',
             'image' => 'nullable|file|image',
-            'color_id' => 'nullable|integer|exists:colors,id',
+            'color_id' => 'required|integer|exists:colors,id',
             'fabric_name_id' => 'nullable|integer|exists:fabric_names,id',
             'yarn_name_id' => 'nullable|integer|exists:yarn_names,id',
             'tax_id' => 'nullable|integer',
             'tax' => ($isUpdate ? 'sometimes' : 'required').'|numeric',
             'bar_code' => 'nullable|string',
+            'legacy_code' => 'nullable|string|max:255',
             'negative_movement' => $isUpdate ? 'sometimes' : 'required',
             'description' => ($isUpdate ? 'sometimes' : 'required').'|string',
             'extra_fields' => 'nullable',
@@ -423,7 +522,7 @@ class ItemController extends Controller
         // manual conserva la misma validación de siempre: obligatoria y única. Solo
         // aplica en creación — igual que en prepareItemPayload(), en edición nunca se
         // trata como automática aunque llegue reference_mode=auto por error.
-        $referenceMode = ! $isUpdate && $request?->input('reference_mode', 'manual') === 'auto' ? 'auto' : 'manual';
+        $referenceMode = $request ? $this->resolveReferenceMode($request, $isUpdate) : 'manual';
 
         if ($referenceMode === 'auto') {
             $rules['reference'] = ['nullable', 'string'];

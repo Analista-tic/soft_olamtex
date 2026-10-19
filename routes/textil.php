@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Textil\FabricRollController;
+use App\Http\Controllers\Textil\FabricRollLengthDifferenceController;
 use Illuminate\Support\Facades\Route;
 
 // === ROLLOS DE TELA ===
@@ -96,17 +97,41 @@ Route::prefix('kardex-telas')->name('kardex-telas.')->middleware('permission:ver
         ->name('descargue-orden.show');
     Route::get('/exportar-rollos', [FabricRollController::class, 'exportRolls'])->name('exportar-rollos');
 
+    // Sobrantes/faltantes de metraje detectados al descargar: revisión del supervisor.
+    Route::get('/diferencias-metraje', [FabricRollLengthDifferenceController::class, 'index'])
+        ->name('diferencias-metraje');
+    Route::get('/diferencias-metraje/data', [FabricRollLengthDifferenceController::class, 'data'])
+        ->name('diferencias-metraje.data');
+    Route::patch('/diferencias-metraje/{fabricRollLengthDifference}/revisar', [FabricRollLengthDifferenceController::class, 'review'])
+        ->middleware('permission:revisar diferencias metraje telas')
+        ->name('diferencias-metraje.review');
+
     Route::prefix('recepcion')->name('reception.')->group(function () {
         Route::get('/', [FabricRollController::class, 'reception'])->name('index');
         Route::get('/data', [FabricRollController::class, 'receptionData'])->name('data');
         Route::get('/facturas/{purchaseDocument}', [FabricRollController::class, 'receptionInvoice'])->name('invoice');
         Route::get('/{invoice}', [FabricRollController::class, 'receptionShow'])->name('show');
+        Route::patch('/{invoice}/registrar', [FabricRollController::class, 'registerGeneralReception'])
+            ->middleware('permission:aprobar recepcion tela')
+            ->name('register');
+        Route::patch('/{invoice}/recepciones/{reception}', [FabricRollController::class, 'updateGeneralReception'])
+            ->middleware('permission:aprobar recepcion tela')
+            ->name('update-general-reception');
         Route::patch('/{invoice}/aprobar', [FabricRollController::class, 'approveReception'])
             ->middleware('permission:aprobar recepcion tela')
             ->name('approve');
+        Route::patch('/{invoice}/reportar-diferencia', [FabricRollController::class, 'reportReceptionDifference'])
+            ->middleware('permission:aprobar recepcion tela')
+            ->name('report-difference');
         Route::patch('/{invoice}/rechazar', [FabricRollController::class, 'rejectReception'])
             ->middleware('permission:rechazar recepcion tela')
             ->name('reject');
+        Route::patch('/rollos/{roll}/aprobar-diferencia', [FabricRollController::class, 'approveRollDifference'])
+            ->middleware('permission:aprobar recepcion tela')
+            ->name('roll-approve-difference');
+        Route::patch('/rollos/{roll}/rechazar', [FabricRollController::class, 'rejectRoll'])
+            ->middleware('permission:rechazar recepcion tela')
+            ->name('roll-reject');
     });
 
     Route::post('/rollos', [FabricRollController::class, 'storeFromReception'])->name('rollos.store')->middleware('permission:crear telas rollos');

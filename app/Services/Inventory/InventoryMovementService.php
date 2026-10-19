@@ -5,9 +5,12 @@ namespace App\Services\Inventory;
 use App\Helpers\ScopeHelper;
 use App\Models\Inventory\InventoryMovement;
 use App\Models\Inventory\InventoryPeriodLock;
+use App\Support\DocumentSequence;
 use App\Models\MasterData\Item;
+use App\Models\Production\ProductionOrder;
 use App\Models\Settings\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
 
@@ -463,21 +466,16 @@ class InventoryMovementService
      */
     protected function generateMovementNumber(): string
     {
-        $year = now()->year;
-        $prefix = "MOV-{$year}-";
+        // Contador atómico por año. La versión anterior ordenaba como texto y leía 3 dígitos: al llegar a
+        // MOV-2026-1000 repetía 1000 para siempre, y dos movimientos simultáneos calculaban el mismo número.
+        $prefix = 'MOV-' . now()->year;
 
-        $lastMovement = InventoryMovement::where('document_number', 'like', "{$prefix}%")
-            ->orderByDesc('document_number')
-            ->first();
+        $next = DocumentSequence::next(
+            "inventory_movements:{$prefix}",
+            fn () => DocumentSequence::maxInTable('inventory_movements', 'document_number', $prefix)
+        );
 
-        if ($lastMovement) {
-            $lastNumber = (int) substr($lastMovement->document_number, -3);
-            $nextNumber = $lastNumber + 1;
-        } else {
-            $nextNumber = 1;
-        }
-
-        return $prefix . str_pad($nextNumber, 3, '0', STR_PAD_LEFT);
+        return sprintf('%s-%03d', $prefix, $next);
     }
 
     /**
@@ -518,10 +516,39 @@ class InventoryMovementService
      */
     public function paginate(array $filters = [], int $perPage = 20, ?User $user = null): LengthAwarePaginator
     {
+        return $this->buildFilteredQuery($filters, $user)->paginate($perPage);
+    }
+
+    /** Origen "salidas de insumos a OP": las registra Control de Lotes (Salida Logística). */
+    public const ORIGIN_OP_SUPPLY_EXIT = 'op_supply_exit';
+
+    /**
+     * Query de movimientos con los filtros de la pantalla (la usan la tabla y el Excel).
+     */
+    public function buildFilteredQuery(array $filters = [], ?User $user = null): Builder
+    {
         // Eager-load `source` (morphTo) to allow resolving document numbers
         // without incurring N+1 queries when the accessor reads the related model.
         $query = InventoryMovement::with(['item', 'warehouse', 'createdBy', 'source']);
         ScopeHelper::apply($query, $user, 'ver propios movimientos inventario', null, 'ver todos movimientos inventario');
+
+        if (($filters['origin'] ?? null) === self::ORIGIN_OP_SUPPLY_EXIT) {
+            // El consumo de rollos también usa ProductionOrder como origen; las salidas
+            // de insumos de Control de Lotes se distinguen por su nota estándar.
+            $query->where('type', 'salida')
+                ->where('source_type', ProductionOrder::class)
+                ->where('notes', 'like', 'Salida Logística OP %');
+        }
+
+        if (!empty($filters['op_code'])) {
+            $opCode = trim((string) $filters['op_code']);
+            $query->where(function ($q) use ($opCode) {
+                $q->where('source_reference', 'like', "%{$opCode}%")
+                    ->orWhere(fn ($sq) => $sq
+                        ->where('source_type', ProductionOrder::class)
+                        ->whereIn('source_id', ProductionOrder::query()->select('id')->where('op_code', 'like', "%{$opCode}%")));
+            });
+        }
 
         if (!empty($filters['item_id'])) {
             $query->where('item_id', $filters['item_id']);
@@ -554,7 +581,8 @@ class InventoryMovementService
                     ->orWhere('type', 'like', "%{$search}%")
                     ->orWhereHas('item', fn ($iq) => $iq
                         ->where('name', 'like', "%{$search}%")
-                        ->orWhere('reference', 'like', "%{$search}%"))
+                        ->orWhere('reference', 'like', "%{$search}%")
+                        ->orWhere('legacy_code', 'like', "%{$search}%"))
                     ->orWhereHas('warehouse', fn ($wq) => $wq
                         ->where('name', 'like', "%{$search}%"));
             });
@@ -604,7 +632,7 @@ class InventoryMovementService
             $query->orderBy('id', 'desc');
         }
 
-        return $query->paginate($perPage);
+        return $query;
     }
 
     /**

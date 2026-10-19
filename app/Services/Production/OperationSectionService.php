@@ -50,7 +50,7 @@ class OperationSectionService
 
         $section = $this->model->withTrashed()->firstOrNew(['name' => $normalizedName]);
         $section->name = $normalizedName;
-        $section->type = (string) ($data['type'] ?? 'confeccion');
+        $section->type = (string) ($data['type'] ?? 'PREPARACION');
         $section->is_active = (bool) ($data['is_active'] ?? true);
         $section->deleted_at = null;
         $section->save();

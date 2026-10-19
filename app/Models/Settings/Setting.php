@@ -26,6 +26,14 @@ class Setting extends Model
         'select',
     ];
 
+    use \App\Models\Concerns\NormalizesAttributes;
+
+    /** Reglas de normalización al guardar. kind/key/field_type/source_type/catalog_key y JSON quedan fuera. */
+    protected array $normalizedAttributes = [
+        'label' => 'normalizeDisplayText',
+        'description' => 'freeText',
+    ];
+
     protected $table = 'settings';
 
     protected $fillable = [

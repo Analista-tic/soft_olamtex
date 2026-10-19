@@ -169,7 +169,7 @@ function getRetentionPercent(retentionId: number | null): number {
 async function loadRetentionOptions(): Promise<void> {
     loadingRetentions.value = true;
     try {
-        await retentionsStore.fetchRetentions();
+        await retentionsStore.fetchRetentions(true);
         retentionOptions.value = retentionsStore.items
             .filter((r): r is Retention & { id: number } => r.id != null)
             .filter((r) => r.status === 'active')
@@ -177,7 +177,8 @@ async function loadRetentionOptions(): Promise<void> {
                 id: Number(r.id),
                 name: `${r.name} (${r.percent}%)`,
                 percent: Number(r.percent ?? 0),
-            }));
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
     } catch (error) {
         console.error(error);
         emit('error', 'No fue posible cargar el catálogo de retenciones.');

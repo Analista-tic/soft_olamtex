@@ -96,6 +96,16 @@
 - **Responsive primero:** en desktop usar proporciones equilibradas; en pantallas menores apilar sin perder legibilidad ni ocultar campos importantes.
 - **Consistencia de espaciado:** usar paddings, gaps y alturas visuales consistentes dentro del dialog; evitar bloques que se vean comprimidos o sobredimensionados frente a otros del mismo modal.
 
+### Regla obligatoria: validación visible en formularios y dialogs
+Aplica a todo formulario nuevo o modificado (crear, editar, importar), no solo al que se está tocando.
+- **Todo campo obligatorio debe verse obligatorio y marcarse cuando falta.** Asterisco rojo en la etiqueta + borde rojo (`invalid` / `error`) + mensaje corto ("Requerido") bajo el campo. Un mensaje general arriba sin marcar el campo concreto no cumple la regla.
+- **Se marca al intentar guardar** (flag `submitAttempted`, se reinicia al abrir el dialog) y se limpia en vivo cuando el campo se completa. No marcar en rojo un formulario recién abierto.
+- **Una sola fuente de verdad por validación:** la función/computed que decide "falta este campo" es la misma que arma el mensaje general y la que pinta el campo (ej. `inventoryRowGaps()` en `ItemFormContent.vue`). Prohibido duplicar la condición en `handleSubmit` y en el template.
+- **Cubrir todos los campos de la lista de obligatorios**, incluidos los dinámicos (campos adicionales, filas repetibles como detalle de inventario) y los que usan componentes propios. Si un componente (`SelectField`, `CreatableSelectField`, `InputField`, `InputIntegerField`, `ColorPickerSelect`, `ExtraFieldsForm`…) no soporta `invalid`/`error`, agrégaselo al componente en vez de dejar el campo sin marcar.
+- **Vacío no es cero:** un campo numérico vacío (`''`, `null`) es faltante; `0` es un valor válido. No usar `Number.isFinite(Number(v))` solo, porque `Number('') === 0`.
+- **Alinear con el backend:** la regla del frontend debe ser igual a la del backend (FormRequest/servicio). Si el backend exige un campo, el frontend lo marca; si no, no.
+- **Editar datos antiguos:** al abrir un registro existente, los campos que hoy son obligatorios pero vienen vacíos (datos previos a la regla) deben ser editables en ese formulario; nunca dejar un campo obligatorio oculto o de solo lectura en edición.
+
 ### Client Routing
 - Use `route('usuarios.index')` etc. via Ziggy (`ziggy-js` alias). Keep names in [routes/web.php](routes/web.php) aligned with component locations under `resources/js`.
 
@@ -110,8 +120,8 @@
   composer run dev:ssr
   ```
   Adds `php artisan inertia:start-ssr` and logs via `php artisan pail`.
-- DB migration & seed: `php artisan migrate:fresh --seed`. Route binding and permissions require seeded data.
-- Tests: Pest is configured; run `vendor/bin/pest` or `php artisan test`.
+- DB migration & seed: `php artisan migrate` y `php artisan db:seed --class=RolesAndPermissionsSeeder` (no destructivos). **NUNCA** `migrate:fresh`, `migrate:refresh`, `migrate:reset` ni `db:wipe` sobre la BD de desarrollo: borra los datos de prueba. Solo con petición explícita del usuario.
+- Tests: Pest usa `RefreshDatabase` y vacía la BD configurada en `.env`. **No ejecutar `vendor/bin/pest` ni `php artisan test`** salvo que el usuario lo pida explícitamente o exista una BD de pruebas aislada configurada.
 - Builds: `npm run build` (CSR) or `npm run build:ssr` for SSR bundles.
 
 ### Depuración y mantenibilidad (facilitar debugging futuro)
@@ -138,6 +148,7 @@
 - Permissions: Most routes are gated by `auth`, `verified`, and `permission:*`. Ensure proper middleware on new routes.
 - SSR: Only needed for specific pages; wire via the existing SSR entry and composer script.
 - Auditing noise: Add high-churn columns to `AuditLog::$auditIgnore` to reduce diff clutter.
+- Consecutivos/identificadores de documentos: se asignan en el servidor al guardar con `App\Support\DocumentSequence` (contador atómico, dentro de la transacción de creación) y con índice único en BD; nunca `max(id)+1`, "el último por id" ni un número "sugerido" al abrir el formulario. Ver [docs/NUMERACION_Y_DUPLICADOS.md](../docs/NUMERACION_Y_DUPLICADOS.md).
 
 ### Naming & Structure
 - Prefer Spanish route prefixes and names (e.g., `usuarios`, `gastos`, `inventario`, `kardex-telas`).
@@ -206,6 +217,40 @@ function setError(msg: string, type: 'error' | 'warning' | 'info' = 'error') {
 
 Ver documentación completa en [GUIA_ALERTAS.md](../docs/GUIA_ALERTAS.md).
 
+## Convenciones de texto visible en UI (Obligatorio)
+
+**Todo texto que ve el usuario final** (labels, `TableHead`, `DialogTitle`/títulos de página, texto de `Button`, `placeholder`, badges de estado, tooltips/`HelpTooltip`, mensajes de `useGlobalAlert`/`AlertBox`) sigue estas reglas. El objetivo es eliminar la mezcla actual de MAYÚSCULAS, Mayúscula Inicial En Cada Palabra y camelCase filtrado desde el backend.
+
+### Capitalización: mayúscula inicial de oración (sentence case)
+Solo la primera letra de la frase (y los nombres propios/siglas) va en mayúscula; el resto en minúsculas. En español **no existe el Title Case** de inglés.
+- ✅ `Solicitud de compra y servicios`, `Nueva solicitud`, `Fecha de solicitud`, `Enviar a aprobación`
+- ❌ `Solicitud De Compra Y Servicios` (Title Case), `SOLICITUD DE COMPRA` (mayúsculas sostenidas), `solicitud de Compra` (mezcla arbitraria)
+- Excepción: acrónimos de negocio (`NIT`, `IVA`, `SOL-014`) y nombres propios (proveedor, persona, marca) conservan su forma natural.
+- Ejemplo real a corregir cuando se toque el archivo: el `<h1>` de `PurchaseRequests/Index.vue` dice "Solicitud de Compra y Servicios" (Title Case) y debería ser "Solicitud de compra y servicios".
+
+### Nunca mostrar el valor crudo del backend
+- Prohibido pintar en el DOM un enum/estado en snake_case o minúsculas técnicas (`pending`, `provider_name`, `solicited_to`). Todo estado pasa por un diccionario de etiquetas en español (patrón `statusLabels` ya usado en `PurchaseRequests/Index.vue`) antes de mostrarse.
+- Los labels de campo se redactan a mano en español con el casing de esta sección; no se derivan automáticamente del nombre de columna.
+
+### Botones y acciones
+Verbo en infinitivo o frase corta de acción, sentence case, sin punto final: `Guardar borrador`, `Guardar y enviar a aprobación`, `Eliminar solicitud`.
+
+### Badges y mensajes
+- Badges de estado: una palabra o frase corta en sentence case (`Pendiente`, `Aprobada`, `Rechazada`).
+- Mensajes de alerta: oración completa en sentence case terminada en punto (`Solicitud eliminada correctamente.`). Tooltips/ayudas cortas sin verbo pueden omitir el punto.
+
+### Ortografía y tildes (obligatorio)
+- Toda cadena visible lleva tildes y ortografía correcta: `número` (no `numero`), `descripción` (no `descripcion`), `aprobación` (no `aprobacion`), uso correcto de `ñ`.
+- Antes de cerrar una tarea que agregue o toque texto visible, revisar ortografía/tildes de cada cadena nueva o modificada.
+- Un mismo concepto usa siempre el mismo término en todo el proyecto (ej. siempre "solicitud de compra"; no alternar con "solicitud de compras" o "pedido de compra" para la misma entidad).
+
+### Formato numérico (es-CO)
+- En la interfaz, el separador decimal es la **coma** y el de miles el punto (`50,25`; `$ 1.250.000`). Usar `toLocaleString('es-CO', …)` o los helpers de `@/lib/decimalFormat` (`formatDecimalInput`, `parseDecimalInput`, `toApiDecimal`).
+- API, base de datos y validaciones backend usan **punto** decimal. Los campos que el usuario ve con coma se convierten con `toApiDecimal` justo antes de enviar.
+
+### Alcance de aplicación
+- Al modificar un archivo `.vue`/Blade/PHP por cualquier motivo, corregir de paso el texto visible de ese archivo que no cumpla esta convención. No se exige un barrido completo del proyecto solo por esta regla; se corrige de forma incremental, archivo por archivo, a medida que se toca cada uno.
+
 ## Optimización de tokens (obligatorio)
 - Leer solo archivos mencionados en la tarea.
 - No leer `node_modules/`, `dist/`, `.git/`, `build/`, `coverage/` salvo instrucción explícita.
@@ -228,6 +273,6 @@ Ver documentación completa en [GUIA_ALERTAS.md](../docs/GUIA_ALERTAS.md).
 - **Frontend:** Añadir componentes Vue 3 + TS bajo `resources/js/<Domain>/...`, navegar con nombres de ruta Ziggy y mantener nombres alineados con los grupos del backend. **IMPORTANTE:** Siempre incluir alertas para operaciones (crear, editar, eliminar, guardar) usando `useGlobalAlert()` en páginas y `AlertBox` locale en dialogs.
 - **Dialogs:** Cuando el feature use modal, construirlo con `FormDialogContent` y mantener una distribución proporcional del espacio: formulario principal dominante, paneles auxiliares compactos, y layout claro para lectura/captura.
 - **Alertas:** Toda operación debe mostrar feedback: success para operaciones exitosas, error para fallos, warning para advertencias. Nunca dejar usuarios sin saber si algo se guardó o falló.
-- **QA:** Ejecutar `php artisan migrate:fresh --seed`, `vendor/bin/pest` y format/lint en `resources/`. Todo código nuevo debe ser depurable siguiendo los patrones de este documento.
+- **QA:** Ejecutar `php artisan migrate` (nunca `migrate:fresh` sobre la BD de desarrollo) y format/lint en `resources/`. Los tests Pest solo se ejecutan con BD de pruebas aislada o si el usuario lo pide. Todo código nuevo debe ser depurable siguiendo los patrones de este documento.
 
 Si alguna sección no queda clara o falta un patrón importante, indicarlo para refinar estas instrucciones.

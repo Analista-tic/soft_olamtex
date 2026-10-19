@@ -3,19 +3,17 @@
 namespace App\Notifications;
 
 use App\Models\Expenses\PurchaseDocument;
+use App\Notifications\Concerns\UsesConfiguredChannels;
 use Illuminate\Notifications\Notification;
 
 class PurchaseOrderCreatedNotification extends Notification
 {
+    use UsesConfiguredChannels;
+
     public function __construct(
         protected PurchaseDocument $order,
         protected ?string $creatorName = null
     ) {}
-
-    public function via(object $notifiable): array
-    {
-        return ['database'];
-    }
 
     public function toArray(object $notifiable): array
     {

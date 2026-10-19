@@ -10,13 +10,11 @@ use App\Http\Controllers\Controller;
 use App\Models\Production\BatchControlDelivery;
 use App\Models\Production\BatchControlNovelty;
 use App\Models\Production\ProductionOrder;
-use App\Models\Production\ProductionRollConsumption;
 use App\Models\Production\TechnicalSheetSupply;
 use App\Models\Production\TechnicalSheet;
 use App\Models\Production\TechnicalSheetOperation;
 use App\Models\Production\TechnicalSheetOperationHistory;
 use App\Models\Textil\FabricRoll;
-use App\Models\Textil\FabricRollAdjustment;
 use App\Services\Inventory\InventoryMovementService;
 use App\Services\Production\FabricBaseService;
 use App\Services\Production\FinishedProductCatalogItemService;
@@ -27,6 +25,7 @@ use App\Services\Production\MachineService;
 use App\Services\Production\OperationSectionService;
 use App\Services\Production\OperationService;
 use App\Services\Settings\SettingService;
+use App\Services\Textil\FabricRollService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
@@ -121,6 +120,7 @@ class BatchControlController extends Controller
         private TechnicalSheetService $technicalSheetService,
         private FabricBaseService $fabricBaseService,
         private TechnicalDataSheetRollsStore $rollsStore,
+        private FabricRollService $fabricRollService,
     ) {
     }
 
@@ -412,7 +412,7 @@ class BatchControlController extends Controller
 
         $fromProcess = $this->normalizeBatchProcessName($order->current_process);
         if ($fromProcess === null) {
-            return response()->json(['message' => 'La orden no tiene un proceso actual valido.'], 422);
+            return response()->json(['message' => 'La orden no tiene un proceso actual válido.'], 422);
         }
 
         if ($toProcess === $fromProcess) {
@@ -513,8 +513,11 @@ class BatchControlController extends Controller
             'priorities.*.batch_priority' => 'required|integer|min:0',
         ]);
 
+        // Por instancia para que el AuditObserver registre cada cambio de prioridad.
         foreach ($request->input('priorities') as $item) {
             ProductionOrder::where('id', $item['id'])
+                ->get()
+                ->each
                 ->update(['batch_priority' => $item['batch_priority']]);
         }
 
@@ -536,7 +539,7 @@ class BatchControlController extends Controller
 
         $process = $this->normalizeBatchProcessName($request->input('process'));
         if ($process === null || !in_array($process, config('product-sheet.batch_control_processes', []), true)) {
-            return response()->json(['message' => 'El proceso no es valido.'], 422);
+            return response()->json(['message' => 'El proceso no es válido.'], 422);
         }
         $date = $request->input('estimated_date');
 
@@ -1017,175 +1020,12 @@ class BatchControlController extends Controller
             'updated_by'   => $request->user()?->id,
         ];
 
-        // ── 1. Resolver roll_code → fabric_roll_id ───────────────────────────────
-        $rollCodes = array_values(array_unique(array_filter(
-            array_map(static fn ($l) => trim((string) ($l['roll_code'] ?? '')), $validated['lines']),
-            static fn ($c) => $c !== '',
-        )));
-        $rollIdsByCode = [];
-        if (!empty($rollCodes)) {
-            $rolls = FabricRoll::query()
-                ->select(['id', 'roll_number'])
-                ->whereIn('roll_number', $rollCodes)
-                ->get();
-            foreach ($rolls as $roll) {
-                $rollIdsByCode[trim((string) $roll->roll_number)] = (int) $roll->id;
-            }
-        }
-
-        // ── 2. Construir mapa nuevo: roll_id → metros (suma si hay duplicados) ──
-        $newByRollId = [];
-        foreach ($validated['lines'] as $line) {
-            $rollCode    = trim((string) ($line['roll_code'] ?? ''));
-            $rollId      = $rollCode !== '' ? ($rollIdsByCode[$rollCode] ?? null) : null;
-            $consumption = (float) ($line['total_consumption'] ?? 0);
-            if ($rollId === null || $consumption <= 0) continue;
-            $newByRollId[$rollId] = ($newByRollId[$rollId] ?? 0.0) + $consumption;
-        }
-
-        // ── 2b. Metros programados por esta OP (para liberar partial en primer descargue) ──
-        $programmedByRollId = [];
-        foreach ($validated['lines'] as $line) {
-            $rollCode   = trim((string) ($line['roll_code'] ?? ''));
-            $rollId     = $rollCode !== '' ? ($rollIdsByCode[$rollCode] ?? null) : null;
-            $programmed = (float) ($line['meters_per_roll'] ?? 0);
-            if ($rollId !== null && $programmed > 0) {
-                $programmedByRollId[$rollId] = ($programmedByRollId[$rollId] ?? 0.0) + $programmed;
-            }
-        }
-
-        // ── 3. Leer consumo previo aplicado por esta orden ───────────────────────
-        $prevByRollId = ProductionRollConsumption::where('production_order_id', $order->id)
-            ->get()
-            ->keyBy('fabric_roll_id')
-            ->map(static fn ($r) => (float) $r->meters_consumed);
-
-        // ── 4. Calcular deltas y cargar rollos afectados ─────────────────────────
-        $allRollIds = array_unique(array_merge(
-            array_keys($newByRollId),
-            $prevByRollId->keys()->all(),
-        ));
-
-        $rollModels = [];
-        if (!empty($allRollIds)) {
-            $rollModels = FabricRoll::with(['item.warehouses'])
-                ->whereIn('id', $allRollIds)
-                ->get()
-                ->keyBy('id');
-        }
-
-        $userId = $request->user()?->id;
-
-        DB::transaction(function () use (
-            $order, $payload, $newByRollId, $prevByRollId, $allRollIds, $rollModels, $userId, $programmedByRollId
-        ) {
-            // 4a. Guardar JSON
+        // Rollos, reservas, kardex y consumos por orden: FabricRollService::saveCutConsumption()
+        // (bloqueos, liberación de la reserva de ficha técnica, sobrante/faltante de metraje).
+        // Un error de kardex cancela todo el guardado en vez de omitirse en silencio.
+        DB::transaction(function () use ($order, $payload, $validated) {
             $order->update(['cut_fabric_consumption' => $payload]);
-
-            // 4b. Aplicar deltas a actual_output, liberar partial en primer descargue, y registrar novedades
-            foreach ($allRollIds as $rollId) {
-                $prevMeters = (float) ($prevByRollId[$rollId] ?? 0);
-                $newMeters  = $newByRollId[$rollId] ?? 0.0;
-                $delta      = round($newMeters - $prevMeters, 6);
-
-                if (abs($delta) < 0.000001) continue;
-
-                /** @var FabricRoll|null $roll */
-                $roll = $rollModels[$rollId] ?? null;
-                if (!$roll) continue;
-
-                $isFirstCut          = $prevMeters < 0.001;
-                $programmedForThisOp = (float) ($programmedByRollId[$rollId] ?? 0.0);
-                $currentPartial      = (float) $roll->partial_output;
-
-                if ($isFirstCut && $programmedForThisOp > 0.001) {
-                    // Primer descargue: liberar la reserva parcial de esta OP
-                    $newPartial = round(max(0.0, $currentPartial - $programmedForThisOp), 2);
-                    $actualOutputBefore = (float) $roll->actual_output;
-                    $newActualOutput = max(0.0, round($actualOutputBefore + $delta, 6));
-                    $roll->update([
-                        'actual_output'  => $newActualOutput,
-                        'partial_output' => $newPartial,
-                    ]);
-
-                    // Trazabilidad de novedad si el consumo difiere del programado
-                    if (abs($newMeters - $programmedForThisOp) > 0.01) {
-                        FabricRollAdjustment::create([
-                            'fabric_roll_id'  => $rollId,
-                            'user_id'         => $userId,
-                            'type'            => 'salida',
-                            'quantity_before' => $roll->quantity,
-                            'quantity_after'  => $roll->quantity,
-                            'partial_before'  => $currentPartial,
-                            'partial_after'   => $newPartial,
-                            'actual_output_before' => $actualOutputBefore,
-                            'actual_output_after'  => $newActualOutput,
-                            'reason'          => "Novedad descargue corte: {$newMeters}m consumidos vs {$programmedForThisOp}m programados — OP {$order->op_code}",
-                            'reference'       => "cut_consumption::{$order->id}",
-                        ]);
-                    }
-                } else {
-                    // Corrección de descargue: solo ajustar actual_output
-                    $roll->update([
-                        'actual_output' => max(0.0, round((float) $roll->actual_output + $delta, 6)),
-                    ]);
-                }
-
-                // Movimiento de inventario (solo si el rollo tiene ítem y bodega)
-                $item = $roll->item;
-                if (!$item) continue;
-                $warehouse = $item->warehouses()->first();
-                if (!$warehouse) continue;
-
-                $unitPrice = $this->movementService->getCurrentWeightedPrice($item->id, $warehouse->id);
-                if ($unitPrice <= 0) {
-                    $unitPrice = (float) ($roll->price_per_meter ?? 0);
-                }
-
-                try {
-                    if ($delta > 0) {
-                        $this->movementService->createMovement([
-                            'item_id'            => $item->id,
-                            'warehouse_id'       => $warehouse->id,
-                            'type'               => 'salida',
-                            'quantity'           => $delta,
-                            'unit_price'         => $unitPrice,
-                            'date'               => now()->toDateString(),
-                            'source_type'        => ProductionOrder::class,
-                            'source_id'          => $order->id,
-                            'notes'              => "Consumo corte rollo #{$roll->roll_number} — OP {$order->op_code}",
-                            'created_by_user_id' => $userId,
-                        ]);
-                    } else {
-                        // Corrección: reversa del exceso aplicado
-                        $this->movementService->createMovement([
-                            'item_id'            => $item->id,
-                            'warehouse_id'       => $warehouse->id,
-                            'type'               => 'entrada',
-                            'quantity'           => abs($delta),
-                            'unit_price'         => $unitPrice,
-                            'date'               => now()->toDateString(),
-                            'source_type'        => ProductionOrder::class,
-                            'source_id'          => $order->id,
-                            'notes'              => "Corrección corte rollo #{$roll->roll_number} — OP {$order->op_code}",
-                            'created_by_user_id' => $userId,
-                        ]);
-                    }
-                } catch (\Throwable $e) {
-                    // Si el movimiento de inventario falla (ej. stock insuficiente),
-                    // se omite silenciosamente para no bloquear el guardado del consumo.
-                }
-            }
-
-            // 4c. Re-sincronizar production_roll_consumptions (estado final)
-            ProductionRollConsumption::where('production_order_id', $order->id)->delete();
-            foreach ($newByRollId as $rollId => $meters) {
-                ProductionRollConsumption::create([
-                    'production_order_id' => $order->id,
-                    'fabric_roll_id'      => $rollId,
-                    'meters_consumed'     => $meters,
-                ]);
-            }
+            $this->fabricRollService->saveCutConsumption($order, $validated['lines']);
         });
 
         return response()->json([
@@ -1476,6 +1316,8 @@ class BatchControlController extends Controller
                     'date'                => now()->toDateString(),
                     'source_type'         => ProductionOrder::class,
                     'source_id'           => $order->id,
+                    // OP indexable para filtrar/exportar salidas por orden en Movimientos de inventario.
+                    'source_reference'    => $order->op_code,
                     'notes'               => 'Salida Logística OP ' . ($order->op_code ?? "#{$order->id}") . ($line['supply_name'] ? ' - ' . $line['supply_name'] : ''),
                     'created_by_user_id'  => $user?->id,
                 ]);
@@ -1593,7 +1435,13 @@ class BatchControlController extends Controller
                 ]);
             }
 
-            TechnicalSheetOperation::where('technical_sheet_id', $technicalSheet->id)->forceDelete();
+            // Por instancia (incluye las ya eliminadas, como el forceDelete masivo) para que el
+            // AuditObserver registre cada operación eliminada.
+            TechnicalSheetOperation::withTrashed()
+                ->where('technical_sheet_id', $technicalSheet->id)
+                ->get()
+                ->each
+                ->forceDelete();
 
             foreach ($validated['operations'] as $op) {
                 $samBase                 = (float) $op['optimal_time'];
@@ -1666,36 +1514,40 @@ class BatchControlController extends Controller
         ProductionOrder $order,
         string $reporterName,
     ): void {
-        /**
-         * IDs de área según settings key=areas:
-         * 1=Gerencia, 2=Producción, 3=Logística, 4=Diseño, 5=Marketing,
-         * 6=Comercial, 7=Tics, 8=RR.HH, 9=Financiero, 10=Desarrollo Organizacional, 11=SST
-         */
+        // Las áreas se resuelven por nombre (tabla areas); los ids no son estables entre ambientes.
         $areasByProcess = [
-            'I&D'                     => [4],           // Diseño
-            'Tejido'                  => [2, 4],        // Producción, Diseño
-            'Corte'                   => [2, 3],        // Producción, Logística
-            'Logística'               => [2, 3],        // Producción, Logística
-            'Estampado'               => [2, 3],        // Producción, Logística
-            'Desarrollo de muestras'  => [2],           // Producción
-            'Muestras'                => [2],           // Producción
-            'Confección'              => [2],           // Producción
-            'Lavandería'              => [2, 3],        // Producción, Logística
-            'Terminación'             => [2, 6],        // Producción, Comercial
-            'Inspección y aprobación' => [2, 6],        // Producción, Comercial
-            'Bodega'                  => [6],           // Comercial
+            'I&D'                     => ['Diseño'],
+            'Tejido'                  => ['Producción', 'Diseño'],
+            'Corte'                   => ['Producción', 'Logística'],
+            'Logística'               => ['Producción', 'Logística'],
+            'Estampado'               => ['Producción', 'Logística'],
+            'Desarrollo de muestras'  => ['Producción'],
+            'Muestras'                => ['Producción'],
+            'Confección'              => ['Producción'],
+            'Lavandería'              => ['Producción', 'Logística'],
+            'Terminación'             => ['Producción', 'Comercial'],
+            'Inspección y aprobación' => ['Producción', 'Comercial'],
+            'Bodega'                  => ['Comercial'],
         ];
 
-        $areaIds = array_unique(array_merge(
-            $areasByProcess[$novelty->from_process] ?? [],
-            [10], // Desarrollo Organizacional — siempre
-        ));
+        $areaNames = array_map(
+            static fn (string $name): string => mb_strtoupper($name, 'UTF-8'),
+            array_unique(array_merge(
+                $areasByProcess[$novelty->from_process] ?? [],
+                ['Desarrollo Organizacional'], // siempre
+            )),
+        );
 
-        $notification = new BatchControlNoveltyNotification($novelty, $order, $reporterName);
+        $areaIds = \App\Models\Settings\Area::query()
+            ->whereIn('name', $areaNames)
+            ->pluck('id');
 
-        \App\Models\Settings\User::whereIn('area_id', $areaIds)
-            ->get()
-            ->each(fn ($user) => $user->notify($notification));
+        // Las áreas del proceso son solo el destinatario automático 'novelty_areas': a quién avisar lo define la configuración.
+        app(\App\Services\Settings\NotificationDispatcher::class)->dispatch(
+            'batch_control_novelty',
+            new BatchControlNoveltyNotification($novelty, $order, $reporterName),
+            ['novelty_areas' => $areaIds->all()]
+        );
     }
 
     // ══════════════════════════════════════════════════════════
@@ -1873,49 +1725,63 @@ class BatchControlController extends Controller
         $previousRemisionCurves  = $previousReceipt?->remision_curves  ?? [];
         $previousWarehouseId     = $previousReceipt?->warehouse_id;
 
-        $receipt = \App\Models\Production\BatchControlWarehouseReceipt::updateOrCreate(
-            ['production_order_id' => $order->id],
-            [
-                'received_curves'        => $receivedCurves,
-                'imperfect_curves'       => $validated['imperfect_curves'],
-                'responsible'            => $validated['responsible'] ?? null,
-                'imperfect_observations' => $validated['imperfect_observations'] ?? null,
-                'remision_curves'        => $validated['remision_curves'],
-                'remision_observations'  => $validated['remision_observations'] ?? null,
-                'warehouse_id'           => $validated['warehouse_id'],
-                'remisionado_at'         => now(),
-            ],
-        );
-
-        // Revertir stock del recibo anterior si existía
-        if (!empty($previousRemisionCurves) && $previousWarehouseId) {
-            $oldItemQuantities = $this->finishedProductCatalogItemService->ensureItemsForCurves(
-                $order,
-                $previousRemisionCurves
-            );
-            foreach ($oldItemQuantities as $itemId => $oldQty) {
-                \App\Models\Inventory\WarehouseItem::where('item_id', $itemId)
-                    ->where('warehouse_id', $previousWarehouseId)
-                    ->update(['quantity' => DB::raw("GREATEST(0, quantity - {$oldQty})")]);
-            }
-        }
-
-        // Aplicar nuevo stock: un ítem por cada combinación color+talla
         // Se usa input() en lugar de validated() para preservar todas las tallas dinámicas
         $rawRemisionCurves = $request->input('remision_curves', []);
-        $totalRemision = collect($rawRemisionCurves)->sum('total');
-        if ($totalRemision > 0) {
-            $itemQuantities = $this->finishedProductCatalogItemService->ensureItemsForCurves(
-                $order,
-                $rawRemisionCurves
+
+        $receipt = DB::transaction(function () use ($order, $validated, $receivedCurves, $previousRemisionCurves, $previousWarehouseId, $rawRemisionCurves) {
+            $receipt = \App\Models\Production\BatchControlWarehouseReceipt::updateOrCreate(
+                ['production_order_id' => $order->id],
+                [
+                    'received_curves'        => $receivedCurves,
+                    'imperfect_curves'       => $validated['imperfect_curves'],
+                    'responsible'            => $validated['responsible'] ?? null,
+                    'imperfect_observations' => $validated['imperfect_observations'] ?? null,
+                    'remision_curves'        => $validated['remision_curves'],
+                    'remision_observations'  => $validated['remision_observations'] ?? null,
+                    'warehouse_id'           => $validated['warehouse_id'],
+                    'remisionado_at'         => now(),
+                ],
             );
-            foreach ($itemQuantities as $itemId => $qty) {
-                \App\Models\Inventory\WarehouseItem::updateOrCreate(
-                    ['item_id' => $itemId, 'warehouse_id' => $validated['warehouse_id']],
-                    ['quantity' => DB::raw("quantity + {$qty}")]
+
+            // Revertir stock del recibo anterior si existía (sin dejar existencias negativas)
+            if (!empty($previousRemisionCurves) && $previousWarehouseId) {
+                $oldItemQuantities = $this->finishedProductCatalogItemService->ensureItemsForCurves(
+                    $order,
+                    $previousRemisionCurves
                 );
+                foreach ($oldItemQuantities as $itemId => $oldQty) {
+                    $currentStock = $this->movementService->getCurrentStockPublic((int) $itemId, (int) $previousWarehouseId);
+                    $this->registerFinishedProductMovement(
+                        $receipt,
+                        $order,
+                        (int) $itemId,
+                        (int) $previousWarehouseId,
+                        -min((float) $oldQty, max(0.0, $currentStock)),
+                        'Reversión de remisión previa a bodega'
+                    );
+                }
             }
-        }
+
+            // Aplicar nuevo stock: un ítem por cada combinación color+talla
+            if (collect($rawRemisionCurves)->sum('total') > 0) {
+                $itemQuantities = $this->finishedProductCatalogItemService->ensureItemsForCurves(
+                    $order,
+                    $rawRemisionCurves
+                );
+                foreach ($itemQuantities as $itemId => $qty) {
+                    $this->registerFinishedProductMovement(
+                        $receipt,
+                        $order,
+                        (int) $itemId,
+                        (int) $validated['warehouse_id'],
+                        (float) $qty,
+                        'Remisión de producto terminado a bodega'
+                    );
+                }
+            }
+
+            return $receipt;
+        });
 
         // Auto-novelty si hay imperfectos
         $totalImperfect = collect($validated['imperfect_curves'])->sum('total');
@@ -1932,5 +1798,39 @@ class BatchControlController extends Controller
         }
 
         return response()->json(['receipt' => $receipt], 200);
+    }
+
+    /**
+     * Mueve existencias de producto terminado por el kardex, dejando movimiento de
+     * inventario y auditoría. Las entradas se valoran al costo promedio vigente
+     * para no alterarlo; las salidas nunca dejan existencias negativas (el llamador acota).
+     */
+    private function registerFinishedProductMovement(
+        \App\Models\Production\BatchControlWarehouseReceipt $receipt,
+        ProductionOrder $order,
+        int $itemId,
+        int $warehouseId,
+        float $delta,
+        string $notes
+    ): void {
+        if ($delta == 0.0) {
+            return;
+        }
+
+        $isEntry = $delta > 0;
+
+        $this->movementService->createMovement([
+            'item_id'             => $itemId,
+            'warehouse_id'        => $warehouseId,
+            'type'                => $isEntry ? 'entrada' : 'salida',
+            'quantity'            => abs($delta),
+            'unit_price'          => $isEntry
+                ? $this->movementService->getCurrentWeightedPrice($itemId, $warehouseId)
+                : null,
+            'source_type'         => 'batch_control_warehouse_receipt',
+            'source_id'           => $receipt->id,
+            'source_reference'    => $order->op_code,
+            'notes'               => "{$notes} (OP {$order->op_code})",
+        ]);
     }
 }

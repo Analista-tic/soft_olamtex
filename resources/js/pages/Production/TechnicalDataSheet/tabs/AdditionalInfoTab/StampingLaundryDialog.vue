@@ -218,8 +218,8 @@ const stampingProcess = computed(() => props.stampingProcessGuide ?? { supplier:
 const hasStampingProcess = computed(() => Boolean(stampingProcess.value.processType));
 const headerDescription = computed(() =>
     isLaundryMode.value
-        ? `Configura contexto, observaciones y guias visuales de ${displayNameLower.value}.`
-        : `Configura contexto, procesos, observaciones y guias visuales de ${displayNameLower.value}.`,
+        ? `Configura contexto, observaciones y guías visuales de ${displayNameLower.value}.`
+        : `Configura contexto, procesos, observaciones y guías visuales de ${displayNameLower.value}.`,
 );
 const colorSlots = computed<ColorSlot[]>(() => {
     const source = localData.value as Record<string, unknown>;
@@ -453,7 +453,7 @@ function handleDialogOpenChange(value: boolean): void {
                                     aria-label="Ayuda sobre Procesos"
                                 />
                             </div>
-                            <Textarea
+                            <Textarea data-no-uppercase
                                 :model-value="meta.processes"
                                 rows="4"
                                 placeholder="Ej: Spot color / Alto relieve / Ubicación..."
@@ -467,7 +467,7 @@ function handleDialogOpenChange(value: boolean): void {
                             <p class="text-sm font-semibold text-foreground">Observación</p>
                             <HelpTooltip v-if="!viewOnly" text="Describe observaciones adicionales, tintas, consideraciones." aria-label="Ayuda sobre Observación" />
                         </div>
-                        <Textarea
+                        <Textarea data-no-uppercase
                             :model-value="observationValue"
                             rows="5"
                             placeholder="Indicaciones adicionales, tintas, consideraciones..."

@@ -63,13 +63,6 @@ class InventoryRequestController extends Controller
         ]);
     }
 
-    public function nextNumber()
-    {
-        $next = $this->service->nextNumber();
-
-        return response()->json(['document_number' => $next]);
-    }
-
     public function show(InventoryRequest $inventoryRequest)
     {
         $this->ensureCanView($inventoryRequest);
@@ -277,7 +270,6 @@ class InventoryRequestController extends Controller
             'gestionar solicitudes internas',
             'aprobar solicitudes internas',
             // Permisos vigentes por ruta y rol
-            'atender solicitudes insumos',
             'entregar solicitudes insumos',
             'rechazar solicitudes insumos',
         ]);

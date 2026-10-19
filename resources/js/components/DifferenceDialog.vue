@@ -10,6 +10,7 @@ import { computed, nextTick, ref, watch } from 'vue';
 const props = withDefaults(
     defineProps<{
         open: boolean;
+        title?: string;
         total?: number | null;
         orderTotal?: number | null;
         description?: string;
@@ -18,6 +19,7 @@ const props = withDefaults(
         enableCamera?: boolean;
     }>(),
     {
+        title: 'Valor diferente a la orden',
         total: null,
         orderTotal: null,
         description: '',
@@ -230,20 +232,20 @@ function handleSave() {
                         <AlertTriangle class="h-4 w-4 text-amber-600" />
                     </div>
                     <div class="min-w-0">
-                        <DialogTitle class="text-base font-semibold leading-tight">Valor diferente a la orden</DialogTitle>
+                        <DialogTitle class="text-base font-semibold leading-tight">{{ title }}</DialogTitle>
                         <p v-if="hasTotals" class="mt-0.5 text-xs text-muted-foreground">
                             Total factura: <span class="font-semibold text-foreground">{{ formattedTotal }}</span>
                             <span class="mx-1">·</span>
                             Total orden: <span class="font-semibold text-foreground">{{ formattedOrderTotal }}</span>
                         </p>
-                        <p v-else class="mt-0.5 text-xs text-muted-foreground">Se requiere justificación para continuar</p>
+                        <p v-else class="mt-0.5 text-xs text-muted-foreground">{{ description || 'Se requiere justificación para continuar' }}</p>
                     </div>
                 </div>
             </DialogHeader>
 
             <div class="flex-1 overflow-y-auto scroll-smooth px-5 py-4" style="scrollbar-width: thin">
                 <div class="space-y-4">
-                    <TextareaField v-model="reason" label="Motivo de la diferencia" :rows="4" class="min-h-[100px] resize-y" required />
+                    <TextareaField data-no-uppercase v-model="reason" label="Motivo de la diferencia" :rows="4" class="min-h-[100px] resize-y" required />
 
                     <div class="space-y-2 text-sm">
                         <label class="block font-semibold">

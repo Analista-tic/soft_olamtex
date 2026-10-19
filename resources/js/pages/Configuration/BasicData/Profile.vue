@@ -1,10 +1,9 @@
 <script setup lang="ts">
-import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import Input from '@/components/ui/input/Input.vue';
 import type { User } from '@/domain/shared/types';
 import { router } from '@inertiajs/vue3';
 import axios from 'axios';
-import { reactive, ref, watch } from 'vue';
+import { computed, reactive, ref, watch } from 'vue';
 import PasswordDialog from './PasswordDialog.vue';
 
 const props = defineProps<{
@@ -23,8 +22,7 @@ const profileInfo = reactive({
 
 const profileSaving = ref(false);
 const isPasswordModalOpen = ref(false);
-const isDeletingProfile = ref(false);
-const isDeleteDialogOpen = ref(false);
+const submitAttempted = ref(false);
 
 const syncProfileInfo = () => {
     profileInfo.username = props.user?.name ?? '';
@@ -32,13 +30,20 @@ const syncProfileInfo = () => {
 };
 watch(() => props.user, syncProfileInfo, { immediate: true });
 
-const resetProfileForm = () => {
-    syncProfileInfo();
-};
+const areaName = computed(() => props.user?.area?.name || 'Sin área asignada');
+const roleNames = computed(() => {
+    const names = (props.user?.roles ?? []).map((role) => role.name).filter(Boolean);
+    return names.length > 0 ? names.join(', ') : 'Sin rol asignado';
+});
 
-const handleResetProfile = () => {
-    resetProfileForm();
-};
+/** Única fuente de "campo faltante": la usan el mensaje general y el template. */
+const missingFields = computed(() => {
+    const missing: Array<'username' | 'email'> = [];
+    if (!profileInfo.username.trim()) missing.push('username');
+    if (!profileInfo.email.trim()) missing.push('email');
+    return missing;
+});
+const isMissing = (field: 'username' | 'email') => submitAttempted.value && missingFields.value.includes(field);
 
 const openPasswordModal = () => {
     isPasswordModalOpen.value = true;
@@ -52,27 +57,29 @@ const handlePasswordError = (message: string) => {
     emit('error', message);
 };
 
-const openDeleteDialog = () => {
-    isDeleteDialogOpen.value = true;
-};
-
-async function deleteProfile() {
-    isDeletingProfile.value = true;
-    try {
-        await axios.delete(route('profile.destroy'));
-        router.visit(route('login'));
-    } catch {
-        emit('error', 'No se pudo eliminar el perfil. Intenta más tarde.');
-    } finally {
-        isDeletingProfile.value = false;
+async function saveProfileInfo() {
+    submitAttempted.value = true;
+    if (missingFields.value.length > 0) {
+        emit('error', 'Completa los campos requeridos: nombre de usuario y correo electrónico.');
+        return;
     }
-}
 
-function saveProfileInfo() {
     profileSaving.value = true;
-    resetProfileForm();
-    profileSaving.value = false;
-    emit('success', 'Perfil actualizado correctamente.');
+    try {
+        const { data } = await axios.patch(route('profile.update'), {
+            name: profileInfo.username.trim(),
+            email: profileInfo.email.trim(),
+        });
+        submitAttempted.value = false;
+        router.reload({ only: ['auth'] });
+        emit('success', data?.message ?? 'Perfil actualizado correctamente.');
+    } catch (error: unknown) {
+        const response = axios.isAxiosError(error) ? error.response?.data : null;
+        const firstError = response?.errors ? (Object.values(response.errors)[0] as string[] | undefined)?.[0] : null;
+        emit('error', firstError || response?.message || 'No se pudo actualizar el perfil.');
+    } finally {
+        profileSaving.value = false;
+    }
 }
 </script>
 
@@ -81,70 +88,59 @@ function saveProfileInfo() {
         <div class="flex items-start gap-4">
             <div class="space-y-1">
                 <h2 class="text-2xl font-semibold text-foreground">Perfil del usuario</h2>
-                <p class="text-sm text-muted-foreground">Edita el nombre de usuario, el correo y la contraseña que están en la tabla users.</p>
+                <p class="text-sm text-muted-foreground">Edita tu nombre de usuario, correo y contraseña. El área y el rol los asigna un administrador.</p>
             </div>
         </div>
 
         <div class="space-y-2">
-            <label class="text-sm font-medium text-foreground">Nombre de usuario</label>
-            <Input v-model="profileInfo.username" placeholder="Nombre de usuario" />
+            <label class="text-sm font-medium text-foreground">Nombre de usuario<span class="text-red-500">*</span></label>
+            <Input
+                v-model="profileInfo.username"
+                placeholder="Nombre de usuario"
+                :class="{ 'border-red-500 focus-visible:ring-red-500': isMissing('username') }"
+            />
+            <p v-if="isMissing('username')" class="text-xs text-red-500">Requerido</p>
         </div>
 
         <div class="space-y-2">
-            <label class="text-sm font-medium text-foreground">Correo electrónico</label>
-            <Input v-model="profileInfo.email" placeholder="correo@dominio.com" />
+            <label class="text-sm font-medium text-foreground">Correo electrónico<span class="text-red-500">*</span></label>
+            <Input
+                v-model="profileInfo.email"
+                data-no-uppercase
+                placeholder="correo@dominio.com"
+                :class="{ 'border-red-500 focus-visible:ring-red-500': isMissing('email') }"
+            />
+            <p v-if="isMissing('email')" class="text-xs text-red-500">Requerido</p>
+        </div>
+
+        <div class="grid gap-4 md:grid-cols-2">
+            <div class="space-y-2">
+                <label class="text-sm font-medium text-foreground">Área</label>
+                <Input :model-value="areaName" data-no-uppercase readonly disabled class="bg-muted/40" />
+            </div>
+            <div class="space-y-2">
+                <label class="text-sm font-medium text-foreground">Rol</label>
+                <Input :model-value="roleNames" data-no-uppercase readonly disabled class="bg-muted/40" />
+            </div>
         </div>
 
         <div class="flex flex-wrap items-center justify-between gap-3 border-t pt-4">
-            <div class="flex flex-wrap items-center gap-3">
-                <button
-                    type="button"
-                    class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-background px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-                    @click="openPasswordModal"
-                >
-                    Actualizar contraseña
-                </button>
-                <button
-                    type="button"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-destructive px-5 py-2 text-sm font-semibold text-destructive-foreground shadow-sm transition hover:bg-destructive/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    @click="openDeleteDialog"
-                    :disabled="isDeletingProfile"
-                >
-                    {{ isDeletingProfile ? 'Eliminando...' : 'Eliminar perfil' }}
-                </button>
-            </div>
-            <div class="flex flex-wrap items-center gap-3">
-                <button
-                    type="submit"
-                    class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    :disabled="profileSaving"
-                >
-                    {{ profileSaving ? 'Guardando...' : 'Guardar cambios' }}
-                </button>
-                <button
-                    type="button"
-                    class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-background px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                    @click="handleResetProfile"
-                >
-                    Restablecer
-                </button>
-            </div>
-        </div>
-
-        <div class="rounded-2xl border border-red-200 bg-red-50 p-4 text-sm text-red-700">
-            <p class="mb-1 font-semibold text-red-600">Advertencia</p>
-            <p>Eliminar el perfil también elimina completamente la cuenta y no puede deshacerse.</p>
+            <button
+                type="button"
+                class="inline-flex items-center justify-center gap-2 rounded-full border border-primary/40 bg-background px-5 py-2 text-sm font-semibold text-primary transition hover:bg-primary/10 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                @click="openPasswordModal"
+            >
+                Actualizar contraseña
+            </button>
+            <button
+                type="submit"
+                class="inline-flex items-center justify-center gap-2 rounded-full bg-primary px-5 py-2 text-sm font-semibold text-primary-foreground shadow-sm transition hover:bg-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="profileSaving"
+            >
+                {{ profileSaving ? 'Guardando...' : 'Guardar cambios' }}
+            </button>
         </div>
 
         <PasswordDialog v-model="isPasswordModalOpen" @saved="handlePasswordSaved" @error="handlePasswordError" />
-        <ConfirmDialog
-            v-model:open="isDeleteDialogOpen"
-            title="Confirmar eliminación"
-            description="¿Seguro que deseas eliminar este perfil? Esta acción no se puede deshacer."
-            confirm-text="Eliminar perfil"
-            cancel-text="Cancelar"
-            :destructive="true"
-            @confirm="deleteProfile"
-        />
     </form>
 </template>

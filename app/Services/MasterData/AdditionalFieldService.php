@@ -2,7 +2,9 @@
 
 namespace App\Services\MasterData;
 
+use App\Models\MasterData\Item;
 use App\Models\Settings\Setting;
+use App\Services\Audit\AuditLogService;
 use App\Support\TextNormalizer;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
@@ -10,6 +12,7 @@ use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Str;
+use RuntimeException;
 
 class AdditionalFieldService
 {
@@ -66,21 +69,59 @@ class AdditionalFieldService
             return;
         }
 
-        $field->categorySubGroups()->sync(array_filter((array) $data['category_sub_group_ids']));
+        $changes = $field->categorySubGroups()->sync(array_filter((array) $data['category_sub_group_ids']));
+
+        // El sync del pivote no dispara el AuditObserver: se registra como evento.
+        if (! empty($changes['attached']) || ! empty($changes['detached'])) {
+            app(AuditLogService::class)->logEvent(
+                'updated',
+                "Subgrupos de categoría del campo adicional '{$field->label}' sincronizados.",
+                $field,
+                ['category_sub_group_ids_detached' => array_values($changes['detached'])],
+                ['category_sub_group_ids_attached' => array_values($changes['attached'])],
+            );
+        }
     }
 
     public function delete(Setting $field): void
     {
+        if ($this->hasItemValues($field)) {
+            throw new RuntimeException("No se puede eliminar el campo adicional '{$field->label}' porque tiene valores registrados en ítems.");
+        }
+
         $field->delete();
+    }
+
+    protected function hasItemValues(Setting $field): bool
+    {
+        return Item::withTrashed()
+            ->whereNotNull('extra_fields')
+            ->lazy(500)
+            ->contains(fn (Item $item) => array_key_exists($field->label, $item->extra_fields ?? []));
     }
 
     public function reorder(array $order): void
     {
+        $positions = [];
+
         foreach ($order as $index => $fieldId) {
-            $this->fieldQuery()->where('id', $fieldId)->update([
+            $affected = $this->fieldQuery()->where('id', $fieldId)->update([
                 'position' => $index + 1,
             ]);
+
+            if ($affected > 0) {
+                $positions[$fieldId] = $index + 1;
+            }
         }
+
+        // El update por query builder no dispara el AuditObserver: se registra un resumen.
+        app(AuditLogService::class)->logBulk(
+            Setting::class,
+            'updated',
+            array_keys($positions),
+            ['position' => $positions],
+            'Reordenamiento de campos adicionales',
+        );
     }
 
     public const OPTIONS_CACHE_KEY = 'additional_fields_options';

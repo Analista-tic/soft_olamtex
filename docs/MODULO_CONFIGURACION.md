@@ -160,3 +160,24 @@ Si el acceso es solo para un usuario y no para todo el rol, se puede asignar un 
 | `app/Http/Controllers/Settings/AuditLogController.php` | Lógica del log de auditoría |
 | `resources/js/pages/Configuration/Users/Index.vue` | Pantalla de usuarios |
 | `resources/js/pages/Configuration/Roles/Index.vue` | Pantalla de roles |
+
+---
+
+## Reglas de notificaciones (solo superadmin)
+
+**Ruta:** `/configuracion/reglas-notificaciones` · **Pantalla:** `Configuration/NotificationRules/Index.vue` · **Acceso:** rol `superadmin` (el rol se crea con la migración `2026_09_24_000002` y se asigna al usuario `superadmin@softolamtex.local`, que conserva también `admin`).
+
+Antes cada aviso decidía por su cuenta a quién notificar (unos por rol, otros por área, otros por permiso, otros por personas concretas). Ahora todos los avisos pasan por un único punto (`NotificationDispatcher`) y esta pantalla define, por evento:
+
+| Qué se configura | Significado |
+|---|---|
+| **Cuándo** | Cada evento del sistema (catálogo en `NotificationEventRegistry`) se puede activar o apagar. |
+| **Cómo** | Campana del sistema, correo o ambos. |
+| **A quién** | Lista de destinatarios que se suman sin repetir personas: **Rol**, **Área**, **Persona**, o **Automático** (quien corresponda según el caso: el solicitante, el encargado de compra, quien creó la factura, las áreas del proceso de una novedad). Cada destinatario puede llevar un filtro "solo con el permiso X". |
+| **Excluir a quien ejecuta la acción** | Evita avisarle a alguien de algo que hizo él mismo. |
+
+**Datos:** tablas `notification_events` y `notification_event_recipients`. Los valores iniciales salen del catálogo y replican el comportamiento anterior; desde que se crea la fila manda lo configurado. Los cambios quedan en el registro de auditoría.
+
+**Eventos incluidos:** solicitud de compra enviada / respondida, orden creada, orden pendiente de aprobación\*, diferencia de factura pendiente / aprobada\* / rechazada, factura rechazada\*, recepción de tela completa\*, solicitud de inventario o insumos creada, novedad en control de lote. (\* nuevos, apagados por defecto.)
+
+**Para el código:** un módulo que quiera avisar no calcula destinatarios; llama `app(NotificationDispatcher::class)->dispatch('clave_evento', $notificacion, ['actor' => $usuario, ...destinatarios automáticos])`. Para un evento nuevo se agrega su definición en `NotificationEventRegistry` y la clase de notificación usa el trait `UsesConfiguredChannels`.

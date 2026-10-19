@@ -7,6 +7,8 @@ use App\Http\Requests\MasterData\StoreCategorySubGroupRequest;
 use App\Http\Requests\MasterData\UpdateCategorySubGroupRequest;
 use App\Models\MasterData\CategoryGroup;
 use App\Models\MasterData\CategorySubGroup;
+use App\Models\MasterData\Item;
+use App\Services\MasterData\CategorySubGroupService;
 use App\Support\MasterData\MaterialClassifier;
 use App\Support\TextNormalizer;
 use Illuminate\Http\Request;
@@ -15,6 +17,8 @@ use Inertia\Inertia;
 
 class CategorySubGroupController extends Controller
 {
+    public function __construct(private CategorySubGroupService $service) {}
+
     public function index()
     {
         return Inertia::render('MasterData/Category/Index', [
@@ -28,23 +32,19 @@ class CategorySubGroupController extends Controller
         $subgroups = $this->normalizeIncomingSubgroups($request->validated('subgroups'));
         $this->ensureSubgroupsDoNotExist($groupId, $subgroups);
 
-        foreach ($subgroups as $subgroupData) {
-            CategorySubGroup::create([
-                'name' => $subgroupData['name'],
-                'category_group_id' => $groupId,
-            ]);
-        }
+        $created = $this->service->createMany($groupId, $subgroups);
 
         return response()->json([
             'success' => true,
             'message' => 'Subgrupos creados exitosamente.',
+            'data' => $created,
         ]);
     }
 
     public function update(UpdateCategorySubGroupRequest $request, CategorySubGroup $subgroup)
     {
         $groupId = (int) $request->validated('category_group_id');
-        $normalizedName = TextNormalizer::titleCaseWords($request->validated('name'));
+        $normalizedName = TextNormalizer::upperCaseWords($request->validated('name'));
 
         $this->ensureSubgroupDoesNotExist($groupId, $normalizedName, $subgroup->id);
 
@@ -52,7 +52,6 @@ class CategorySubGroupController extends Controller
             'name' => $normalizedName,
             'category_group_id' => $groupId,
             'material_kind' => $request->validated('material_kind'),
-            'code' => $request->validated('code'),
         ]);
 
         MaterialClassifier::forgetCache();
@@ -66,7 +65,7 @@ class CategorySubGroupController extends Controller
 
     public function getData(Request $request)
     {
-        $query = CategorySubGroup::select('id', 'name', 'category_group_id', 'material_kind')
+        $query = CategorySubGroup::select('id', 'name', 'code', 'category_group_id', 'material_kind')
             ->with('categoryGroup:id,name');
 
         if ($request->has('search') && $request->search) {
@@ -109,6 +108,13 @@ class CategorySubGroupController extends Controller
 
     public function destroy(CategorySubGroup $subgroup)
     {
+        if (Item::withTrashed()->where('category_sub_group_id', $subgroup->id)->exists()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'No se puede eliminar el subgrupo porque tiene ítems asociados.',
+            ], 409);
+        }
+
         try {
             $subgroup->delete();
             MaterialClassifier::forgetCache();
@@ -140,7 +146,7 @@ class CategorySubGroupController extends Controller
         $seen = [];
 
         foreach ($subgroups as $subgroup) {
-            $display = TextNormalizer::titleCaseWords($subgroup['name'] ?? null);
+            $display = TextNormalizer::upperCaseWords($subgroup['name'] ?? null);
             $semanticKey = TextNormalizer::semanticKey($display);
 
             if ($display === '' || $semanticKey === '' || isset($seen[$semanticKey])) {

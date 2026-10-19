@@ -233,8 +233,11 @@ class ExpenseVoucherService
                 fallbackCreatorUserId: $basePayment->created_by_user_id ? (int) $basePayment->created_by_user_id : null,
             );
 
+            // Por instancia para que el AuditObserver registre cada pago eliminado.
             PurchasePayment::query()
                 ->whereIn('id', $existingPayments->pluck('id')->all())
+                ->get()
+                ->each
                 ->delete();
 
             $registeredApplications = $applications->values()->map(function (array $line) use ($payload, $date, $availableDocs, $voucherNumber) {
@@ -845,6 +848,7 @@ class ExpenseVoucherService
             $current = $pendingRows->get($documentId);
             if (is_array($current)) {
                 $current['pending_balance'] = round((float) ($current['pending_balance'] ?? 0) + $appliedAmount, 2);
+                $current['payable_balance'] = round((float) ($current['payable_balance'] ?? $current['pending_balance'] ?? 0) + $appliedAmount, 2);
                 $current['applied_total'] = max(0, round((float) ($current['applied_total'] ?? 0) - $appliedAmount, 2));
                 $current['withholdings_total'] = max(
                     (float) ($current['withholdings_total'] ?? 0),
@@ -867,6 +871,7 @@ class ExpenseVoucherService
                 'debit_notes_total' => 0.0,
                 'applied_total' => 0.0,
                 'pending_balance' => $appliedAmount,
+                'payable_balance' => $appliedAmount,
                 'status' => null,
                 'status_label' => null,
             ]);
@@ -888,6 +893,9 @@ class ExpenseVoucherService
             'debit_notes_total' => (float) ($row['debit_notes_total'] ?? 0),
             'applied_total' => (float) ($row['payments_total'] ?? $row['applied_total'] ?? 0),
             'pending_balance' => (float) ($row['current_balance'] ?? $row['pending_balance'] ?? 0),
+            'disputed_amount' => (float) ($row['disputed_amount'] ?? 0),
+            'disputed_rolls_count' => (int) ($row['disputed_rolls_count'] ?? 0),
+            'payable_balance' => (float) ($row['payable_balance'] ?? $row['current_balance'] ?? $row['pending_balance'] ?? 0),
             'status' => $row['debt_status'] ?? $row['status'] ?? null,
             'status_label' => $row['debt_status_label'] ?? $row['status_label'] ?? null,
         ];
@@ -904,7 +912,7 @@ class ExpenseVoucherService
             return 0.0;
         }
 
-        $total = collect($withholdings)->sum(function ($item) {
+        $total = collect($withholdings)->sum(function ($item) use ($invoice) {
             $row = is_array($item) ? $item : (array) $item;
             $baseAmount = (float) ($row['base_amount'] ?? 0);
             $percentage = (float) ($row['percentage'] ?? $row['percent'] ?? 0);
@@ -912,6 +920,14 @@ class ExpenseVoucherService
 
             if ($fixedValue > 0) {
                 return $fixedValue;
+            }
+
+            // Facturas anteriores guardaban base_amount vacío ("la base por defecto"): se calcula según el tipo de retención.
+            if ($baseAmount <= 0 && $percentage > 0 && $invoice instanceof \App\Models\Expenses\PurchaseDocument) {
+                $type = $row['type'] ?? \App\Models\Finance\Retention::query()->where('name', $row['name'] ?? '')->value('type');
+                $subtotal = (float) $invoice->items->sum(fn ($line) => (float) ($line->total ?? 0));
+                $iva = (float) $invoice->items->sum(fn ($line) => (float) ($line->total_tax ?? 0));
+                $baseAmount = \App\Support\Finance\PurchaseWithholdingCalculator::defaultBase($type, $subtotal, $iva);
             }
 
             if ($baseAmount > 0 && $percentage > 0) {

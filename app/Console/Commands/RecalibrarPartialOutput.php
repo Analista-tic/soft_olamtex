@@ -2,9 +2,8 @@
 
 namespace App\Console\Commands;
 
-use App\Models\Production\FabricRollProgrammingLine;
-use App\Models\Production\ManualRollProgramming;
 use App\Models\Textil\FabricRoll;
+use App\Support\Textil\FabricRollBalance;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
 
@@ -12,7 +11,7 @@ class RecalibrarPartialOutput extends Command
 {
     protected $signature = 'rolls:recalibrar-partial {--roll_id= : ID especifico de un rollo}';
 
-    protected $description = 'Recalcula partial_output de rollos sumando todos los snapshots de fichas tecnicas';
+    protected $description = 'Recalcula partial_output de rollos desde las programaciones vigentes (ficha técnica pendiente + manuales pendientes)';
 
     public function handle(): int
     {
@@ -60,44 +59,20 @@ class RecalibrarPartialOutput extends Command
     }
 
     /**
+     * Reserva comprometida por rollo según las programaciones vigentes: ficha técnica
+     * (programado − liberado por el corte) + manuales (programado − consumido − liberado).
+     *
      * @return array<string, float>
      */
     private function buildTotalsByRollId(?string $targetRollId = null): array
     {
-        $totalesPorRoll = [];
+        $totals = [];
+        $rollIds = $targetRollId !== null ? [(int) $targetRollId] : null;
 
-        // Fase 15: fuente de verdad es fabric_roll_programming_lines, ya no
-        // TechnicalSheetRoll::lines (JSON, congelado como respaldo de solo lectura).
-        $query = FabricRollProgrammingLine::query()
-            ->whereNotNull('fabric_roll_id')
-            ->where('programmed_meters', '>', 0)
-            ->select(['fabric_roll_id', 'programmed_meters']);
-
-        if ($targetRollId !== null) {
-            $query->where('fabric_roll_id', (int) $targetRollId);
+        foreach (FabricRollBalance::committedByRoll($rollIds) as $rollId => $meters) {
+            $totals[(string) $rollId] = $meters;
         }
 
-        foreach ($query->cursor() as $line) {
-            $rollId = (string) $line->fabric_roll_id;
-            $totalesPorRoll[$rollId] = ($totalesPorRoll[$rollId] ?? 0.0) + (float) $line->programmed_meters;
-        }
-
-        // Reservas manuales pendientes (manual_roll_programmings) — programado menos ya
-        // consumido, para no perder la reserva de la fecha de un descargue parcial.
-        $manualQuery = ManualRollProgramming::query()->whereNotNull('fabric_roll_id');
-        if ($targetRollId !== null) {
-            $manualQuery->where('fabric_roll_id', (int) $targetRollId);
-        }
-
-        foreach ($manualQuery->cursor() as $manualLine) {
-            $pending = (float) $manualLine->programmed_meters - (float) $manualLine->consumed_meters;
-            if ($pending <= 0) {
-                continue;
-            }
-            $rollId = (string) $manualLine->fabric_roll_id;
-            $totalesPorRoll[$rollId] = ($totalesPorRoll[$rollId] ?? 0.0) + $pending;
-        }
-
-        return $totalesPorRoll;
+        return $totals;
     }
 }

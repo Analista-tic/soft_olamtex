@@ -12,6 +12,8 @@ export interface ProductSheet {
     id: number;
     type?: 'muestra' | 'producto' | string;
     garment_type?: 'superior' | 'inferior' | null;
+    /** Lo que falta para que la sábana quede completa (vacío si ya lo está); lo calcula el servidor. */
+    missing_for_completion?: string[];
     derived_from_product_sheet_id?: number | null;
     has_derived_product?: boolean;
     reference: string;

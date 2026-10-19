@@ -306,11 +306,11 @@ fetchCollections();
                 <div class="space-y-4 px-6 pb-4">
                     <div class="flex flex-col gap-1">
                         <Label>Nombre <span class="text-red-500">*</span></Label>
-                        <InputField v-model="form.name" label="" placeholder="ej: Colección Verano 2026" />
+                        <InputField data-no-uppercase v-model="form.name" label="" placeholder="ej: Colección Verano 2026" />
                     </div>
                     <div class="flex flex-col gap-1">
                         <Label>Descripción</Label>
-                        <InputField v-model="form.description" label="" placeholder="Descripción opcional" />
+                        <InputField data-no-uppercase v-model="form.description" label="" placeholder="Descripción opcional" />
                     </div>
                     <div class="flex items-center gap-3">
                         <Switch v-model:checked="form.is_active" id="is_active" />

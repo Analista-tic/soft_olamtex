@@ -5,9 +5,11 @@ namespace App\Services\Finance;
 use App\Enums\PurchaseInvoiceStatus;
 use App\Models\Expenses\PurchaseDocument;
 use App\Models\Expenses\PurchaseDocumentItem;
+use App\Support\DocumentSequence;
 use App\Services\Expenses\PurchaseDocumentInvoiceService;
 use App\Services\Expenses\PurchaseDocumentService;
 use App\Services\Settings\SettingService;
+use App\Services\Textil\FabricRollCreditNoteService;
 use App\Support\MasterData\MaterialClassifier;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
@@ -24,13 +26,14 @@ class CreditDebitNoteService
         PurchaseDocument::TYPE_DEBIT_NOTE => 'ND',
     ];
 
+    private const NOTE_APPROVED_STATUS = 'approved';
+
     /**
      * @var array<int, string>
      */
     private const ELIGIBLE_PARENT_INVOICE_STATUSES = [
         'received',
         'approved',
-        'verified',
     ];
 
     /**
@@ -46,6 +49,7 @@ class CreditDebitNoteService
         private PurchaseDocumentInvoiceService $invoiceService,
         private SettingService $settingService,
         private AccountingPostingService $accountingPostingService,
+        private FabricRollCreditNoteService $rollCreditNoteService,
     ) {}
 
     public function paginate(array $filters = []): LengthAwarePaginator
@@ -131,6 +135,34 @@ class CreditDebitNoteService
             ->all();
     }
 
+    /**
+     * Rollos rechazados sin resolver de la factura base que la nota puede cubrir
+     * (los enlazados a OTRA nota quedan fuera; los de la propia nota se conservan).
+     *
+     * @return array<int, array<string, mixed>>
+     */
+    public function listCoverableRejectedRolls(int $parentInvoiceId, ?int $noteId = null): array
+    {
+        $invoice = PurchaseDocument::query()
+            ->where('document_type', PurchaseDocument::TYPE_INVOICE)
+            ->find($parentInvoiceId);
+
+        if (! $invoice) {
+            return [];
+        }
+
+        return $this->rollCreditNoteService->pendingRejectedRolls($invoice)
+            ->filter(fn (array $roll) => $roll['credit_note_id'] === null || (int) $roll['credit_note_id'] === (int) $noteId)
+            ->values()
+            ->all();
+    }
+
+    /** Rollos enlazados a la nota, para el payload de la nota. */
+    public function listLinkedRolls(PurchaseDocument $note): array
+    {
+        return $this->rollCreditNoteService->linkedRolls($note)->all();
+    }
+
     private function resolveAllowedTypesByContext(?string $context): array
     {
         if ($context === 'sale') {
@@ -189,7 +221,22 @@ class CreditDebitNoteService
             }
 
             $updatedNote = $this->documentService->updateDocument($note, [], $payload['items']);
-            $this->accountingPostingService->postCreditNote($updatedNote);
+
+            if (array_key_exists('fabric_roll_ids', $payload)) {
+                $this->rollCreditNoteService->linkRolls($updatedNote, (array) $payload['fabric_roll_ids']);
+            }
+
+            // Solo las notas crédito tienen asiento automático (proporcional si es parcial).
+            // Las notas débito de compra no tienen contabilización definida: quedan sin asiento.
+            if ($documentType === PurchaseDocument::TYPE_CREDIT_NOTE) {
+                $this->ensureCreditNoteFitsInvoice($updatedNote, $parentInvoice);
+                $this->accountingPostingService->postCreditNote($updatedNote);
+            }
+
+            // Una nota que nace aprobada da de baja de inmediato los rollos que cubre.
+            if ($updatedNote->status === self::NOTE_APPROVED_STATUS) {
+                $this->rollCreditNoteService->resolveOnApproval($updatedNote);
+            }
 
             if ($note->document_type === PurchaseDocument::TYPE_CREDIT_NOTE) {
                 $this->ensureCreditNoteBalanceIsNonNegative($parentInvoice);
@@ -202,6 +249,7 @@ class CreditDebitNoteService
     public function update(PurchaseDocument $note, array $payload): PurchaseDocument
     {
         $this->ensureNoteType($note);
+        $this->ensureNoteIsNotApproved($note, 'editar');
         $this->ensureScopeIsExpenses($payload);
         $this->ensureItemsPayload($payload);
 
@@ -242,6 +290,8 @@ class CreditDebitNoteService
         }
 
         return DB::transaction(function () use ($note, $payload, $parentInvoice, $contactId, $reasonCode) {
+            $previousStatus = (string) $note->status;
+            $previousDocumentType = (string) $note->document_type;
             $targetDocumentType = $payload['document_type'] ?? $note->document_type;
             $currentDocumentNumber = trim((string) $note->document_number);
             $mustGenerateDocumentNumber = $currentDocumentNumber === '' || $targetDocumentType !== $note->document_type;
@@ -270,17 +320,46 @@ class CreditDebitNoteService
             $note->save();
             $updatedNote = $this->documentService->updateDocument($note, [], $payload['items']);
 
-            if ($note->document_type === PurchaseDocument::TYPE_CREDIT_NOTE) {
+            if (array_key_exists('fabric_roll_ids', $payload)) {
+                $this->rollCreditNoteService->linkRolls($updatedNote, (array) $payload['fabric_roll_ids']);
+            } elseif ($previousDocumentType !== $updatedNote->document_type && $updatedNote->document_type !== PurchaseDocument::TYPE_CREDIT_NOTE) {
+                // Si la nota deja de ser crédito ya no puede cubrir rollos.
+                $this->rollCreditNoteService->unlinkAll($updatedNote);
+            }
+
+            if ($updatedNote->document_type === PurchaseDocument::TYPE_CREDIT_NOTE) {
+                // Si el monto cambió, el asiento parcial vigente se revierte y se contabiliza de nuevo.
+                $this->ensureCreditNoteFitsInvoice($updatedNote, $parentInvoice);
+                $this->accountingPostingService->syncCreditNoteEntry($updatedNote);
                 $this->ensureCreditNoteBalanceIsNonNegative($parentInvoice);
+            } elseif ($previousDocumentType === PurchaseDocument::TYPE_CREDIT_NOTE) {
+                // Dejó de ser crédito: su asiento ya no corresponde.
+                $this->accountingPostingService->voidCreditNoteEntry($updatedNote);
+            }
+
+            // Transición a aprobada: los rollos enlazados se dan de baja.
+            if ($previousStatus !== self::NOTE_APPROVED_STATUS && $updatedNote->status === self::NOTE_APPROVED_STATUS) {
+                $this->rollCreditNoteService->resolveOnApproval($updatedNote);
             }
 
             return $updatedNote;
         });
     }
 
+    /**
+     * Consecutivo atómico de la nota. El bloqueo de filas anterior no protegía la primera nota de cada tipo
+     * (sin filas no había nada que bloquear) y dos usuarios podían recibir el mismo número.
+     */
     private function generateNoteDocumentNumber(string $documentType): string
     {
-        return $this->buildNoteDocumentNumber($documentType, true);
+        $prefix = $this->resolvePrefixByDocumentType($documentType);
+
+        $next = DocumentSequence::next(
+            "purchase_documents:{$documentType}:{$prefix}",
+            fn () => (int) $this->resolveMaxSequence($documentType, $prefix, false)
+        );
+
+        return sprintf('%s-%03d', $prefix, $next);
     }
 
     private function buildNoteDocumentNumber(string $documentType, bool $lockForUpdate): string
@@ -368,11 +447,29 @@ class CreditDebitNoteService
     public function delete(PurchaseDocument $note): void
     {
         $this->ensureNoteType($note);
+        $this->ensureNoteIsNotApproved($note, 'eliminar');
 
         DB::transaction(function () use ($note) {
-            $note->items()->delete();
+            // Una nota crédito parcial eliminada anula su asiento (queda el par asiento + reversión).
+            if ($note->document_type === PurchaseDocument::TYPE_CREDIT_NOTE) {
+                $this->accountingPostingService->voidCreditNoteEntry($note);
+            }
+
+            $this->rollCreditNoteService->unlinkAll($note);
+            // Por instancia para que el AuditObserver registre cada línea eliminada.
+            $note->items()->get()->each->delete();
             $note->delete();
         });
+    }
+
+    // Una nota aprobada ya afecta el saldo y la contabilidad de la factura.
+    private function ensureNoteIsNotApproved(PurchaseDocument $note, string $action): void
+    {
+        if ($note->status === self::NOTE_APPROVED_STATUS) {
+            throw ValidationException::withMessages([
+                'status' => "No se puede {$action} una nota crédito/débito aprobada.",
+            ]);
+        }
     }
 
     private function ensureScopeIsExpenses(array $payload): void
@@ -433,7 +530,7 @@ class CreditDebitNoteService
 
         if (! $this->isEligibleParentInvoiceStatus((string) $parent->status)) {
             throw ValidationException::withMessages([
-                'parent_document_id' => 'La factura seleccionada no esta en un estado valido para registrar una nota.',
+                'parent_document_id' => 'La factura seleccionada no está en un estado válido para registrar una nota.',
             ]);
         }
 
@@ -486,7 +583,6 @@ class CreditDebitNoteService
 
         return match ($status) {
             'approved' => 'Aprobada',
-            'verified' => 'Verificada',
             default => $status !== '' ? ucfirst($status) : 'Sin estado',
         };
     }
@@ -540,6 +636,23 @@ class CreditDebitNoteService
         if (! in_array($reasonCode, $allowedCodes, true)) {
             throw ValidationException::withMessages([
                 'reason_code' => 'El motivo seleccionado no pertenece al catálogo configurado para este tipo de nota.',
+            ]);
+        }
+    }
+
+    /**
+     * La suma de las notas crédito con asiento (más esta) no puede superar el total de la factura.
+     * Se valida antes de contabilizar; el fallo deshace toda la transacción de la nota.
+     */
+    private function ensureCreditNoteFitsInvoice(PurchaseDocument $note, PurchaseDocument $invoice): void
+    {
+        $invoiceTotal = (float) ($this->invoiceService->getInvoiceNotesSummary($invoice)['invoice_total'] ?? 0);
+        $noteTotal = round((float) $note->items()->sum(DB::raw('COALESCE(total, 0) + COALESCE(total_tax, 0)')), 2);
+        $alreadyCredited = $this->accountingPostingService->creditedTotalForInvoice((int) $invoice->id, (int) $note->id);
+
+        if (round($alreadyCredited + $noteTotal, 2) > round($invoiceTotal, 2) + 0.01) {
+            throw ValidationException::withMessages([
+                'document_type' => 'La nota crédito supera el saldo disponible de la factura.',
             ]);
         }
     }

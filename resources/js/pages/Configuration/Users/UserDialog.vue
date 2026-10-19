@@ -8,15 +8,15 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import Label from '@/components/ui/label/Label.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
-import type { Role, User } from '@/domain/Settings'; // Importar los tipos centralizados
-import axios from 'axios';
-import { computed, onMounted, ref, watch } from 'vue';
+import type { Area, Role, User } from '@/domain/Settings'; // Importar los tipos centralizados
+import { computed, ref, watch } from 'vue';
 
 const props = defineProps<{
     isOpen: boolean;
     dialogType: 'create' | 'edit' | 'view';
     userData: Partial<User>;
     roles: Role[]; // Recibir roles desde el backend
+    areas: Area[]; // Catálogo de áreas (tabla areas)
 }>();
 
 const emit = defineEmits<{
@@ -47,8 +47,13 @@ const confirmPassword = ref('');
 const errorMessage = ref('');
 const isView = computed(() => props.dialogType === 'view');
 
-type AreaOption = { id: number; name: string };
-const areas = ref<AreaOption[]>([]);
+// Solo áreas activas; se conserva la actual del usuario aunque esté desactivada para no perder su asignación.
+const areaOptions = computed(() =>
+    props.areas
+        .filter((area) => area.is_active || area.id === form.value.area_id)
+        .map((area) => ({ id: area.id, name: area.name }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
+);
 const getRoleKey = (role: Partial<Role>) => {
     if (role.id !== undefined && role.id !== null) return role.id;
     const areaId = (role as { area_id?: number | string | null }).area_id;
@@ -58,44 +63,12 @@ const getRoleKey = (role: Partial<Role>) => {
     return role.name ?? '';
 };
 
-function normalizeAreas(payload: unknown): AreaOption[] {
-    if (typeof payload === 'string') {
-        try {
-            return normalizeAreas(JSON.parse(payload));
-        } catch {
-            return [];
-        }
-    }
-
-    if (!Array.isArray(payload)) {
-        if (payload && typeof payload === 'object') {
-            const record = payload as Record<string, unknown>;
-            if ('data' in record) return normalizeAreas(record.data);
-            if ('valor' in record) return normalizeAreas(record.valor);
-        }
-        return [];
-    }
-
-    return payload
-        .map((area, index) => {
-            if (area && typeof area === 'object') {
-                const record = area as Record<string, unknown>;
-                const name = String(record.name ?? record.nombre ?? record.label ?? '').trim();
-                if (!name) return null;
-                const rawId = record.id;
-                const parsedId = typeof rawId === 'number' ? rawId : Number(rawId);
-                const id = Number.isInteger(parsedId) ? parsedId : index + 1;
-                return { id, name };
-            }
-            return null;
-        })
-        .filter((area): area is AreaOption => Boolean(area));
-}
-
 const roleOptions = computed(() =>
-    props.roles.map((role) => {
-        return { id: getRoleKey(role), name: role.name };
-    }),
+    props.roles
+        .map((role) => {
+            return { id: getRoleKey(role), name: role.name };
+        })
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
 );
 const selectedRoles = ref<Array<number | string>>(form.value.roles?.map((role) => getRoleKey(role)).filter(Boolean) || []);
 
@@ -113,18 +86,6 @@ watch(
     },
     { deep: true },
 );
-
-async function fetchAreas() {
-    try {
-        const { data } = await axios.get('/api/parameters/areas');
-        areas.value = normalizeAreas(data);
-    } catch (error) {
-        console.error('Error al cargar áreas:', error);
-        areas.value = [];
-    }
-}
-
-onMounted(fetchAreas);
 
 function closeDialog() {
     internalIsOpen.value = false;
@@ -173,7 +134,9 @@ function submitForm() {
         <FormDialogContent class="flex max-h-[95vh] max-w-2xl flex-col px-2 py-2">
             <TooltipProvider>
                 <DialogHeader class="shrink-0 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
-                    <DialogTitle>{{ dialogType === 'create' ? 'Crear Usuario' : dialogType === 'edit' ? 'Editar Usuario' : 'Ver Usuario' }}</DialogTitle>
+                    <DialogTitle>{{
+                        dialogType === 'create' ? 'Crear Usuario' : dialogType === 'edit' ? 'Editar Usuario' : 'Ver Usuario'
+                    }}</DialogTitle>
                     <DialogDescription>
                         {{
                             dialogType === 'create'
@@ -191,7 +154,7 @@ function submitForm() {
                                 <Label class="text-sm font-medium"> Nombre<span class="text-destructive">*</span> </Label>
                                 <HelpTooltip text="Nombre completo del usuario que tendrá acceso al sistema." aria-label="Ayuda sobre nombre" />
                             </div>
-                            <InputField v-model="form.name" label="" placeholder="Nombre del usuario" required :readonly="isView" />
+                            <InputField v-model="form.name" data-no-uppercase label="" placeholder="Nombre del usuario" required :readonly="isView" />
                         </div>
                         <div class="flex flex-col gap-1">
                             <div class="flex items-center gap-2">
@@ -265,13 +228,7 @@ function submitForm() {
                                     aria-label="Ayuda sobre área"
                                 />
                             </div>
-                            <SelectField
-                                label=""
-                                :options="areas.map((area) => ({ id: area.id, name: area.name }))"
-                                v-model="form.area_id"
-                                required
-                                :disabled="isView"
-                            />
+                            <SelectField label="" :options="areaOptions" v-model="form.area_id" required :disabled="isView" />
                         </div>
                         <!-- Select para roles -->
                         <GroupSelect

@@ -11,7 +11,7 @@ enum PurchaseInvoiceStatus: string
     public function label(): string
     {
         return match($this) {
-            self::PENDING_RECEIPT => 'Pendiente de recepción',
+            self::PENDING_RECEIPT => 'Por recibir',
             self::RECEIVED => 'Recibida',
             self::REJECTED => 'Rechazada',
         };

@@ -30,6 +30,8 @@ const props = withDefaults(
         multiple?: boolean;
         placeholder?: string;
         disabled?: boolean;
+        /** Solo lectura: bloquea la interacción pero conserva el contraste normal (a diferencia de disabled). */
+        readonly?: boolean;
         searchable?: boolean;
         searchPlaceholder?: string;
         showPlaceholderOption?: boolean;
@@ -57,6 +59,7 @@ const props = withDefaults(
         multiple: false,
         placeholder: '',
         disabled: false,
+        readonly: false,
         searchable: false,
         searchPlaceholder: 'Buscar y seleccionar...',
         showPlaceholderOption: true,
@@ -149,6 +152,15 @@ const customOption = computed<Option | null>(() => {
     return { id: normalizedSearchTerm.value, name: label };
 });
 
+// Recuerda todas las opciones vistas: si una búsqueda en servidor reemplaza `options`
+// y la seleccionada desaparece, se sigue mostrando su nombre en vez del ID.
+const knownOptions = new Map<string, Option>();
+watch(
+    () => props.options,
+    (options) => options.forEach((option) => knownOptions.set(String(option.id), option)),
+    { immediate: true },
+);
+
 const customSelection = computed<Option | null>(() => {
     if (props.multiple) return null;
     const modelValue = localModelValue.value;
@@ -157,6 +169,10 @@ const customSelection = computed<Option | null>(() => {
     }
     const match = props.options.find((option) => option.id == modelValue);
     if (match) return null;
+    const known = knownOptions.get(String(modelValue));
+    if (known) return known;
+    // Sin allowCustom un valor sin opción asociada es un ID: mejor vacío que mostrar el número.
+    if (!props.allowCustom) return null;
     const label = String(modelValue);
     return label ? { id: modelValue, name: label } : null;
 });
@@ -198,7 +214,9 @@ const comboboxValue = computed<Option | Option[] | null>(() => {
         if (!isLocalModelArray(modelValue)) {
             return [];
         }
-        return props.options.filter((option) => modelValue.some((selectedId) => selectedId == option.id));
+        return modelValue
+            .map((selectedId) => props.options.find((option) => option.id == selectedId) ?? knownOptions.get(String(selectedId)))
+            .filter((option): option is Option => Boolean(option));
     }
     const modelValue = localModelValue.value;
     if (modelValue === null || isLocalModelArray(modelValue)) {
@@ -279,6 +297,7 @@ function handleInput(event: Event) {
     searchTerm.value = target.value;
 }
 
+const isLocked = computed(() => props.disabled || props.readonly);
 const hasLabel = computed(() => Boolean(props.label?.trim()));
 const hasAction = computed(() => Boolean(props.actionLabel?.trim()));
 const actionButtonClass = computed(() => {
@@ -297,7 +316,7 @@ function handleEnterKey(event: KeyboardEvent) {
 }
 
 function handleActionClick() {
-    if (props.disabled || props.actionDisabled) return;
+    if (isLocked.value || props.actionDisabled) return;
     const currentSearchTerm = searchTerm.value.trim();
     emit('action', currentSearchTerm);
     searchTerm.value = '';
@@ -392,7 +411,7 @@ watch(
                 class="w-full"
                 :modelValue="comboboxValue"
                 :multiple="multiple"
-                :disabled="disabled"
+                :disabled="isLocked"
                 by="id"
                 @update:modelValue="handleComboboxChange"
             >
@@ -421,24 +440,27 @@ watch(
 
                         <ComboboxInput
                             v-bind="$attrs"
-                            class="h-10 min-h-[42px] w-full rounded-md border border-input bg-background px-3 py-2 pr-10 text-sm text-foreground shadow-sm transition placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-60"
+                            class="h-9 min-h-9 w-full rounded-md border bg-background px-2.5 py-1.5 pr-10 text-sm text-foreground shadow-sm transition placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background disabled:cursor-not-allowed disabled:opacity-60"
                             :class="[
                                 !isSearchEnabled ? 'cursor-default' : '',
                                 buttonClass,
                                 multiple ? 'pl-28' : '',
-                                invalid ? 'border-destructive focus-visible:ring-destructive/40' : '',
+                                invalid ? 'border-destructive ring-1 ring-destructive/40 focus-visible:ring-destructive/40' : 'border-input',
+                                readonly ? 'disabled:cursor-default disabled:opacity-100' : '',
                             ]"
                             :aria-invalid="invalid ? 'true' : undefined"
                             :data-invalid="invalid ? 'true' : undefined"
                             :placeholder="placeholderText"
                             :display-value="displayValueForInput"
-                            :disabled="disabled"
+                            :disabled="isLocked"
+                            :readonly="readonly"
                             @input="handleInput"
                             @keydown.enter="handleEnterKey"
                         />
                         <button
                             v-if="
                                 clearable &&
+                                !readonly &&
                                 localModelValue !== null &&
                                 localModelValue !== undefined &&
                                 localModelValue !== '' &&
@@ -453,6 +475,7 @@ watch(
                             <X class="h-3.5 w-3.5" />
                         </button>
                         <ComboboxButton
+                            v-if="!readonly"
                             class="pointer-events-auto absolute right-3 top-1/2 -translate-y-1/2 rounded-full border border-transparent bg-transparent p-0 text-muted-foreground/70 transition hover:text-muted-foreground"
                             :class="[disabled ? 'pointer-events-none opacity-60' : '']"
                             :disabled="disabled"
@@ -501,7 +524,7 @@ watch(
                                             <div
                                                 :class="[
                                                     'relative cursor-pointer select-none py-2 pl-3 pr-9 text-sm transition-colors',
-                                                    active ? 'bg-accent text-accent-foreground' : 'text-popover-foreground',
+                                                    active ? 'bg-accent/30 font-medium text-foreground' : 'text-popover-foreground',
                                                 ]"
                                             >
                                                 <span>
@@ -540,7 +563,7 @@ watch(
                                                     <div
                                                         :class="[
                                                             'relative cursor-pointer select-none py-2 pl-3 pr-9 text-sm transition-colors',
-                                                            active ? 'bg-accent text-accent-foreground' : 'text-popover-foreground',
+                                                            active ? 'bg-accent/30 font-medium text-foreground' : 'text-popover-foreground',
                                                         ]"
                                                     >
                                                         <slot v-if="$slots.option" name="option" :option="option as any" :active="active" />

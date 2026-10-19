@@ -17,14 +17,17 @@ class UpdateFabricRollRequest extends \App\Http\Requests\Inventory\InventoryForm
                 Rule::unique('fabric_rolls', 'roll_number')->ignore($this->fabricRollId()),
             ],
             'purchase_document_item_id' => ['required', 'integer', 'exists:purchase_document_items,id'],
-            'quantity' => ['required', 'numeric', 'min:0.01'],
-            'roll_width' => ['nullable', 'numeric', 'min:0'],
+            'quantity' => ['required', 'numeric', 'min:0.01', 'decimal:0,2'],
+            'roll_width' => ['nullable', 'numeric', 'min:0', 'max:10', 'decimal:0,2'],
             'location' => ['nullable', 'string', 'max:255'],
             'description' => ['nullable', 'string'],
-            'partial_output' => ['nullable', 'numeric', 'min:0'],
-            'actual_output' => ['nullable', 'numeric', 'min:0'],
             'entry_date' => ['required', 'date'],
         ];
+    }
+
+    public function messages(): array
+    {
+        return ['roll_width.max' => 'El ancho del rollo se expresa en metros (ej. 1,50) y no puede superar 10 m.'];
     }
 
     protected function fabricRollId(): ?int

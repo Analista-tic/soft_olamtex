@@ -1,10 +1,12 @@
 <?php
 
+use App\Http\Controllers\Settings\AreaController;
 use App\Http\Controllers\Settings\AuditLogController;
 use App\Http\Controllers\Settings\AppearanceController;
 use App\Http\Controllers\Settings\AvatarController;
 use App\Http\Controllers\Settings\CompanySettingsController;
 use App\Http\Controllers\StorageFileController;
+use App\Http\Controllers\Settings\NotificationRulesController;
 use App\Http\Controllers\Settings\NotificationsController;
 use App\Http\Controllers\Settings\PasswordController;
 use App\Http\Controllers\Settings\ProfileController;
@@ -62,7 +64,23 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ->middleware('permission:eliminar usuarios')
         ->name('usuarios.destroy');
 
-    Route::get('roles-data', [RoleController::class, 'getData'])
+    // Las áreas organizan usuarios: su gestión reutiliza los permisos de usuarios.
+    Route::get('areas/list', [AreaController::class, 'list'])
+        ->name('areas.list');
+
+    Route::post('areas', [AreaController::class, 'store'])
+        ->middleware('permission:crear usuarios')
+        ->name('areas.store');
+
+    Route::put('areas/{area}', [AreaController::class, 'update'])
+        ->middleware('permission:editar usuarios')
+        ->name('areas.update');
+
+    Route::delete('areas/{area}', [AreaController::class, 'destroy'])
+        ->middleware('permission:eliminar usuarios')
+        ->name('areas.destroy');
+
+    Route::get('roles-data',[RoleController::class, 'getData'])
         ->middleware('permission:ver roles')
         ->name('roles.getData');
 
@@ -100,6 +118,12 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/read-all', [NotificationsController::class, 'markAllAsRead'])->name('mark-all-read');
         Route::patch('/{id}/archive', [NotificationsController::class, 'archive'])->name('archive');
         Route::delete('/{id}', [NotificationsController::class, 'destroy'])->name('destroy');
+    });
+
+    // Reglas de notificaciones: quién, cómo y cuándo se avisa. Solo el rol superadmin.
+    Route::middleware('role:superadmin')->prefix('configuracion/reglas-notificaciones')->name('reglas-notificaciones.')->group(function () {
+        Route::get('/', [NotificationRulesController::class, 'index'])->name('index');
+        Route::put('/{eventKey}', [NotificationRulesController::class, 'update'])->name('update');
     });
 
     Route::redirect('settings', '/settings/profile');

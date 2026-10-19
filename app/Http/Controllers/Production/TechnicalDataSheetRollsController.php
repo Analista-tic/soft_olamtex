@@ -4,19 +4,19 @@ namespace App\Http\Controllers\Production;
 
 use App\Http\Controllers\Controller;
 use App\Models\Production\ProductionOrder;
-use App\Models\Textil\FabricRoll;
 use App\Services\Production\TechnicalDataSheetRollsStore;
+use App\Services\Textil\FabricRollService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Str;
-use Illuminate\Validation\ValidationException;
 
 class TechnicalDataSheetRollsController extends Controller
 {
     public function __construct(
         private TechnicalDataSheetRollsStore $store,
+        private FabricRollService $fabricRollService,
     ) {
     }
 
@@ -128,77 +128,12 @@ class TechnicalDataSheetRollsController extends Controller
             ];
         }
 
-        // ── Actualizar partial_output en FabricRoll (con lockForUpdate para concurrencia) ───
-        $existingByRollId = [];
-        foreach ($existing as $line) {
-            $rid = isset($line['rollId']) ? trim((string) $line['rollId']) : '';
-            if ($rid === '' || ! is_numeric($rid)) {
-                continue;
-            }
-            $m = is_numeric($line['programmedMeters'] ?? null) ? (float) $line['programmedMeters'] : 0.0;
-            $existingByRollId[$rid] = ($existingByRollId[$rid] ?? 0.0) + $m;
-        }
-
-        $newByRollId = [];
-        foreach ($nextLines as $line) {
-            $rid = isset($line['rollId']) ? trim((string) $line['rollId']) : '';
-            if ($rid === '' || ! is_numeric($rid)) {
-                continue;
-            }
-            $m = is_numeric($line['programmedMeters'] ?? null) ? (float) $line['programmedMeters'] : 0.0;
-            $newByRollId[$rid] = ($newByRollId[$rid] ?? 0.0) + $m;
-        }
-
-        $allRollIds     = array_unique(array_merge(array_keys($existingByRollId), array_keys($newByRollId)));
-        $numericRollIds = array_values(array_filter(
-            array_map(fn(string $r) => is_numeric($r) ? (int) $r : null, $allRollIds),
-            fn($v) => $v !== null,
-        ));
-
-        if (! empty($numericRollIds)) {
-            DB::transaction(function () use ($numericRollIds, $existingByRollId, $newByRollId) {
-                $rolls = FabricRoll::lockForUpdate()
-                    ->whereIn('id', $numericRollIds)
-                    ->get()
-                    ->keyBy('id');
-
-                foreach ($numericRollIds as $numId) {
-                    $rid  = (string) $numId;
-                    $roll = $rolls->get($numId);
-                    if (! $roll) {
-                        continue;
-                    }
-
-                    $oldMeters = $existingByRollId[$rid] ?? 0.0;
-                    $newMeters = $newByRollId[$rid] ?? 0.0;
-                    $delta     = $newMeters - $oldMeters;
-
-                    if (abs($delta) < 0.001) {
-                        continue;
-                    }
-
-                    $currentPartial = (float) $roll->partial_output;
-                    $newPartial     = round(max(0.0, $currentPartial + $delta), 2);
-
-                    $realCeiling = (float) $roll->quantity - (float) $roll->actual_output;
-                    if ($newPartial > $realCeiling + 0.001) {
-                        $available = round(max(0.0, $realCeiling - $currentPartial), 2);
-                        throw ValidationException::withMessages([
-                            'rolls' => [
-                                "Rollo {$roll->roll_number}: disponibilidad parcial insuficiente "
-                                . "({$available} m disponibles, se intentan asignar {$newMeters} m).",
-                            ],
-                        ]);
-                    }
-
-                    $roll->partial_output = $newPartial;
-                    $roll->save();
-                }
-            });
-        }
-
-        $payload['lines'] = array_values($nextLines);
-        $this->store->write($opId, $payload);
+        // Reserva de rollos y guardado de líneas en una sola transacción: la reserva se
+        // calcula sobre lo pendiente de cada línea (programado − liberado por el corte).
+        DB::transaction(function () use ($opId, &$payload, $existing, $nextLines) {
+            $payload['lines'] = array_values($this->fabricRollService->syncSheetReservations($existing, $nextLines));
+            $this->store->write($opId, $payload);
+        });
 
         return response()->json([
             'params' => is_array($payload['params'] ?? null) ? $payload['params'] : [
@@ -309,35 +244,16 @@ class TechnicalDataSheetRollsController extends Controller
         $lines = is_array($payload['lines'] ?? null) ? $payload['lines'] : [];
         $targetId = trim($lineId);
 
-        // Identificar la línea que se va a eliminar antes de borrarla
-        $removedLine = collect($lines)->firstWhere('id', $targetId);
-
-        $payload['lines'] = array_values(array_filter($lines, function (array $line) use ($targetId) {
+        $remaining = array_values(array_filter($lines, function (array $line) use ($targetId) {
             return (string) ($line['id'] ?? '') !== $targetId;
         }));
 
-        $this->store->write($opId, $payload);
-
-        // ── Actualizar partial_output del rollo liberado (si aplica) ──────────────
-        if ($removedLine !== null) {
-            $rid = isset($removedLine['rollId']) ? trim((string) $removedLine['rollId']) : '';
-            $meters = is_numeric($removedLine['programmedMeters'] ?? null)
-                ? (float) $removedLine['programmedMeters']
-                : 0.0;
-
-            if ($rid !== '' && is_numeric($rid) && $meters > 0.001) {
-                DB::transaction(function () use ($rid, $meters) {
-                    $roll = FabricRoll::lockForUpdate()->find((int) $rid);
-                    if ($roll) {
-                        $roll->partial_output = round(
-                            max(0.0, (float) $roll->partial_output - $meters),
-                            2
-                        );
-                        $roll->save();
-                    }
-                });
-            }
-        }
+        // Borrar una línea es guardar las restantes: libera solo lo que la línea todavía
+        // reservaba (programado − liberado por el corte), en la misma transacción.
+        DB::transaction(function () use ($opId, &$payload, $lines, $remaining) {
+            $payload['lines'] = array_values($this->fabricRollService->syncSheetReservations($lines, $remaining));
+            $this->store->write($opId, $payload);
+        });
 
         return response()->json($payload);
     }

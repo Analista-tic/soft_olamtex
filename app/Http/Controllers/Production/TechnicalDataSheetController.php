@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Production;
 
+use App\Support\Production\SizeOrder;
 use App\Helpers\MonthLabel;
 use App\Helpers\SeasonParser;
 use App\Http\Controllers\Controller;
@@ -10,7 +11,7 @@ use App\Models\Production\ProductOperationList;
 use App\Models\Production\TechnicalSheet;
 use App\Models\Production\TechnicalSheetOperation;
 use App\Enums\EstatusOperacionOrden;
-use App\Models\Textil\FabricRoll;
+use App\Services\Textil\FabricRollService;
 use App\Services\Production\FabricBaseService;
 use App\Services\Production\OperationSectionService;
 use App\Services\Production\ProductionOrderService;
@@ -28,7 +29,6 @@ use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Str;
-use Illuminate\Validation\ValidationException;
 use Illuminate\Validation\Rule;
 use Inertia\Inertia;
 use Inertia\Response;
@@ -55,6 +55,7 @@ class TechnicalDataSheetController extends Controller
         private TechnicalDataSheetRawMaterialsStore $rawMaterialsStore,
         private TechnicalDataSheetRollsStore $rollsStore,
         private TechnicalDataSheetPdfService $pdfService,
+        private FabricRollService $fabricRollService,
     ) {}
 
     /**
@@ -442,8 +443,10 @@ class TechnicalDataSheetController extends Controller
                 $machineId    = $operation?->machine_id_reference ?? null;
                 $fabricFactor = $this->resolveFabricFactor($order);
 
+                $opQuantity        = \App\Models\Production\ProductOperationList::quantityOf($operation?->quantity);
                 $samTotalUnitario  = round($samBase * $machineSupplement * $fabricFactor * $opEfficiency, 4);
-                $samTotalLote      = round($samTotalUnitario * $quantityLote, 4);
+                $samTotalOperacion = round($samTotalUnitario * $opQuantity, 4);
+                $samTotalLote      = round($samTotalOperacion * $quantityLote, 4);
 
                 $itemId = isset($data['id']) && $data['id'] !== null ? (int) $data['id'] : null;
 
@@ -457,8 +460,9 @@ class TechnicalDataSheetController extends Controller
                         'operator_efficiency_factor' => $opEfficiency,
                         'machine_supplement_factor'  => $machineSupplement,
                         'fabric_base_factor'         => $fabricFactor,
+                        'quantity'                   => $opQuantity,
                         'sam_total_unitario'         => $samTotalUnitario,
-                        'sam_total_operacion'        => $samTotalUnitario,
+                        'sam_total_operacion'        => $samTotalOperacion,
                         'sam_total_lote'             => $samTotalLote,
                     ]);
                     $processedIds[] = $itemId;
@@ -468,13 +472,13 @@ class TechnicalDataSheetController extends Controller
                         'sequence'                   => $sequence,
                         'operation_id'               => $operationId,
                         'machine_id'                 => $machineId,
-                        'quantity'                   => 1,
+                        'quantity'                   => $opQuantity,
                         'sam_base'                   => $samBase,
                         'operator_efficiency_factor' => $opEfficiency,
                         'machine_supplement_factor'  => $machineSupplement,
                         'fabric_base_factor'         => $fabricFactor,
                         'sam_total_unitario'         => $samTotalUnitario,
-                        'sam_total_operacion'        => $samTotalUnitario,
+                        'sam_total_operacion'        => $samTotalOperacion,
                         'sam_total_lote'             => $samTotalLote,
                         'quantity_progressed'        => 0,
                         'status'                     => EstatusOperacionOrden::PENDIENTE,
@@ -483,8 +487,13 @@ class TechnicalDataSheetController extends Controller
                 }
             }
 
-            TechnicalSheetOperation::where('technical_sheet_id', $technicalSheet->id)
+            // Por instancia (incluye las ya eliminadas, como el forceDelete masivo) para que el
+            // AuditObserver registre cada operación eliminada.
+            TechnicalSheetOperation::withTrashed()
+                ->where('technical_sheet_id', $technicalSheet->id)
                 ->whereNotIn('id', $processedIds)
+                ->get()
+                ->each
                 ->forceDelete();
         });
 
@@ -1086,78 +1095,10 @@ class TechnicalDataSheetController extends Controller
             ];
         }
 
-        $existingByRollId = [];
-        foreach ($existing as $line) {
-            $rollId = isset($line['rollId']) ? trim((string) $line['rollId']) : '';
-            if ($rollId === '' || !is_numeric($rollId)) {
-                continue;
-            }
+        // Reserva de rollos: una sola implementación, sobre lo pendiente de cada línea
+        // (programado − liberado por el corte). Corre dentro de la transacción del guardado.
+        $payload['lines'] = array_values($this->fabricRollService->syncSheetReservations($existing, $nextLines));
 
-            $meters = is_numeric($line['programmedMeters'] ?? null) ? (float) $line['programmedMeters'] : 0.0;
-            $existingByRollId[$rollId] = ($existingByRollId[$rollId] ?? 0.0) + $meters;
-        }
-
-        $newByRollId = [];
-        foreach ($nextLines as $line) {
-            $rollId = isset($line['rollId']) ? trim((string) $line['rollId']) : '';
-            if ($rollId === '' || !is_numeric($rollId)) {
-                continue;
-            }
-
-            $meters = is_numeric($line['programmedMeters'] ?? null) ? (float) $line['programmedMeters'] : 0.0;
-            $newByRollId[$rollId] = ($newByRollId[$rollId] ?? 0.0) + $meters;
-        }
-
-        $numericRollIds = array_values(array_filter(
-            array_map(
-                fn(string $rollId) => is_numeric($rollId) ? (int) $rollId : null,
-                array_unique(array_merge(array_keys($existingByRollId), array_keys($newByRollId))),
-            ),
-            fn($value) => $value !== null,
-        ));
-
-        if ($numericRollIds !== []) {
-            $rolls = FabricRoll::lockForUpdate()
-                ->whereIn('id', $numericRollIds)
-                ->get()
-                ->keyBy('id');
-
-            foreach ($numericRollIds as $numericRollId) {
-                $rollId = (string) $numericRollId;
-                /** @var FabricRoll|null $roll */
-                $roll = $rolls->get($numericRollId);
-                if (!$roll) {
-                    continue;
-                }
-
-                $oldMeters = $existingByRollId[$rollId] ?? 0.0;
-                $newMeters = $newByRollId[$rollId] ?? 0.0;
-                $delta = $newMeters - $oldMeters;
-
-                if (abs($delta) < 0.001) {
-                    continue;
-                }
-
-                $currentPartial = (float) $roll->partial_output;
-                $newPartial = round(max(0.0, $currentPartial + $delta), 2);
-
-                $realCeiling = (float) $roll->quantity - (float) $roll->actual_output;
-                if ($newPartial > $realCeiling + 0.001) {
-                    $available = round(max(0.0, $realCeiling - $currentPartial), 2);
-                    throw ValidationException::withMessages([
-                        'rolls' => [
-                            "Rollo {$roll->roll_number}: disponibilidad parcial insuficiente "
-                            . "({$available} m disponibles, se intentan asignar {$newMeters} m).",
-                        ],
-                    ]);
-                }
-
-                $roll->partial_output = $newPartial;
-                $roll->save();
-            }
-        }
-
-        $payload['lines'] = array_values($nextLines);
         $this->rollsStore->write($opId, $payload);
     }
 
@@ -1203,7 +1144,7 @@ class TechnicalDataSheetController extends Controller
         };
 
         if (is_array($sizes)) {
-            return $extractFromArray($sizes);
+            return SizeOrder::sort($extractFromArray($sizes));
         }
 
         if (is_string($sizes)) {
@@ -1214,13 +1155,13 @@ class TechnicalDataSheetController extends Controller
 
             $decoded = json_decode($trimmed, true);
             if (is_array($decoded)) {
-                return $extractFromArray($decoded);
+                return SizeOrder::sort($extractFromArray($decoded));
             }
 
-            return array_values(array_filter(
+            return SizeOrder::sort(array_values(array_filter(
                 array_map('trim', explode(',', $trimmed)),
                 static fn($item) => $item !== ''
-            ));
+            )));
         }
 
         return [];

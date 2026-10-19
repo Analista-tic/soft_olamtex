@@ -12,38 +12,32 @@ let cachedYarnNameOptions: CachedMaterialNameOption[] | null = null;
 </script>
 
 <script setup lang="ts">
+// organize-imports-ignore -- prettier-plugin-organize-imports corrompe los imports de este archivo
+// (tiene dos bloques <script>): duplica letras ("iimport") y quita espacios tras las comas.
 import axios from 'axios';
 import { ExternalLink, Image, Plus, Trash } from 'lucide-vue-next';
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue';
-
 import AlertStack from '@/components/common/AlertStack.vue';
+import ColorPickerSelect from '@/components/ColorPickerSelect.vue';
 import CreatableSelectField from '@/components/CreatableSelectField.vue';
 import FormHeader from '@/components/FormHeader.vue';
 import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
+import ImagePreviewDialog from '@/components/ImagePreviewDialog.vue';
 import InputField from '@/components/InputField.vue';
 import InputIntegerField from '@/components/InputIntegerField.vue';
 import SelectField from '@/components/SelectField.vue';
-
+import TextareaField from '@/components/TextareaField.vue';
 import { Button } from '@/components/ui/button';
 import { DialogFooter } from '@/components/ui/dialog';
 import Input from '@/components/ui/input/Input.vue';
 import Label from '@/components/ui/label/Label.vue';
 import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
-
-import ColorPickerSelect from '@/components/ColorPickerSelect.vue';
-import TextareaField from '@/components/TextareaField.vue';
-import TaxDialog from '@/pages/Finance/Taxes/TaxDialog.vue';
-import WarehouseLocationDialog from '@/pages/Inventory/WarehouseLocation/WarehouseLocationDialog.vue';
-import AdditionalFieldDialog from '@/pages/MasterData/AdditionalFields/AdditionalFieldDialog.vue';
-import ExtraFieldsForm from '@/pages/MasterData/Item/ExtraFieldsForm.vue';
-
-import { catalogLookupRoutes } from '@/lib/catalogLookupRoutes';
-import { ITEM_FORM_DRAFT_KEY } from '@/lib/storageKeys';
-
+import { NOT_APPLICABLE_COLOR_CODE } from '@/composables/useColorsCatalog';
+import unitMeasureData from '@/data/unitMeasures.json';
 import type { Tax } from '@/domain/Finance';
-import type { Warehouse } from '@/domain/inventory';
+import type { InventoryAdjustmentPrefill, Warehouse } from '@/domain/inventory';
 import type {
     AdditionalField,
     AdditionalFieldPayload,
@@ -54,12 +48,17 @@ import type {
     Item,
 } from '@/domain/MasterData';
 import type { Option } from '@/domain/shared/types';
-
 import { formatRequiredFieldsMessage } from '@/lib/alert-format';
+import { catalogLookupRoutes } from '@/lib/catalogLookupRoutes';
+import { broadcastCatalogInvalidated, onCatalogInvalidatedElsewhere } from '@/lib/crossTabSync';
+import { ITEM_FORM_DRAFT_KEY } from '@/lib/storageKeys';
 import { DEFAULT_TAX_LABEL, formatTaxOptionLabel, isDefaultTax } from '@/lib/taxes';
+import TaxDialog from '@/pages/Finance/Taxes/TaxDialog.vue';
+import InventoryAdjustmentForm from '@/pages/Inventory/InventoryAdjustment/InventoryAdjustmentForm.vue';
+import WarehouseLocationDialog from '@/pages/Inventory/WarehouseLocation/WarehouseLocationDialog.vue';
+import AdditionalFieldDialog from '@/pages/MasterData/AdditionalFields/AdditionalFieldDialog.vue';
+import ExtraFieldsForm from '@/pages/MasterData/Item/ExtraFieldsForm.vue';
 import { useAuthStore } from '@/stores/auth';
-
-import unitMeasureData from '@/data/unitMeasures.json';
 
 type DialogType = 'create' | 'edit' | 'view';
 type SaveMode = Exclude<DialogType, 'view'>;
@@ -74,10 +73,11 @@ const props = withDefaults(
         showInternalLoadingOverlay?: boolean;
         preloadedSubGroups?: any[];
         preloadedTaxes?: any[];
-        preloadedColors?: any[];
         // Cuando este componente se usa como página completa (no dialog/modal),
         // se debe evitar el scroll interno y dejar que la página haga el scroll.
         isFullPage?: boolean;
+        // Nombre del ítem que se está creando a partir de una solicitud (solo informativo).
+        requestedName?: string;
     }>(),
     {
         showAdvancedLink: true,
@@ -90,7 +90,7 @@ const props = withDefaults(
 const emit = defineEmits<{
     (e: 'close'): void;
     (e: 'refresh'): void;
-    (e: 'saved', mode: SaveMode): void;
+    (e: 'saved', mode: SaveMode, id?: number | null): void;
     (e: 'error', message: string): void;
     (e: 'loading-state', value: boolean): void;
 }>();
@@ -119,6 +119,7 @@ type ItemWarehouseStockSource = {
     stock_min?: number | string | null;
     stock_max?: number | string | null;
     location_id?: number | string | null;
+    unit_price?: number | string | null;
     weighted_average_price?: number | string | null;
     warehouse?: {
         id?: number | string | null;
@@ -128,6 +129,7 @@ type ItemWarehouseStockSource = {
 
 type ItemColorSource = {
     id?: number | string | null;
+    code?: string | null;
     name?: string | null;
     rgb?: string | null;
 };
@@ -186,7 +188,11 @@ function mapItemToFormState(source: ItemFormSource): ItemForm {
                 ? Number(source.yarn_name_id)
                 : null,
         reference: source.reference || '',
+        // Un ítem nuevo nace habilitado: el formulario no expone el estado y varios
+        // orígenes (formulario avanzado, diálogos de compras) no lo envían.
+        status: source.status ?? true,
         bar_code: source.bar_code ?? '',
+        legacy_code: source.legacy_code ?? '',
         tax_id: resolvedTaxId,
         item_type: normalizeItemType(source.item_type),
         export_tariff_code: source.export_tariff_code ?? '',
@@ -207,6 +213,10 @@ const warehouses = ref<Warehouse[]>([]);
 const warehouseLocations = ref<{ id: number; name: string }[]>([]);
 const categorySubGroups = ref<CategorySubGroup[]>([]);
 const categoryGroups = ref<CategoryGroup[]>([]);
+let categorySubGroupsRequestToken = 0;
+// Fuerza el remount del selector de Subgrupo cada vez que categorySubGroups se
+// refresca en segundo plano — ver el comentario en fetchCategorySubGroups().
+const subGroupsRefreshKey = ref(0);
 
 type MaterialNameOption = { id: number; nombre: string; base_nombre: string | null; factor?: number | null };
 const fabricNameOptions = ref<MaterialNameOption[]>([]);
@@ -216,14 +226,47 @@ const selectedGroupId = ref<string | null>(null);
 
 // Referencia automática/manual — solo aplica al crear (editar conserva la referencia
 // tal como quedó, sea cual sea el origen; ver ItemController::prepareItemPayload()).
-const referenceMode = ref<'manual' | 'auto'>('manual');
+// Automática es el default: manual requiere el permiso 'crear referencia manual
+// item' (ver canCreateManualReference más abajo).
+const referenceMode = ref<'manual' | 'auto'>('auto');
 
 const imageFile = ref<File | null>(null);
 const imagePreview = ref<string | undefined>(undefined);
 const fileInputRef = ref<HTMLInputElement | null>(null);
 
 const errors = ref<Record<string, string[]>>({});
+// Se activa al intentar guardar: marca en rojo los campos obligatorios vacíos del detalle de inventario.
+const showInventoryErrors = ref(false);
+// Se activa al primer intento de guardar: marca en rojo todos los campos obligatorios vacíos del formulario.
+const submitAttempted = ref(false);
+
+function isBlankNumber(value: unknown): boolean {
+    return value === null || value === undefined || String(value).trim() === '' || !Number.isFinite(Number(value));
+}
+
+// Campos obligatorios vacíos de una fila del detalle de inventario (0 es un valor válido).
+// Cantidad y costo inicial solo existen al crear: después el saldo solo cambia con movimientos
+// de inventario (ajustes, recepciones, traslados) y no se edita desde la ficha.
+function inventoryRowGaps(ws: {
+    warehouse_id?: unknown;
+    quantity?: unknown;
+    stock_min?: unknown;
+    stock_max?: unknown;
+    unit_price?: unknown;
+    location_id?: unknown;
+}) {
+    const isCreate = props.dialogType === 'create';
+    return {
+        warehouse: !Number(ws.warehouse_id),
+        quantity: isCreate && materialKind.value !== 'fabric' && isBlankNumber(ws.quantity),
+        stock_min: isBlankNumber(ws.stock_min),
+        stock_max: isBlankNumber(ws.stock_max),
+        unit_price: isCreate && Number(ws.quantity) > 0 && !(Number(ws.unit_price) > 0),
+        location: !Number(ws.location_id),
+    };
+}
 const errorMessage = ref('');
+const successMessage = ref('');
 const errorType = ref<'error' | 'info' | 'warning'>('error');
 
 const extraFieldNames = ref<string[]>([]);
@@ -247,10 +290,26 @@ type WarehouseStockEntry = {
     stock_min: number;
     stock_max: number;
     location_id: number | string | null;
-    unit_price?: number | null;
+    unit_price?: number;
     initial_date?: string | null;
+    /** Bodega con la que la fila está guardada en el servidor (null si la fila es nueva). */
+    persisted_warehouse_id?: number | null;
 };
 const warehouseStocks = ref<WarehouseStockEntry[]>([]);
+
+// La fila refleja una bodega ya guardada solo si no se le cambió la bodega en el formulario:
+// si una fila con saldo 0 se cambia a otra bodega, esa otra bodega todavía no existe para el ítem.
+function isPersistedWarehouseRow(ws: WarehouseStockEntry): boolean {
+    return ws.persisted_warehouse_id != null && Number(ws.persisted_warehouse_id) === Number(ws.warehouse_id);
+}
+
+// Una bodega guardada con saldo no se puede quitar ni cambiar: primero hay que llevar el saldo a 0
+// con un ajuste o traslado. El backend aplica la misma regla (ItemService::syncWarehouses).
+function isWarehouseRowLocked(ws: WarehouseStockEntry): boolean {
+    return props.dialogType !== 'create' && isPersistedWarehouseRow(ws) && Number(ws.quantity) !== 0;
+}
+
+const quantityFormatter = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 4 });
 
 const taxes = ref<Tax[]>([]);
 const isTaxDialogOpen = ref(false);
@@ -331,8 +390,10 @@ const yarnNameModel = computed<number | null>({
 });
 const canCreateCategories = computed(() => authStore.can('crear categorias'));
 const canCreateTaxes = computed(() => authStore.can('crear impuestos'));
+const canCreateManualReference = computed(() => authStore.can('crear referencia manual item'));
 const canCreateAdditionalFields = computed(() => authStore.can('crear campos adicionales'));
 const canCreateWarehouses = computed(() => authStore.can('crear bodegas'));
+const canCreateInventoryAdjustments = computed(() => authStore.can('crear ajustes inventario'));
 
 const groupOptions = computed(() =>
     categoryGroups.value.map((group) => ({
@@ -347,10 +408,12 @@ const filteredSubGroups = computed(() => {
 });
 
 const subGroupOptions = computed(() =>
-    filteredSubGroups.value.map((sg) => ({
-        id: String(sg.id ?? ''),
-        name: sg.name,
-    })),
+    filteredSubGroups.value
+        .map((sg) => ({
+            id: String(sg.id ?? ''),
+            name: sg.name,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
 );
 
 const currentSubGroup = computed(() => categorySubGroups.value.find((sg) => String(sg.id) === String(localForm.value.category_sub_group_id)));
@@ -372,18 +435,22 @@ function materialNameOptionLabel(option: MaterialNameOption): string {
 // "ALGODÓN"; `label` es lo que se muestra ("MILE (ALGODÓN)") — ver SelectField.vue,
 // que ahora busca en ambos.
 const fabricNameSelectOptions = computed(() =>
-    fabricNameOptions.value.map((option) => ({
-        id: option.id,
-        name: `${option.nombre} ${option.base_nombre ?? ''}`.trim(),
-        label: materialNameOptionLabel(option),
-    })),
+    fabricNameOptions.value
+        .map((option) => ({
+            id: option.id,
+            name: `${option.nombre} ${option.base_nombre ?? ''}`.trim(),
+            label: materialNameOptionLabel(option),
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label, 'es', { sensitivity: 'base' })),
 );
 const yarnNameSelectOptions = computed(() =>
-    yarnNameOptions.value.map((option) => ({
-        id: option.id,
-        name: `${option.nombre} ${option.base_nombre ?? ''}`.trim(),
-        label: materialNameOptionLabel(option),
-    })),
+    yarnNameOptions.value
+        .map((option) => ({
+            id: option.id,
+            name: `${option.nombre} ${option.base_nombre ?? ''}`.trim(),
+            label: materialNameOptionLabel(option),
+        }))
+        .sort((a, b) => a.label.localeCompare(b.label, 'es', { sensitivity: 'base' })),
 );
 
 const currentGroup = computed(() => {
@@ -403,10 +470,12 @@ const taxOptions = computed<Option[]>(() => {
 
     return [
         baseOption,
-        ...nonDefaultTaxes.value.map((tax) => ({
-            id: tax.id,
-            name: formatTaxOptionLabel(tax),
-        })),
+        ...nonDefaultTaxes.value
+            .map((tax) => ({
+                id: tax.id,
+                name: formatTaxOptionLabel(tax),
+            }))
+            .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
     ];
 });
 
@@ -577,11 +646,14 @@ function appendNameSegment(name: string, segment: string): string {
     return `${name} ${trimmedSegment}`.trim();
 }
 
-// Espejo de ItemService::buildMaterialNameSegment(): "{base} {nombre}", ej. "ALGODÓN
-// MILE". Un ítem es tela o hilaza, nunca ambas.
+// Espejo de ItemService::buildMaterialNameSegment(): tela → "{nombre} ({base})", ej.
+// "MILE (ALGODÓN)". Hilaza → "{base} {nombre}", ej. "ALGODÓN MILE". Un ítem es tela o
+// hilaza, nunca ambas.
 function materialNameSegment(): string {
     if (materialKind.value === 'fabric' && selectedFabricNameOption.value) {
-        return `${selectedFabricNameOption.value.base_nombre ?? ''} ${selectedFabricNameOption.value.nombre}`.trim();
+        const baseName = (selectedFabricNameOption.value.base_nombre ?? '').trim();
+        const fabricNombre = (selectedFabricNameOption.value.nombre ?? '').trim();
+        return baseName !== '' ? `${fabricNombre} (${baseName})` : fabricNombre;
     }
     if (materialKind.value === 'yarn' && selectedYarnNameOption.value) {
         return `${selectedYarnNameOption.value.base_nombre ?? ''} ${selectedYarnNameOption.value.nombre}`.trim();
@@ -624,8 +696,14 @@ function updateNameField(orderedFields?: Record<string, string>): void {
     localForm.value.name = nameField.value;
 }
 
+// El color "NO APLICA" (código 000) existe solo para la referencia; no va en el nombre.
+function colorNameSegment(color: ItemColorSource | null | undefined): string {
+    if (!color?.name || color.code === NOT_APPLICABLE_COLOR_CODE) return '';
+    return String(color.name).trim();
+}
+
 function handleSelectedColor(color: ItemColorSource | null) {
-    selectedColorName.value = color?.name ? String(color.name).trim() : '';
+    selectedColorName.value = colorNameSegment(color);
 }
 
 function syncGroupFromSubgroup() {
@@ -640,15 +718,11 @@ function syncGroupFromSubgroup() {
 
 function applyFormData(source: ItemFormSource) {
     localForm.value = mapItemToFormState(source);
-    referenceMode.value = 'manual';
+    referenceMode.value = 'auto';
     unitMeasure.value = getInitialUnitMeasure(source);
-    selectedColorName.value = source.color?.name ? String(source.color.name).trim() : '';
+    selectedColorName.value = colorNameSegment(source.color);
     fillExtraFields(source.extra_fields);
     warehouseStocks.value = normalizeWarehouseStocksFromSource(source);
-
-    if (warehouseStocks.value.length === 0 && !isViewMode.value && currentItemType.value !== 'service') {
-        addWarehouseStock();
-    }
 
     imageFile.value = null;
     if (fileInputRef.value) fileInputRef.value.value = '';
@@ -682,7 +756,8 @@ async function fetchWarehouses() {
 async function fetchWarehouseLocations() {
     try {
         const { data } = await axios.get(catalogLookupRoutes.warehouseLocations, { params: { per_page: 1000, status_active: true } });
-        warehouseLocations.value = (data.data ?? []).map((l: any) => ({ id: l.id, name: l.name }));
+        const locations = (data.data ?? []) as Array<{ id: number; name: string }>;
+        warehouseLocations.value = locations.sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
     } catch (error) {
         console.error('Error al obtener las ubicaciones:', error);
     }
@@ -703,7 +778,16 @@ function handleLocationCreated(location: { id: number; name: string }) {
 }
 
 async function fetchCategorySubGroups(force = false) {
+    // Token de la llamada en curso: si dos fetch se solapan (ej. la apertura del
+    // diálogo + un aviso de sincronía cross-tab casi al mismo tiempo), descarta la
+    // respuesta que ya no es la más reciente en vez de dejar que una más vieja pise
+    // a una más nueva.
+    const token = ++categorySubGroupsRequestToken;
     try {
+        // Los grupos vienen de su propio endpoint (no se derivan de los subgrupos):
+        // así un grupo recién creado y aún sin subgrupos aparece de inmediato.
+        const groupsRequest = axios.get<CategoryGroup[]>(catalogLookupRoutes.categoryGroups);
+
         const raw: any[] =
             !force && props.preloadedSubGroups && props.preloadedSubGroups.length > 0
                 ? props.preloadedSubGroups
@@ -715,18 +799,21 @@ async function fetchCategorySubGroups(force = false) {
                         })
                     ).data.data;
 
+        const groupsResponse = await groupsRequest;
+        if (token !== categorySubGroupsRequestToken) return;
+
         cachedCategorySubGroups = raw;
-
         categorySubGroups.value = [...raw];
-
-        const seen = new Set<number>();
-        categoryGroups.value = (raw as any[])
-            .map((sg: any) => sg.category_group)
-            .filter((g: any) => g && !seen.has(g.id) && seen.add(g.id))
-            .sort((a: any, b: any) => a.name.localeCompare(b.name));
+        categoryGroups.value = [...groupsResponse.data].sort((a, b) => a.name.localeCompare(b.name));
+        // Fuerza un remount del selector de subgrupo: su lista desplegada no se estaba
+        // repintando sola cuando categorySubGroups cambiaba en segundo plano (ej. por
+        // sincronía cross-tab) mientras el combobox permanecía cerrado/montado con el
+        // mismo grupo seleccionado.
+        subGroupsRefreshKey.value++;
 
         syncGroupFromSubgroup();
     } catch (error) {
+        if (token !== categorySubGroupsRequestToken) return;
         console.error('Error al obtener los subgrupos:', error);
     }
 }
@@ -738,17 +825,31 @@ async function fetchMaterialNameOptions(force = false) {
         return;
     }
 
+    if (!authStore.can('ver nombres materiales')) {
+        fabricNameOptions.value = [];
+        yarnNameOptions.value = [];
+        errorType.value = 'warning';
+        errorMessage.value = 'No puedes ver los nombres de tela e hilaza porque no tienes el permiso «ver nombres materiales».';
+        return;
+    }
+
     try {
-        const [fabricResponse, yarnResponse] = await Promise.all([
-            axios.get(route('nombres-tela.options')),
-            axios.get(route('nombres-hilaza.options')),
-        ]);
-        cachedFabricNameOptions = Array.isArray(fabricResponse.data) ? fabricResponse.data : [];
-        cachedYarnNameOptions = Array.isArray(yarnResponse.data) ? yarnResponse.data : [];
+        const responses = await Promise.allSettled([axios.get(route('nombres-tela.options')), axios.get(route('nombres-hilaza.options'))]);
+        const [fabricResponse, yarnResponse] = responses;
+        cachedFabricNameOptions = fabricResponse.status === 'fulfilled' && Array.isArray(fabricResponse.value.data) ? fabricResponse.value.data : [];
+        cachedYarnNameOptions = yarnResponse.status === 'fulfilled' && Array.isArray(yarnResponse.value.data) ? yarnResponse.value.data : [];
         fabricNameOptions.value = cachedFabricNameOptions;
         yarnNameOptions.value = cachedYarnNameOptions;
+
+        if (responses.some((response) => response.status === 'rejected' && response.reason?.response?.status === 403)) {
+            errorType.value = 'warning';
+            errorMessage.value = 'No puedes ver uno o más catálogos de tela e hilaza porque no tienes el permiso «ver nombres materiales».';
+        }
     } catch (error) {
-        console.error('Error al obtener los nombres de tela/hilaza:', error);
+        fabricNameOptions.value = [];
+        yarnNameOptions.value = [];
+        errorType.value = 'error';
+        errorMessage.value = 'No fue posible cargar los nombres de tela e hilaza.';
     }
 }
 
@@ -775,9 +876,10 @@ async function fetchAccountingAccounts() {
             params: { account_type: 'income,asset,cost', allows_entries: true },
         });
         const all: AccountingAccountOption[] = data.data ?? [];
-        accountingIncomeOptions.value = all.filter((a) => a.account_type === 'income');
-        accountingInventoryOptions.value = all.filter((a) => a.account_type === 'asset');
-        accountingCostOptions.value = all.filter((a) => a.account_type === 'cost');
+        const byName = (a: AccountingAccountOption, b: AccountingAccountOption) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' });
+        accountingIncomeOptions.value = all.filter((a) => a.account_type === 'income').sort(byName);
+        accountingInventoryOptions.value = all.filter((a) => a.account_type === 'asset').sort(byName);
+        accountingCostOptions.value = all.filter((a) => a.account_type === 'cost').sort(byName);
     } catch {
         // Endpoint puede no existir en todos los contextos — no bloquear el dialog
         accountingIncomeOptions.value = [];
@@ -857,30 +959,49 @@ async function fetchAdditionalFields(force = false) {
     }
 }
 
-async function fetchWarehouseStocks(itemId: number) {
+/**
+ * Trae los saldos actuales del ítem tras un ajuste de inventario y actualiza solo la cantidad de
+ * cada bodega, para no descartar cambios sin guardar en mínimo, máximo o ubicación.
+ */
+async function refreshWarehouseStocksForCurrentItem(itemId?: number) {
+    const resolvedItemId = Number(itemId ?? props.form.id);
+    if (!resolvedItemId) return;
+
     try {
-        const { data } = await axios.get<ItemFormSource>(`/item/${itemId}`);
-        warehouseStocks.value = normalizeWarehouseStocksFromSource(data);
+        const { data } = await axios.get<ItemFormSource>(`/item/${resolvedItemId}`);
+        const fresh = normalizeWarehouseStocksFromSource(data);
+        fresh.forEach((freshRow) => {
+            const current = warehouseStocks.value.find((row) => Number(row.warehouse_id) === Number(freshRow.warehouse_id));
+            if (current) {
+                current.quantity = freshRow.quantity;
+                current.unit_price = freshRow.unit_price;
+                current.persisted_warehouse_id = freshRow.persisted_warehouse_id;
+            } else if (freshRow.quantity !== 0) {
+                // Una bodega con saldo debe verse (no se puede quitar). Las de saldo 0 que el usuario
+                // quitó en el formulario sin guardar no se vuelven a agregar.
+                warehouseStocks.value.push(freshRow);
+            }
+        });
     } catch (e) {
         console.error('Error fetching warehouse stocks:', e);
     }
 }
 
-async function refreshWarehouseStocksForCurrentItem(itemId?: number) {
-    const resolvedItemId = Number(itemId ?? props.form.id);
-    if (!resolvedItemId) {
-        warehouseStocks.value = [];
-        return;
-    }
-    await fetchWarehouseStocks(resolvedItemId);
-}
-
 let catalogsLoadPromise: Promise<void> | null = null;
 
-function loadFormCatalogs(): Promise<void> {
+function loadFormCatalogs(forceCategories = false): Promise<void> {
+    if (forceCategories) {
+        catalogsLoadPromise = null;
+    }
+
     if (!catalogsLoadPromise) {
         isCatalogBootstrapLoading.value = true;
-        catalogsLoadPromise = Promise.all([fetchCategorySubGroups(), fetchTaxes(), fetchAdditionalFields(), fetchMaterialNameOptions()])
+        catalogsLoadPromise = Promise.all([
+            fetchCategorySubGroups(forceCategories),
+            fetchTaxes(),
+            fetchAdditionalFields(),
+            fetchMaterialNameOptions(),
+        ])
             .then(() => undefined)
             .finally(() => {
                 isCatalogBootstrapLoading.value = false;
@@ -905,11 +1026,9 @@ async function hydrateOpenForm() {
 
     if (!shouldLoadItemDetails) {
         applyFormData(props.form);
-        await loadFormCatalogs();
+        // Refetch en cada apertura: grupos/subgrupos pueden haber cambiado en otra pantalla.
+        await loadFormCatalogs(true);
         warehouseStocks.value = [];
-        if (currentItemType.value !== 'service') {
-            addWarehouseStock();
-        }
         void loadSecondaryFormData();
         updateNameField();
         syncGroupFromSubgroup();
@@ -923,7 +1042,7 @@ async function hydrateOpenForm() {
         // categorySubGroups/taxes todavía estén vacíos, y el formulario no se
         // renderiza hasta que las tres terminan). Antes se esperaban en serie, lo que
         // triplicaba el tiempo de apertura del formulario al editar un ítem.
-        await Promise.all([loadFormCatalogs(), loadItemDetails(itemId), loadSecondaryFormData(itemId)]);
+        await Promise.all([loadFormCatalogs(true), loadItemDetails(itemId), loadSecondaryFormData(itemId)]);
     } finally {
         isItemHydrationLoading.value = false;
     }
@@ -959,6 +1078,13 @@ function normalizeWarehouseStocksFromSource(source: ItemFormSource | null | unde
                 stock_min: toNumericValue(row.stock_min),
                 stock_max: toNumericValue(row.stock_max),
                 location_id: (Number.isFinite(parsedLocationId) ? parsedLocationId : null) as number | null,
+                unit_price:
+                    row.unit_price !== undefined && row.unit_price !== null
+                        ? toNumericValue(row.unit_price)
+                        : row.weighted_average_price !== undefined && row.weighted_average_price !== null
+                          ? toNumericValue(row.weighted_average_price)
+                          : undefined,
+                persisted_warehouse_id: Number.isFinite(parsedWarehouseId) ? parsedWarehouseId : null,
             } satisfies WarehouseStockEntry;
         })
         .filter((row) => row.warehouse_id !== null);
@@ -983,6 +1109,7 @@ async function handleCreateGroupInline(name: string): Promise<Option> {
     const response = await axios.post<CategoryGroup>('/categorias/grupos', { name });
     const created = response.data;
     categoryGroups.value.push(created);
+    broadcastCatalogInvalidated('category_sub_groups');
     return { id: String(created.id), name: created.name };
 }
 
@@ -997,14 +1124,17 @@ async function handleCreateSubGroupInline(name: string): Promise<Option> {
         throw new Error('Debes seleccionar un grupo antes de crear un subgrupo');
     }
 
-    await axios.post('/categorias/subgrupos', {
-        name,
+    const response = await axios.post<{ data: CategorySubGroup[] }>('/categorias/subgrupos', {
+        subgroups: [{ name }],
         category_group_id: Number(groupId),
     });
 
+    // El backend normaliza el nombre (MAYÚSCULAS): se usa el registro devuelto, no una búsqueda por nombre.
+    const created = response.data.data?.[0];
+    if (!created) throw new Error('El servidor no devolvió el subgrupo creado.');
+
     await fetchCategorySubGroups(true);
-    const created = categorySubGroups.value.find((sg) => sg.name === name && String(sg.category_group_id) === groupId);
-    if (!created) throw new Error('Subgrupo no encontrado tras creación');
+    broadcastCatalogInvalidated('category_sub_groups');
     return { id: String(created.id), name: created.name };
 }
 
@@ -1021,11 +1151,16 @@ function openTaxDialog() {
 async function handleTaxDialogSubmit(formData: TaxDialogSubmitPayload) {
     taxDialogLoading.value = true;
     try {
-        await axios.post('/impuestos', formData);
+        const { data: createdTax } = await axios.post('/impuestos', formData);
         await fetchTaxes(true);
+        broadcastCatalogInvalidated('taxes');
         isTaxDialogOpen.value = false;
-    } catch (error) {
+        if (createdTax?.id) localForm.value.tax_id = createdTax.id;
+    } catch (error: any) {
         console.error('Error creando impuesto', error);
+        errorType.value = error?.response?.data?.errors ? 'warning' : 'error';
+        errorMessage.value = buildErrorMessage(error);
+        scrollDialogToTop();
     } finally {
         taxDialogLoading.value = false;
     }
@@ -1051,9 +1186,13 @@ async function handleAdditionalFieldDialogSubmit(field: AdditionalFieldPayload) 
         delete payload.label;
         await axios.post('/campos-adicionales', payload);
         await fetchAdditionalFields(true);
+        broadcastCatalogInvalidated('additional_fields');
         additionalFieldDialogOpen.value = false;
-    } catch (error) {
+    } catch (error: any) {
         console.error('Error creando campo adicional', error);
+        errorType.value = error?.response?.data?.errors ? 'warning' : 'error';
+        errorMessage.value = buildErrorMessage(error);
+        scrollDialogToTop();
     } finally {
         additionalFieldDialogLoading.value = false;
     }
@@ -1067,7 +1206,8 @@ function availableWarehouses(idx?: number) {
 
     return [...warehouses.value]
         .filter((w) => typeof w.id === 'number' && !usedIds.includes(String(w.id)))
-        .map((w) => ({ id: String(w.id), name: w.name }));
+        .map((w) => ({ id: String(w.id), name: w.name }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
 }
 
 function addWarehouseStock() {
@@ -1078,7 +1218,7 @@ function addWarehouseStock() {
         stock_min: 0,
         stock_max: 0,
         location_id: null,
-        unit_price: null,
+        unit_price: undefined,
         initial_date: new Date().toISOString().split('T')[0],
     });
 }
@@ -1114,24 +1254,10 @@ function openImageZoom() {
     isImageZoomOpen.value = true;
 }
 
-function closeImageZoom() {
-    isImageZoomOpen.value = false;
-}
-
-function handleImageZoomKey(event: KeyboardEvent) {
-    if (event.key === 'Escape') closeImageZoom();
-}
-
-watch(isImageZoomOpen, (open) => {
-    if (typeof window === 'undefined') return;
-    if (open) window.addEventListener('keydown', handleImageZoomKey);
-    else window.removeEventListener('keydown', handleImageZoomKey);
-});
-
 watch(
     () => imagePreview.value,
     (value) => {
-        if (!value) closeImageZoom();
+        if (!value) isImageZoomOpen.value = false;
     },
 );
 
@@ -1291,8 +1417,10 @@ function mapFormStateToPayload(orderedExtraFields: Record<string, string>): Reco
 }
 
 async function handleSubmit() {
+    submitAttempted.value = true;
     resetErrors();
     errorMessage.value = '';
+    successMessage.value = '';
     errorType.value = 'error';
 
     const requiredErrors: string[] = [];
@@ -1306,7 +1434,31 @@ async function handleSubmit() {
 
     if (!unitMeasure.value) requiredErrors.push('Unidad de medida');
 
+    if (!colorModel.value) requiredErrors.push('Color');
+
     if (props.showAdvancedSections && !localForm.value.income_account_id) requiredErrors.push('Cuenta de ingreso');
+
+    const hasInventoryDetail = warehouseStocks.value.length > 0;
+    const incompleteInventoryRows = warehouseStocks.value
+        .map((warehouseStock, index) => {
+            const gaps = inventoryRowGaps(warehouseStock);
+            const missing: string[] = [];
+            if (gaps.warehouse) missing.push('bodega');
+            if (gaps.quantity) missing.push('cantidad');
+            if (gaps.stock_min) missing.push('cantidad mín.');
+            if (gaps.stock_max) missing.push('cantidad máx.');
+            if (gaps.unit_price) missing.push('costo');
+            if (gaps.location) missing.push('ubicación');
+
+            return missing.length > 0 ? `${warehouseStock.name || `Bodega ${index + 1}`}: falta ${missing.join(', ')}` : null;
+        })
+        .filter((row): row is string => row !== null);
+
+    showInventoryErrors.value = hasInventoryDetail && incompleteInventoryRows.length > 0;
+
+    if (hasInventoryDetail && incompleteInventoryRows.length > 0) {
+        requiredErrors.push(`Detalle de inventario incompleto (${incompleteInventoryRows.join('; ')})`);
+    }
 
     const isAutoReference = props.dialogType === 'create' && referenceMode.value === 'auto';
     if (!isAutoReference && (!localForm.value.reference || String(localForm.value.reference).trim() === '')) {
@@ -1378,6 +1530,7 @@ async function handleSubmit() {
         'reference',
         'description',
         'bar_code',
+        'legacy_code',
         'unit_measure',
         'item_type',
         'extra_fields',
@@ -1399,24 +1552,12 @@ async function handleSubmit() {
     ];
     const isCreate = props.dialogType === 'create';
 
-    // Validación client-side: costo unitario requerido si cantidad > 0 en modo create
-    if (isCreate) {
-        const missingCost = warehouseStocks.value.some(
-            (w) => Number(w.warehouse_id) && Number(w.quantity) > 0 && !(w.unit_price && Number(w.unit_price) > 0),
-        );
-        if (missingCost) {
-            errorType.value = 'warning';
-            errorMessage.value = 'El costo unitario inicial es obligatorio cuando la cantidad de bodega es mayor a 0.';
-            return;
-        }
-    }
-
     const warehousesPayload = warehouseStocks.value
         .filter((w) => Number(w.warehouse_id))
         .map((w) => {
+            // En edición no se envía la cantidad: el saldo solo cambia por movimientos de inventario.
             const base = {
                 warehouse_id: Number(w.warehouse_id),
-                quantity: Number(w.quantity),
                 stock_min: Number(w.stock_min),
                 stock_max: Number(w.stock_max),
                 location_id:
@@ -1425,7 +1566,9 @@ async function handleSubmit() {
             if (isCreate) {
                 return {
                     ...base,
-                    unit_price: w.unit_price != null ? Number(w.unit_price) : null,
+                    // La tela no tiene saldo propio: sus metros entran por recepción de rollos.
+                    quantity: materialKind.value === 'fabric' ? 0 : Number(w.quantity),
+                    unit_price: materialKind.value !== 'fabric' && w.unit_price != null && String(w.unit_price).trim() !== '' ? Number(w.unit_price) : null,
                     initial_date: w.initial_date ?? new Date().toISOString().split('T')[0],
                 };
             }
@@ -1437,6 +1580,7 @@ async function handleSubmit() {
 
     if (props.dialogType === 'view') return;
 
+    let savedId: number | null = null;
     try {
         if (isEdit && !hasImageUpload) {
             await axios.put(url, {
@@ -1459,8 +1603,8 @@ async function handleSubmit() {
                 const v = cleanForm[key];
                 if (v === undefined || v === null) continue;
 
-                // Skip empty description/bar_code
-                if (key === 'description' || key === 'bar_code') {
+                // Skip empty description/bar_code/legacy_code
+                if (key === 'description' || key === 'bar_code' || key === 'legacy_code') {
                     if (typeof v === 'string' && v.trim() === '') continue;
                 }
 
@@ -1495,12 +1639,15 @@ async function handleSubmit() {
             if (isCreate) formData.append('reference_mode', referenceMode.value);
             if (isEdit) formData.append('_method', 'PUT');
 
-            await axios.post(url, formData);
+            const response = await axios.post(url, formData);
+            const responseId = Number(response?.data?.id ?? response?.data?.data?.id);
+            savedId = Number.isFinite(responseId) && responseId > 0 ? responseId : null;
         }
 
+        broadcastCatalogInvalidated('items');
         emit('refresh');
         emit('close');
-        emit('saved', props.dialogType);
+        emit('saved', props.dialogType, savedId);
     } catch (error: any) {
         console.error('Error al guardar el item:', error, error?.response?.data);
         const msg = buildErrorMessage(error);
@@ -1664,6 +1811,10 @@ watch(
     () => props.isOpen,
     async (value) => {
         if (value) {
+            showInventoryErrors.value = false;
+            submitAttempted.value = false;
+            successMessage.value = '';
+            await authStore.fetchUser(true);
             await fetchAdditionalFields(true);
             await hydrateOpenForm();
         } else {
@@ -1696,6 +1847,32 @@ const handleInventoryAdjustmentSaved = (event: Event) => {
     void refreshWarehouseStocksForCurrentItem(currentItemId);
 };
 
+// Ajuste de inventario abierto desde la ficha: es el camino para cambiar el saldo de una bodega ya guardada.
+const isAdjustmentDialogOpen = ref(false);
+const adjustmentPrefill = ref<InventoryAdjustmentPrefill | null>(null);
+
+function canAdjustWarehouseRow(ws: WarehouseStockEntry): boolean {
+    return props.dialogType === 'edit' && isPersistedWarehouseRow(ws) && canCreateInventoryAdjustments.value && materialKind.value !== 'fabric';
+}
+
+async function openWarehouseAdjustment(ws: WarehouseStockEntry) {
+    const itemId = Number(props.form.id);
+    const warehouseId = Number(ws.warehouse_id);
+    if (!itemId || !warehouseId) return;
+    // El dialog se monta con la primera precarga (evita cargar sus catálogos en cada apertura de la ficha)
+    // y se abre en el siguiente tick para que su watcher de apertura aplique la precarga.
+    adjustmentPrefill.value = { itemId, warehouseId };
+    await nextTick();
+    isAdjustmentDialogOpen.value = true;
+}
+
+function handleWarehouseAdjustmentSaved(accountingWarning?: string | null) {
+    // El saldo se refresca con el evento global 'inventory-adjustment-saved' (handleInventoryAdjustmentSaved).
+    errorMessage.value = '';
+    const saved = 'Ajuste de inventario guardado. El saldo de la bodega se actualizó.';
+    successMessage.value = accountingWarning ? `${saved} ${accountingWarning}` : saved;
+}
+
 watch(selectedGroupId, (newVal, oldVal) => {
     // Solo limpiar si el cambio viene del usuario, no de la inicialización
     if (isInitializing.value) return;
@@ -1705,11 +1882,20 @@ watch(selectedGroupId, (newVal, oldVal) => {
     }
 });
 
+// Si se crea/edita un grupo, subgrupo, impuesto o campo adicional en OTRA pestaña del
+// navegador, esta pestaña lo refresca sola (sin que el usuario tenga que recargar).
+let unsubscribeCatalogSync: Array<() => void> = [];
+
 onMounted(async () => {
     if (typeof window !== 'undefined') {
         window.addEventListener(INVENTORY_ADJUSTMENT_SAVED_EVENT, handleInventoryAdjustmentSaved);
     }
-    await authStore.fetchUser();
+    unsubscribeCatalogSync = [
+        onCatalogInvalidatedElsewhere('category_sub_groups', () => void fetchCategorySubGroups(true)),
+        onCatalogInvalidatedElsewhere('taxes', () => void fetchTaxes(true)),
+        onCatalogInvalidatedElsewhere('additional_fields', () => void fetchAdditionalFields(true)),
+    ];
+    await authStore.fetchUser(true);
     await Promise.all([fetchCategorySubGroups(), fetchMaterialNameOptions()]);
     // nextTick para asegurar que syncGroupFromSubgroup ya corrió
     await nextTick();
@@ -1719,16 +1905,22 @@ onMounted(async () => {
 onBeforeUnmount(() => {
     if (typeof window !== 'undefined') {
         window.removeEventListener(INVENTORY_ADJUSTMENT_SAVED_EVENT, handleInventoryAdjustmentSaved);
-        window.removeEventListener('keydown', handleImageZoomKey);
     }
+    unsubscribeCatalogSync.forEach((unsubscribe) => unsubscribe());
 });
 </script>
 
 <template>
-    <div class="flex flex-col">
-        <AlertStack :error-message="errorMessage" :error-type="errorType" @close-error="errorMessage = ''" />
+    <div :class="['flex flex-col', { 'min-h-0 flex-1': !props.isFullPage }]">
+        <AlertStack
+            :success-message="successMessage"
+            :error-message="errorMessage"
+            :error-type="errorType"
+            @close-success="successMessage = ''"
+            @close-error="errorMessage = ''"
+        />
 
-        <form class="flex flex-col" @submit.prevent="handleSubmit">
+        <form :class="['flex flex-col', { 'min-h-0 flex-1': !props.isFullPage }]" @submit.prevent="handleSubmit">
             <FormHeader
                 v-if="!props.isFullPage"
                 class="shrink-0 border-b px-5 py-4 pr-12"
@@ -1743,13 +1935,21 @@ onBeforeUnmount(() => {
             />
 
             <div
+                v-if="props.requestedName && dialogType === 'create'"
+                class="flex shrink-0 items-center gap-2 border-b bg-amber-500/10 px-5 py-2 text-sm"
+            >
+                <span class="text-muted-foreground">Ítem solicitado:</span>
+                <strong class="min-w-0 truncate">{{ props.requestedName }}</strong>
+            </div>
+
+            <div
                 ref="dialogInnerRef"
                 :class="[
                     'relative px-5 py-4 pr-4',
-                    !props.isFullPage ? 'overflow-y-auto scroll-smooth' : 'overflow-visible',
+                    !props.isFullPage ? 'min-h-0 flex-1 overflow-y-auto scroll-smooth' : 'overflow-visible',
                     { 'flex min-h-[160px] items-center justify-center': isBlockingLoading },
                 ]"
-                :style="props.isFullPage ? {} : { maxHeight: '65vh', scrollbarWidth: 'thin' }"
+                :style="props.isFullPage ? {} : { scrollbarWidth: 'thin' }"
             >
                 <FormLoadingOverlay
                     v-if="showInternalLoadingOverlay"
@@ -1803,7 +2003,7 @@ onBeforeUnmount(() => {
                                 <Input v-model="nameField" label="Nombre" readonly class="mt-1" placeholder="Nombre autocompletado" />
                             </div>
 
-                            <div class="grid grid-cols-1 gap-3 md:grid-cols-4">
+                            <div class="grid grid-cols-1 gap-3 md:grid-cols-5">
                                 <template v-if="isViewMode">
                                     <div class="flex flex-col gap-1">
                                         <Label>Grupo</Label>
@@ -1852,8 +2052,11 @@ onBeforeUnmount(() => {
                                     />
 
                                     <CreatableSelectField
+                                        :key="subGroupsRefreshKey"
                                         v-model="localForm.category_sub_group_id"
                                         label="Subgrupo"
+                                        :invalid="submitAttempted && !localForm.category_sub_group_id"
+                                        error-message="Requerido"
                                         :options="subGroupOptions"
                                         :disabled="!selectedGroupId"
                                         :placeholder="selectedGroupId ? 'Selecciona un subgrupo' : 'Selecciona un grupo primero'"
@@ -1872,6 +2075,11 @@ onBeforeUnmount(() => {
                                     <SelectField
                                         v-model="localForm.tax_id"
                                         label="Impuesto"
+                                        :invalid="
+                                            submitAttempted &&
+                                            (localForm.tax_id === undefined || localForm.tax_id === null || String(localForm.tax_id).trim() === '')
+                                        "
+                                        error-message="Requerido"
                                         :options="taxOptions"
                                         option-label="name"
                                         option-value="id"
@@ -1895,12 +2103,21 @@ onBeforeUnmount(() => {
                                     </SelectField>
 
                                     <div class="flex flex-col gap-1">
-                                        <div class="flex items-center justify-between gap-2">
-                                            <Label>Referencia</Label>
-                                            <Tabs v-if="props.dialogType === 'create'" v-model="referenceMode" class="shrink-0">
-                                                <TabsList class="h-7 p-0.5">
-                                                    <TabsTrigger value="manual" class="h-6 px-2.5 text-xs">Manual</TabsTrigger>
-                                                    <TabsTrigger value="auto" class="h-6 px-2.5 text-xs">Automática</TabsTrigger>
+                                        <div class="flex flex-wrap items-center justify-between gap-x-2 gap-y-1">
+                                            <Label class="min-w-0 shrink">
+                                                Referencia
+                                                <span v-if="!(props.dialogType === 'create' && referenceMode === 'auto')" class="text-destructive"
+                                                    >*</span
+                                                >
+                                            </Label>
+                                            <Tabs
+                                                v-if="props.dialogType === 'create' && canCreateManualReference"
+                                                v-model="referenceMode"
+                                                class="ml-auto shrink-0"
+                                            >
+                                                <TabsList class="h-7 max-w-full p-0.5">
+                                                    <TabsTrigger value="manual" class="h-6 px-2 text-xs">Manual</TabsTrigger>
+                                                    <TabsTrigger value="auto" class="h-6 px-2 text-xs">Automática</TabsTrigger>
                                                 </TabsList>
                                             </Tabs>
                                         </div>
@@ -1908,6 +2125,7 @@ onBeforeUnmount(() => {
                                             v-if="referenceMode === 'manual' || props.dialogType !== 'create'"
                                             v-model="localForm.reference"
                                             label=""
+                                            :error="submitAttempted && !String(localForm.reference ?? '').trim() ? 'Requerido' : false"
                                             required
                                         />
                                         <p v-else class="rounded-md border border-dashed bg-muted/50 px-3 py-2 text-xs text-muted-foreground">
@@ -1916,11 +2134,21 @@ onBeforeUnmount(() => {
                                     </div>
                                 </template>
 
-                                <div v-if="localForm.legacy_code" class="flex flex-col gap-1">
-                                    <Label>Código sistema anterior</Label>
-                                    <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm text-muted-foreground">
-                                        {{ localForm.legacy_code }}
-                                    </div>
+                                <div class="flex flex-col gap-1">
+                                    <template v-if="isViewMode">
+                                        <template v-if="localForm.legacy_code">
+                                            <Label>Código sistema anterior</Label>
+                                            <div class="mt-1 rounded-md border bg-muted px-3 py-2 text-sm text-muted-foreground">
+                                                {{ localForm.legacy_code }}
+                                            </div>
+                                        </template>
+                                    </template>
+                                    <InputField
+                                        v-else
+                                        v-model="localForm.legacy_code"
+                                        label="Código sistema anterior"
+                                        placeholder="Avansis (opcional)"
+                                    />
                                 </div>
                             </div>
 
@@ -2036,7 +2264,11 @@ onBeforeUnmount(() => {
                                 <p class="flex items-center gap-1 text-sm font-semibold">
                                     <span>Detalle de Inventario</span>
                                     <HelpTooltip
-                                        text="Selecciona las bodegas y cantidades donde se almacenará este ítem para llevar control de stock."
+                                        :text="
+                                            props.dialogType === 'create'
+                                                ? 'Selecciona las bodegas donde se almacenará este ítem. La cantidad que ingreses queda registrada como saldo inicial en el kárdex.'
+                                                : 'El saldo de cada bodega solo cambia con ajustes de inventario, recepciones de compra o traslados. Aquí solo se edita la cantidad mínima, la máxima y la ubicación.'
+                                        "
                                     />
                                 </p>
 
@@ -2059,14 +2291,16 @@ onBeforeUnmount(() => {
                                         'grid grid-cols-1 gap-2 sm:items-end',
                                         props.dialogType === 'create'
                                             ? 'sm:grid-cols-[minmax(140px,1.2fr)_repeat(2,minmax(70px,1fr))_minmax(110px,1fr)_minmax(100px,1fr)_minmax(120px,1fr)_auto]'
-                                            : 'sm:grid-cols-[minmax(160px,1.2fr)_repeat(3,minmax(80px,1fr))_minmax(140px,1fr)_auto]',
+                                            : 'sm:grid-cols-[minmax(160px,1.2fr)_minmax(150px,1.2fr)_repeat(2,minmax(80px,1fr))_minmax(140px,1fr)_auto]',
                                     ]"
                                 >
                                     <div class="space-y-1">
-                                        <Label class="text-xs">Bodega</Label>
+                                        <Label class="text-xs">Bodega <span class="text-destructive">*</span></Label>
                                         <SelectField
                                             v-model="ws.warehouse_id"
                                             label=""
+                                            :invalid="showInventoryErrors && inventoryRowGaps(ws).warehouse"
+                                            error-message="Requerida"
                                             :options="
                                                 availableWarehouses(idx).map((w) => ({
                                                     id: String(w.id ?? ''),
@@ -2077,6 +2311,7 @@ onBeforeUnmount(() => {
                                             class="w-full"
                                             placeholder="Bodega"
                                             :searchable="false"
+                                            :disabled="isViewMode || isWarehouseRowLocked(ws)"
                                         >
                                             <template v-if="canCreateWarehouses" #header>
                                                 <Button
@@ -2093,15 +2328,15 @@ onBeforeUnmount(() => {
                                         </SelectField>
                                     </div>
 
-                                    <div class="space-y-1">
-                                        <Label class="text-xs">Cantidad</Label>
+                                    <div v-if="props.dialogType === 'create' && materialKind !== 'fabric'" class="space-y-1">
+                                        <Label class="text-xs">Cantidad inicial <span class="text-destructive">*</span></Label>
                                         <InputIntegerField
                                             v-model="ws.quantity"
                                             label=""
+                                            :invalid="showInventoryErrors && inventoryRowGaps(ws).quantity"
                                             type="number"
                                             class="w-full"
                                             placeholder="Cantidad"
-                                            :allowNegative="true"
                                             :allowDecimal="true"
                                             @focus="
                                                 (e: FocusEvent) => {
@@ -2111,16 +2346,52 @@ onBeforeUnmount(() => {
                                             "
                                         />
                                     </div>
+                                    <div v-else-if="props.dialogType === 'create'" class="space-y-1">
+                                        <Label class="text-xs">Saldo inicial</Label>
+                                        <div
+                                            class="flex h-10 items-center rounded-md border border-input bg-muted px-3 text-xs text-muted-foreground"
+                                            title="Los metros de una tela entran por la recepción de rollos"
+                                        >
+                                            Se registra por rollos
+                                        </div>
+                                    </div>
+                                    <div v-else class="space-y-1">
+                                        <Label class="text-xs">Saldo actual</Label>
+                                        <div class="flex items-center gap-1">
+                                            <div
+                                                class="flex h-10 min-w-0 flex-1 items-center rounded-md border border-input bg-muted px-3 text-sm tabular-nums"
+                                                :title="
+                                                    isPersistedWarehouseRow(ws)
+                                                        ? 'El saldo solo cambia con ajustes, recepciones o traslados'
+                                                        : 'Bodega nueva: entra con saldo 0'
+                                                "
+                                            >
+                                                {{ quantityFormatter.format(Number(ws.quantity) || 0) }}
+                                            </div>
+                                            <Button
+                                                v-if="canAdjustWarehouseRow(ws)"
+                                                type="button"
+                                                size="sm"
+                                                variant="outline"
+                                                class="h-10 shrink-0 px-2 text-xs"
+                                                title="Registrar un ajuste de inventario para esta bodega"
+                                                @click="openWarehouseAdjustment(ws)"
+                                            >
+                                                Ajustar
+                                            </Button>
+                                        </div>
+                                    </div>
 
                                     <template v-if="props.dialogType === 'create'">
                                         <div class="space-y-1">
                                             <Label class="text-xs">
                                                 Costo unitario inicial
-                                                <span v-if="ws.quantity > 0" class="text-destructive">*</span>
+                                                <span class="text-destructive">*</span>
                                             </Label>
                                             <InputIntegerField
                                                 v-model="ws.unit_price"
                                                 label=""
+                                                :invalid="showInventoryErrors && inventoryRowGaps(ws).unit_price"
                                                 type="number"
                                                 class="w-full"
                                                 placeholder="$0"
@@ -2133,17 +2404,18 @@ onBeforeUnmount(() => {
                                                     }
                                                 "
                                             />
-                                            <p v-if="ws.quantity > 0 && !(ws.unit_price && ws.unit_price > 0)" class="text-xs text-destructive">
+                                            <p v-if="inventoryRowGaps(ws).unit_price" class="text-xs text-destructive">
                                                 Requerido si cantidad &gt; 0
                                             </p>
                                         </div>
                                     </template>
 
                                     <div class="space-y-1">
-                                        <Label class="text-xs">Cantidad Min</Label>
+                                        <Label class="text-xs">Cantidad Min <span class="text-destructive">*</span></Label>
                                         <InputIntegerField
                                             v-model="ws.stock_min"
                                             label=""
+                                            :invalid="showInventoryErrors && inventoryRowGaps(ws).stock_min"
                                             type="number"
                                             class="w-full"
                                             placeholder="Min"
@@ -2158,10 +2430,11 @@ onBeforeUnmount(() => {
                                     </div>
 
                                     <div class="space-y-1">
-                                        <Label class="text-xs">Cantidad Max</Label>
+                                        <Label class="text-xs">Cantidad Max <span class="text-destructive">*</span></Label>
                                         <InputIntegerField
                                             v-model="ws.stock_max"
                                             label=""
+                                            :invalid="showInventoryErrors && inventoryRowGaps(ws).stock_max"
                                             type="number"
                                             class="w-full"
                                             placeholder="Max"
@@ -2176,10 +2449,12 @@ onBeforeUnmount(() => {
                                     </div>
 
                                     <div class="space-y-1">
-                                        <Label class="text-xs">Ubicación</Label>
+                                        <Label class="text-xs">Ubicación <span class="text-destructive">*</span></Label>
                                         <SelectField
                                             v-model="ws.location_id"
                                             label=""
+                                            :invalid="showInventoryErrors && inventoryRowGaps(ws).location"
+                                            error-message="Requerida"
                                             :options="warehouseLocations.map((l) => ({ id: String(l.id), name: l.name }))"
                                             placeholder="Sin ubicación"
                                             :searchable="true"
@@ -2207,9 +2482,14 @@ onBeforeUnmount(() => {
                                         <button
                                             v-if="!isViewMode"
                                             type="button"
-                                            class="rounded-full p-2 transition hover:bg-red-100 dark:hover:bg-red-900"
+                                            class="rounded-full p-2 transition hover:bg-red-100 disabled:cursor-not-allowed disabled:opacity-40 disabled:hover:bg-transparent dark:hover:bg-red-900"
+                                            :disabled="isWarehouseRowLocked(ws)"
                                             @click="removeWarehouseStock(idx)"
-                                            title="Quitar"
+                                            :title="
+                                                isWarehouseRowLocked(ws)
+                                                    ? 'No se puede quitar: la bodega tiene saldo. Llévalo a 0 con un ajuste o traslado.'
+                                                    : 'Quitar'
+                                            "
                                         >
                                             <Trash class="h-4 w-4 text-red-500" />
                                         </button>
@@ -2235,6 +2515,8 @@ onBeforeUnmount(() => {
                                 <SelectField
                                     v-model="unitMeasure"
                                     label="Unidad de Medida"
+                                    :invalid="submitAttempted && !unitMeasure"
+                                    error-message="Requerido"
                                     :options="unitMeasures"
                                     option-label="name"
                                     option-value="id"
@@ -2247,8 +2529,9 @@ onBeforeUnmount(() => {
                             <ColorPickerSelect
                                 v-model="colorModel"
                                 label="Color"
+                                :invalid="submitAttempted && !colorModel"
+                                required
                                 :disabled="isViewMode"
-                                :preloaded-colors="props.preloadedColors ?? []"
                                 @selected-color="handleSelectedColor"
                             />
                         </div>
@@ -2270,7 +2553,7 @@ onBeforeUnmount(() => {
                                             } else {
                                                 localForm.negative_movement = val ? 1 : 0;
                                                 if (val && currentItemType !== 'service') {
-                                                    localForm.tracks_inventory = 1;
+                                                    localForm.tracks_inventory = true;
                                                 }
                                             }
                                         }
@@ -2318,6 +2601,7 @@ onBeforeUnmount(() => {
                             @create-additional-field="openAdditionalFieldDialog"
                             :field-options="additionalFieldOptions"
                             :additional-fields-meta="additionalFieldsMeta"
+                            :show-errors="submitAttempted"
                             :show-label="false"
                         />
                     </div>
@@ -2336,6 +2620,8 @@ onBeforeUnmount(() => {
                             <SelectField
                                 v-model="localForm.income_account_id"
                                 label="Cuenta de ingreso *"
+                                :invalid="submitAttempted && !localForm.income_account_id"
+                                error-message="Requerido"
                                 :options="accountingIncomeOptions"
                                 option-label="name"
                                 option-value="id"
@@ -2409,6 +2695,16 @@ onBeforeUnmount(() => {
 
     <WarehouseLocationDialog :open="isLocationDialogOpen" @update:open="isLocationDialogOpen = $event" @created="handleLocationCreated" />
 
+    <InventoryAdjustmentForm
+        v-if="adjustmentPrefill"
+        :is-open="isAdjustmentDialogOpen"
+        dialog-type="create"
+        :adjustment="null"
+        :prefill="adjustmentPrefill"
+        @close="isAdjustmentDialogOpen = false"
+        @saved="handleWarehouseAdjustmentSaved"
+    />
+
     <TaxDialog
         v-model:open="isTaxDialogOpen"
         dialog-type="create"
@@ -2428,41 +2724,5 @@ onBeforeUnmount(() => {
         @cancel="closeAdditionalFieldDialog"
     />
 
-    <transition name="zoom">
-        <div
-            v-if="isImageZoomOpen"
-            class="fixed inset-0 z-[1200] flex items-center justify-center bg-black/90 px-8 py-10"
-            @click="closeImageZoom"
-            aria-modal="true"
-            role="dialog"
-        >
-            <div
-                class="relative mx-auto max-h-[98vh] max-w-[98vw] scale-125 transform overflow-hidden rounded-2xl bg-card shadow-[0_25px_70px_rgba(15,23,42,0.8)]"
-                @click.stop
-            >
-                <img :src="imagePreview" alt="Imagen ampliada" class="zoom-img max-h-[105vh] max-w-[105vw] object-cover" />
-                <button
-                    type="button"
-                    class="absolute right-3 top-3 rounded-full bg-black/60 px-3 py-1 text-xs font-semibold text-white transition hover:bg-black"
-                    @click="closeImageZoom"
-                >
-                    Cerrar
-                </button>
-            </div>
-        </div>
-    </transition>
+    <ImagePreviewDialog v-model:open="isImageZoomOpen" :src="imagePreview ?? null" title="Imagen del ítem" alt="Imagen del ítem" />
 </template>
-
-<style scoped>
-.zoom-enter-active,
-.zoom-leave-active {
-    transition:
-        opacity 160ms ease,
-        transform 160ms ease;
-}
-.zoom-enter-from,
-.zoom-leave-to {
-    opacity: 0;
-    transform: scale(0.95);
-}
-</style>

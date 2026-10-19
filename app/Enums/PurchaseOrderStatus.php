@@ -6,7 +6,6 @@ enum PurchaseOrderStatus: string
 {
     case PENDING = 'pending';
     case APPROVED = 'approved';
-    case SENT = 'sent';
     case INVOICED = 'invoiced';
     case PARTIALLY_INVOICED = 'partially_invoiced';
     case REJECTED = 'rejected';
@@ -16,7 +15,6 @@ enum PurchaseOrderStatus: string
         return match($this) {
             self::PENDING => 'Pendiente',
             self::APPROVED => 'Aprobada',
-            self::SENT => 'Enviada',
             self::INVOICED => 'Facturada',
             self::PARTIALLY_INVOICED => 'Parcialmente facturada',
             self::REJECTED => 'Rechazada',

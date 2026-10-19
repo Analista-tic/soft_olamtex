@@ -9,7 +9,6 @@ function invokeItemServiceOriginNormalizer(mixed $value): string
 {
     $service = new ItemService(new AdditionalFieldService(), new InventoryMovementService());
     $method = new ReflectionMethod(ItemService::class, 'normalizeOriginType');
-    $method->setAccessible(true);
 
     return $method->invoke($service, $value);
 }
@@ -18,7 +17,6 @@ function invokeShouldMarkEditedAfterImport(Item $item): bool
 {
     $service = new ItemService(new AdditionalFieldService(), new InventoryMovementService());
     $method = new ReflectionMethod(ItemService::class, 'shouldMarkEditedAfterImport');
-    $method->setAccessible(true);
 
     return $method->invoke($service, $item);
 }

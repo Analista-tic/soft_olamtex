@@ -222,6 +222,12 @@ Route::prefix('produccion')->name('produccion.')->group(function () {
         Route::post('/copiar-desde-producto', [ProductOperationListController::class, 'copyFromProduct'])
             ->middleware('permission:crear listados operacionales|crear sabana productos')
             ->name('copy-from-product');
+        Route::post('/sabana/{productSheet}/completar', [ProductOperationListController::class, 'complete'])
+            ->middleware('permission:editar listados operacionales|editar sabana productos|crear listados operacionales|crear sabana productos')
+            ->name('complete');
+        Route::delete('/sabana/{productSheet}/completar', [ProductOperationListController::class, 'reopen'])
+            ->middleware('permission:editar listados operacionales|editar sabana productos')
+            ->name('reopen');
         Route::get('/{listItem}/history', [ProductOperationListController::class, 'history'])
             ->middleware('permission:ver listados operacionales|ver sabana productos')
             ->name('history');

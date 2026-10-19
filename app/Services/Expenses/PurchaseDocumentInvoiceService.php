@@ -26,6 +26,53 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
         private \App\Services\Inventory\WarehouseResolver $warehouseResolver,
     ) {}
 
+    public function paginateDocuments(string $documentType, array $filters = [], int $perPage = 20, $request = null, ?\App\Models\Settings\User $user = null): LengthAwarePaginator
+    {
+        $paginator = parent::paginateDocuments($documentType, $filters, $perPage, $request, $user);
+
+        if ($documentType === PurchaseDocument::TYPE_INVOICE) {
+            $this->attachPendingCreditNoteSummary($paginator->getCollection());
+        }
+
+        return $paginator;
+    }
+
+    public function loadWithRelations(PurchaseDocument $document): PurchaseDocument
+    {
+        $document = parent::loadWithRelations($document);
+
+        if ($document->document_type === PurchaseDocument::TYPE_INVOICE) {
+            $this->attachPendingCreditNoteSummary(collect([$document]));
+        }
+
+        return $document;
+    }
+
+    /**
+     * Expone en cada factura los rollos rechazados sin nota crédito aprobada
+     * (`pending_credit_note_rolls_count` y `pending_credit_note_amount`), en una sola consulta por lote.
+     *
+     * @param  iterable<int, PurchaseDocument>  $invoices
+     */
+    protected function attachPendingCreditNoteSummary(iterable $invoices): void
+    {
+        $invoices = collect($invoices);
+        if ($invoices->isEmpty()) {
+            return;
+        }
+
+        $summaries = app(\App\Services\Textil\FabricRollCreditNoteService::class)
+            ->disputedSummaries($invoices->pluck('id')->all());
+
+        foreach ($invoices as $invoice) {
+            $summary = $summaries[(int) $invoice->id] ?? ['amount' => 0.0, 'rolls' => 0];
+            $invoice->setAttribute('pending_credit_note_rolls_count', (int) $summary['rolls']);
+            $invoice->setAttribute('pending_credit_note_amount', round((float) $summary['amount'], 2));
+            // Son valores calculados (no columnas): se marcan como sincronizados para que un save() posterior no intente escribirlos.
+            $invoice->syncOriginalAttributes(['pending_credit_note_rolls_count', 'pending_credit_note_amount']);
+        }
+    }
+
     public function paginateAccountsPayable(array $filters = [], int $perPage = 20): LengthAwarePaginator
     {
         $rawDebtStatus = trim((string) ($filters['debt_status'] ?? 'all'));
@@ -137,9 +184,16 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
             ->orderByDesc('id')
             ->paginate(max(1, $perPage));
 
+        // Retención por rollos rechazados sin nota crédito aprobada (una sola consulta para la página).
+        $disputedByInvoice = app(\App\Services\Textil\FabricRollCreditNoteService::class)
+            ->disputedSummaries($paginator->getCollection()->pluck('id')->all());
+
         $paginator->setCollection(
             $paginator->getCollection()
-                ->map(fn (PurchaseDocument $invoice) => $this->mapAccountsPayableRow($invoice))
+                ->map(fn (PurchaseDocument $invoice) => $this->mapAccountsPayableRow(
+                    $invoice,
+                    $disputedByInvoice[(int) $invoice->id] ?? null,
+                ))
                 ->values()
         );
 
@@ -218,8 +272,10 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
             $parentId = $parentId ? (int) $parentId : null;
 
             // Validar que no exista ya una factura para esta orden
+            $overInvoicedReason = null;
             if (!empty($parentId)) {
-                $parentOrder = PurchaseDocument::find($parentId);
+                // Bloqueo de la orden: dos facturas simultáneas no deben calcular su estado con datos viejos.
+                $parentOrder = PurchaseDocument::whereKey($parentId)->lockForUpdate()->first();
                 if (!$parentOrder) {
                     throw new \RuntimeException('La orden de compra especificada no existe.');
                 }
@@ -236,11 +292,25 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
                 if (!in_array($parentOrder->status, $invoiceableStatuses)) {
                     throw new \RuntimeException('Solo se pueden crear facturas desde órdenes aprobadas o parcialmente facturadas.');
                 }
+
+                if (! $this->hasPendingToInvoice($parentOrder)) {
+                    throw new \RuntimeException('La orden ya no tiene cantidades pendientes por facturar.');
+                }
+
+                // Facturar más de lo pendiente se permite solo con motivo; la diferencia la aprueba alguien con permiso.
+                $overInvoiced = $this->overInvoicedItems($parentOrder, $items);
+                if (count($overInvoiced) > 0) {
+                    $overInvoicedReason = trim((string) ($data['reason'] ?? ''));
+                    if ($overInvoicedReason === '') {
+                        throw \Illuminate\Validation\ValidationException::withMessages([
+                            'reason' => ['La factura supera la cantidad pendiente de la orden ('.implode('; ', $overInvoiced).'). Indica el motivo de la diferencia; debe aprobarla alguien con permiso.'],
+                        ]);
+                    }
+                }
             }
 
-            if (empty($data['document_number'])) {
-                $data['document_number'] = $this->generateInvoiceNumber();
-            }
+            // Solo el servidor asigna el consecutivo (serie FAC, o la que indique el controlador: FAC-T).
+            $data['document_number'] = $this->generateDocumentNumber($data['number_prefix'] ?? 'FAC', PurchaseDocument::TYPE_INVOICE);
             $base = $this->buildBaseData($data, PurchaseDocument::TYPE_INVOICE);
 
             // Heredar buyer_user_id de la orden padre, o usar el usuario autenticado
@@ -269,18 +339,18 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
             ]);
 
             $this->syncItems($invoice, $items);
+            $this->syncInvoiceWithholdings($invoice);
 
-            // Actualizar el estado de la orden según si la factura cubre todas las cantidades
+            if ($overInvoicedReason !== null) {
+                // Queda pendiente de aprobación desde el inicio (también recalcula la orden).
+                $this->attachValidationDifference($invoice, $overInvoicedReason, $data['evidence_path'] ?? null, null);
+            }
+
+            // Actualizar el estado de la orden y de su solicitud según lo facturado
             if (!empty($parentId)) {
                 $parentOrder = PurchaseDocument::with('items')->find($parentId);
-                if ($parentOrder && $parentOrder->document_type === PurchaseDocument::TYPE_ORDER) {
-                    $newStatus = $this->resolveOrderStatusAfterInvoice($parentOrder, []);
-                    $parentOrder->update(['status' => $newStatus]);
-
-                    // Verificar si todas las órdenes de la solicitud están completamente facturadas
-                    if ($newStatus === \App\Enums\PurchaseOrderStatus::INVOICED->value && $parentOrder->purchase_request_id) {
-                        $this->checkAndMarkRequestAsProcessed((int) $parentOrder->purchase_request_id);
-                    }
+                if ($parentOrder) {
+                    $this->recalculateOrderStatus($parentOrder);
                 }
             }
 
@@ -330,6 +400,7 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
             $lockedInvoice->approval_status = 'approved';
             $lockedInvoice->approved_by_user_id = $lockedInvoice->approved_by_user_id ?: (int) $responsibleUserId;
             $lockedInvoice->approved_at = $lockedInvoice->approved_at ?? now();
+            $lockedInvoice->received_at = $lockedInvoice->received_at ?? now();
 
             if ($lockedInvoice->isDirty()) {
                 $lockedInvoice->save();
@@ -548,8 +619,12 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
         return round($amount, 2);
     }
 
-    protected function mapAccountsPayableRow(PurchaseDocument $invoice): array
+    /**
+     * @param  array{amount: float, rolls: int}|null  $disputed  rollos rechazados sin resolver (monto retenido)
+     */
+    protected function mapAccountsPayableRow(PurchaseDocument $invoice, ?array $disputed = null): array
     {
+        $disputedAmount = round((float) ($disputed['amount'] ?? 0), 2);
         $summary = $this->getInvoiceNotesSummary($invoice);
         $paymentsTotal = $this->invoicePaymentsTotal($invoice);
         $currentBalance = round(((float) ($summary['balance_after_notes'] ?? 0)) - $paymentsTotal, 2);
@@ -569,6 +644,9 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
             'debit_notes_total' => (float) ($summary['debit_total'] ?? 0),
             'payments_total' => $paymentsTotal,
             'current_balance' => $currentBalance,
+            'disputed_amount' => $disputedAmount,
+            'disputed_rolls_count' => (int) ($disputed['rolls'] ?? 0),
+            'payable_balance' => max(0.0, round($currentBalance - $disputedAmount, 2)),
             'debt_status' => $debtStatus['code'],
             'debt_status_label' => $debtStatus['label'],
             'debt_status_tone' => $debtStatus['tone'],
@@ -633,75 +711,33 @@ class PurchaseDocumentInvoiceService extends PurchaseDocumentService
         return $enum?->label() ?? $status;
     }
 
-    private function resolveOrderStatusAfterInvoice(PurchaseDocument $order, array $newInvoiceItems): string
+    /**
+     * Líneas de la factura nueva que superan lo pendiente de la orden (pedido menos lo ya facturado válido).
+     *
+     * @return list<string> descripciones, vacío si ninguna se pasa
+     */
+    protected function overInvoicedItems(PurchaseDocument $order, array $items): array
     {
-        $orderItems = $order->items;
+        $order->loadMissing('items');
+        $invoiced = $this->invoicedQuantitiesByKey($this->validInvoicesForOrder($order)->pluck('id')->all());
 
-        if ($orderItems->isEmpty()) {
-            return \App\Enums\PurchaseOrderStatus::INVOICED->value;
+        $requested = [];
+        foreach ($items as $item) {
+            $key = ! empty($item['item_id']) ? 'id:'.$item['item_id'] : 'name:'.strtolower(trim((string) ($item['item_name'] ?? '')));
+            $requested[$key] = ($requested[$key] ?? 0) + (float) ($item['quantity'] ?? 0);
         }
 
-        // Sumar cantidades de facturas anteriores para esta orden
-        $previousInvoiceIds = PurchaseDocument::where('parent_document_id', $order->id)
-            ->where('document_type', PurchaseDocument::TYPE_INVOICE)
-            ->whereNull('deleted_at')
-            ->pluck('id');
-
-        $invoicedQty = \App\Models\Expenses\PurchaseDocumentItem::whereIn('purchase_document_id', $previousInvoiceIds)
-            ->get()
-            ->reduce(function (array $carry, $item) {
-                $key = $item->item_id
-                    ? 'id:' . $item->item_id
-                    : 'name:' . strtolower(trim((string) ($item->item_name ?? '')));
-                $carry[$key] = ($carry[$key] ?? 0) + (float) $item->quantity;
-                return $carry;
-            }, []);
-
-        // Sumar la factura actual
-        foreach ($newInvoiceItems as $item) {
-            $key = !empty($item['item_id'])
-                ? 'id:' . $item['item_id']
-                : 'name:' . strtolower(trim((string) ($item['item_name'] ?? '')));
-            $invoicedQty[$key] = ($invoicedQty[$key] ?? 0) + (float) ($item['quantity'] ?? 0);
-        }
-
-        foreach ($orderItems as $orderItem) {
-            $key = $orderItem->item_id
-                ? 'id:' . $orderItem->item_id
-                : 'name:' . strtolower(trim((string) ($orderItem->item_name ?? '')));
-            $ordered  = (float) $orderItem->quantity;
-            $invoiced = $invoicedQty[$key] ?? 0;
-
-            if ($ordered > 0 && $invoiced < $ordered) {
-                return \App\Enums\PurchaseOrderStatus::PARTIALLY_INVOICED->value;
+        $over = [];
+        foreach ($order->items as $orderItem) {
+            $key = $orderItem->item_id ? 'id:'.$orderItem->item_id : 'name:'.strtolower(trim((string) ($orderItem->item_name ?? '')));
+            $pending = max(0.0, (float) $orderItem->quantity - ($invoiced[$key] ?? 0));
+            $asked = $requested[$key] ?? 0;
+            if ($asked > $pending + 0.0001) {
+                $over[] = sprintf('%s: pendiente %s, facturado %s', $orderItem->item_name ?? $orderItem->item?->name ?? 'Ítem #'.$orderItem->id, rtrim(rtrim(number_format($pending, 2, '.', ''), '0'), '.'), rtrim(rtrim(number_format($asked, 2, '.', ''), '0'), '.'));
             }
         }
 
-        return \App\Enums\PurchaseOrderStatus::INVOICED->value;
+        return $over;
     }
 
-    private function checkAndMarkRequestAsProcessed(int $requestId): void
-    {
-        $purchaseRequest = \App\Models\Expenses\PurchaseRequest::find($requestId);
-        if (!$purchaseRequest || !$purchaseRequest->isApproved()) {
-            return;
-        }
-
-        // Verificar que exista al menos una orden y que todas las no-rechazadas/no-eliminadas estén facturadas
-        $orders = PurchaseDocument::where('purchase_request_id', $requestId)
-            ->where('document_type', PurchaseDocument::TYPE_ORDER)
-            ->whereNotIn('status', ['rejected'])
-            ->whereNull('deleted_at')
-            ->get(['id', 'status']);
-
-        if ($orders->isEmpty()) {
-            return;
-        }
-
-        $allInvoiced = $orders->every(fn($o) => $o->status === \App\Enums\PurchaseOrderStatus::INVOICED->value);
-
-        if ($allInvoiced) {
-            $purchaseRequest->markAsProcessed(Auth::id());
-        }
-    }
 }

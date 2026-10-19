@@ -3,19 +3,17 @@
 namespace App\Notifications;
 
 use App\Models\Expenses\PurchaseRequest;
+use App\Notifications\Concerns\UsesConfiguredChannels;
 use Illuminate\Notifications\Notification;
 
 class PurchaseRequestSubmittedNotification extends Notification
 {
+    use UsesConfiguredChannels;
+
     public function __construct(
         protected PurchaseRequest $purchaseRequest,
         protected ?string $requesterName = null
     ) {}
-
-    public function via(object $notifiable): array
-    {
-        return ['database'];
-    }
 
     public function toArray(object $notifiable): array
     {
@@ -35,7 +33,7 @@ class PurchaseRequestSubmittedNotification extends Notification
                 $this->requesterName ?? 'Un usuario',
                 $number
             ),
-            'url'             => '/gastos/solicitudes-compra',
+            'url'             => '/gastos/solicitudes-compra?ver=' . $this->purchaseRequest->id,
         ];
     }
 }

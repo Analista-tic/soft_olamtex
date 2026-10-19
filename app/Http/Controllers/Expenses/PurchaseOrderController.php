@@ -35,6 +35,10 @@ class PurchaseOrderController extends PurchaseDocumentController
         $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_ORDER);
         $purchaseDocument = $this->service->findAccessibleDocumentOrFail($purchaseDocument, request()->user());
 
+        if (! $purchaseDocument->canEditOrder()) {
+            abort(403, PurchaseDocument::ORDER_LOCKED_MESSAGE);
+        }
+
         $order = $this->service->loadWithRelations($purchaseDocument);
 
         return Inertia::render('Expenses/PurchaseOrders/PurchaseOrderForm', [
@@ -60,29 +64,33 @@ class PurchaseOrderController extends PurchaseDocumentController
         ], 201);
     }
 
-    public function show(PurchaseDocument $purchaseDocument)
+    public function traceability(PurchaseDocument $purchaseDocument)
     {
         $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_ORDER);
         $order = $this->service->findAccessibleDocumentOrFail($purchaseDocument, request()->user());
 
-        // Calcular cantidades ya facturadas por ítem
-        $invoicedQtyByItemId = \App\Models\Expenses\PurchaseDocumentItem::whereIn(
-            'purchase_document_id',
-            \App\Models\Expenses\PurchaseDocument::where('parent_document_id', $order->id)
-                ->where('document_type', \App\Models\Expenses\PurchaseDocument::TYPE_INVOICE)
-                ->whereNull('deleted_at')
-                ->pluck('id')
-        )->get()->groupBy('item_id')->map(fn($g) => $g->sum(fn($i) => (float) $i->quantity));
+        return response()->json(['data' => [
+            'chain' => app(\App\Services\Expenses\PurchaseDocumentChainService::class)->forDocument($order, request()->user()),
+        ]]);
+    }
 
-        $order->items->each(function ($item) use ($invoicedQtyByItemId) {
-            $item->already_invoiced_qty = (float) ($invoicedQtyByItemId[$item->item_id] ?? 0);
-        });
+    public function show(PurchaseDocument $purchaseDocument)
+    {
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_ORDER);
+        $order = $this->service->findAccessibleDocumentOrFail($purchaseDocument, request()->user());
+        // La solicitud origen va embebida: quien ve la orden no necesariamente puede ver esa solicitud.
+        $order->load('purchaseRequest.requester:id,name');
 
-        return response()->json(['data' => $order]);
+        return response()->json(['data' => $this->service->attachInvoicedQuantities($order)]);
     }
 
     public function update(Request $request, PurchaseDocument $purchaseDocument)
     {
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_ORDER);
+        if (! $purchaseDocument->canEditOrder()) {
+            return response()->json(['message' => PurchaseDocument::ORDER_LOCKED_MESSAGE], 422);
+        }
+
         return $this->updateGeneric(
             $request,
             $purchaseDocument,
@@ -93,6 +101,11 @@ class PurchaseOrderController extends PurchaseDocumentController
 
     public function destroy(PurchaseDocument $purchaseDocument)
     {
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_ORDER);
+        if (! $purchaseDocument->canEditOrder()) {
+            return response()->json(['message' => PurchaseDocument::ORDER_LOCKED_MESSAGE], 422);
+        }
+
         return $this->destroyGeneric($purchaseDocument, PurchaseDocument::TYPE_ORDER, 'Purchase order deleted.');
     }
 
@@ -102,6 +115,10 @@ class PurchaseOrderController extends PurchaseDocumentController
         $purchaseDocument = $this->service->findAccessibleDocumentOrFail($purchaseDocument, request()->user());
 
         try {
+            if (! $purchaseDocument->canSendOrderToSupplier()) {
+                throw new \RuntimeException('Solo se pueden enviar al proveedor órdenes aprobadas.');
+            }
+
             $order = $this->service->loadWithRelations($purchaseDocument);
             $email = $order->supplier?->email;
 
@@ -112,7 +129,9 @@ class PurchaseOrderController extends PurchaseDocumentController
             $pdf = DomPDF::loadView('pdf.purchase_order', ['order' => $order]);
             Mail::to($email)->send(new PurchaseOrderMail($order, $pdf->output()));
 
-            return response()->json(['message' => 'Correo enviado correctamente.']);
+            $purchaseDocument->forceFill(['sent_at' => now()])->save();
+
+            return response()->json(['message' => 'Correo enviado correctamente.', 'sent_at' => $purchaseDocument->sent_at]);
         } catch (\RuntimeException $e) {
             return response()->json(['message' => $e->getMessage()], 422);
         } catch (\Exception $e) {
@@ -136,25 +155,6 @@ class PurchaseOrderController extends PurchaseDocumentController
         ]);
     }
 
-    public function convertToInvoice(PurchaseDocument $purchaseDocument)
-    {
-        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_ORDER);
-        $purchaseDocument = $this->service->findAccessibleDocumentOrFail($purchaseDocument, request()->user());
-
-        try {
-            $invoice = $this->service->convertOrderToInvoice($purchaseDocument);
-            return response()->json([
-                'message' => 'Purchase order successfully converted to invoice.',
-                'data' => $invoice,
-            ]);
-        } catch (\RuntimeException $e) {
-            return response()->json([
-                'message' => $e->getMessage(),
-                'error_code' => 'ORDER_ALREADY_INVOICED',
-            ], 422);
-        }
-    }
-
     public function approve(PurchaseDocument $purchaseDocument)
     {
         $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_ORDER);
@@ -167,21 +167,7 @@ class PurchaseOrderController extends PurchaseDocumentController
             ], 422);
         }
 
-        // Solo admin puede aprobar cualquier orden; los demás solo las propias
-        $user = $request->user();
-        if ($user && !$user->hasRole('admin')) {
-            if ((int) $purchaseDocument->buyer_user_id !== (int) $user->id) {
-                return response()->json([
-                    'message' => 'No tienes permiso para aprobar esta orden.',
-                ], 403);
-            }
-        }
-
-        // Verificar cobertura de cantidades cuando hay solicitud vinculada
-        $coverageError = $this->service->checkRequestCoverage($purchaseDocument);
-        if ($coverageError) {
-            return response()->json(['message' => $coverageError], 422);
-        }
+        // La autorización la da el permiso 'aprobar orden compra' del middleware de la ruta.
 
         $updated = $this->service->updateDocument($purchaseDocument, [
             'status' => \App\Enums\PurchaseOrderStatus::APPROVED->value,
@@ -192,6 +178,38 @@ class PurchaseOrderController extends PurchaseDocumentController
 
         return response()->json([
             'message' => 'Orden de compra aprobada correctamente.',
+            'data' => $updated->toArray(),
+        ]);
+    }
+
+    public function reject(Request $request, PurchaseDocument $purchaseDocument)
+    {
+        $this->ensureDocumentType($purchaseDocument, PurchaseDocument::TYPE_ORDER);
+        $purchaseDocument = $this->service->findAccessibleDocumentOrFail($purchaseDocument, $request->user());
+
+        if (! $purchaseDocument->canRejectOrder()) {
+            return response()->json([
+                'message' => 'Solo se pueden rechazar órdenes pendientes de aprobación.',
+            ], 422);
+        }
+
+        $validated = $request->validate([
+            'rejection_reason' => 'required|string|max:1000',
+        ]);
+
+        $updated = $this->service->updateDocument($purchaseDocument, [
+            'status' => \App\Enums\PurchaseOrderStatus::REJECTED->value,
+            'rejection_reason' => $validated['rejection_reason'],
+            'rejected_by_user_id' => \Illuminate\Support\Facades\Auth::id(),
+            'rejected_at' => now(),
+        ]);
+
+        if ($updated->purchase_request_id) {
+            $this->service->checkAndMarkRequestAsProcessed((int) $updated->purchase_request_id);
+        }
+
+        return response()->json([
+            'message' => 'Orden de compra rechazada.',
             'data' => $updated->toArray(),
         ]);
     }
@@ -215,6 +233,10 @@ class PurchaseOrderController extends PurchaseDocumentController
             'status'         => \App\Enums\PurchaseOrderStatus::INVOICED->value,
             'closure_reason' => $request->input('closure_reason'),
         ]);
+
+        if ($updated->purchase_request_id) {
+            $this->service->checkAndMarkRequestAsProcessed((int) $updated->purchase_request_id);
+        }
 
         return response()->json([
             'message' => 'Orden cerrada correctamente.',

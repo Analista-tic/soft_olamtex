@@ -2,6 +2,7 @@
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import DeleteButton from '@/components/common/DeleteButton.vue';
+import HoverTooltip from '@/components/common/HoverTooltip.vue';
 import DialogActionButtons from '@/components/common/DialogActionButtons.vue';
 import DraggableTableRow from '@/components/DraggableTableRow.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
@@ -18,12 +19,12 @@ import type {
     OperationSection,
     ProductOperationDialogInitialData,
     ProductOperationDialogRow,
-    ProductOperationDialogRowInput,
     ProductOperationEntityCreatedData,
     ProductOperationPayload,
+    ProductOperationSaveOptions,
     ProductSheetDialogOption,
 } from '@/domain/product-sheet/types';
-import { CornerDownLeft, GripVertical, Pencil, Plus, PlusCircle, X } from 'lucide-vue-next';
+import { CornerDownLeft, GripVertical, Lightbulb, Pencil, Plus, PlusCircle, X } from 'lucide-vue-next';
 import { computed, PropType, ref, watch } from 'vue';
 import AddNew from './AddNew.vue';
 
@@ -81,10 +82,15 @@ const props = defineProps({
         type: [Number, String] as PropType<number | string | null>,
         default: null,
     },
+    /** Muestra "Guardar y marcar completo"; solo si el padre maneja options.markComplete. */
+    allowMarkComplete: {
+        type: Boolean,
+        default: false,
+    },
 });
 
 const emit = defineEmits<{
-    (event: 'save', payload: ProductOperationPayload[]): void;
+    (event: 'save', payload: ProductOperationPayload[], options: ProductOperationSaveOptions): void;
     (event: 'close'): void;
 }>();
 
@@ -178,6 +184,25 @@ function isSectionPreparacion(sectionId: number | string | null): boolean {
     return (section?.type ?? '').toLowerCase() === 'preparacion';
 }
 
+/**
+ * Sugiere un grupo de preparación existente a partir del garment_part de la
+ * operación (ej. "MANGA LARGA" -> "MANGA" si ese grupo ya existe). Nunca crea
+ * un grupo nuevo aquí: si no hay coincidencia exacta o de palabra completa,
+ * devuelve null y el usuario elige/crea uno manualmente, igual que hoy — así
+ * se evita generar grupos casi-duplicados a partir de texto libre.
+ */
+function suggestPreparationGroup(garmentPart: string | null | undefined, groups: string[]): string | null {
+    const normalized = String(garmentPart ?? '').trim().toUpperCase().replace(/\s+/g, ' ');
+    if (!normalized) return null;
+
+    const tokens = normalized.split(' ');
+
+    return groups.find((g) => {
+        const groupNorm = g.trim().toUpperCase();
+        return groupNorm !== '' && (groupNorm === normalized || tokens.includes(groupNorm));
+    }) ?? null;
+}
+
 const createEmptyRow = (): ProductOperationDialogRow => ({
     row_key: buildRowKey('new'),
     id: null,
@@ -191,6 +216,10 @@ const createEmptyRow = (): ProductOperationDialogRow => ({
 });
 const currentRow = ref<ProductOperationDialogRow>(createEmptyRow());
 
+function sortGroupNames(groups: string[]): string[] {
+    return [...groups].sort((a, b) => a.localeCompare(b, 'es', { sensitivity: 'base' }));
+}
+
 function syncListsFromProps() {
     sectionsList.value = Array.isArray(props.sections) ? [...props.sections] : [];
     const operationCatalog = Array.isArray(props.operations) ? [...props.operations] : [];
@@ -201,7 +230,7 @@ function syncListsFromProps() {
     machinesList.value = Array.isArray(props.machines) ? [...props.machines] : [];
     fabricBasesList.value = Array.isArray(props.fabricBases) ? [...props.fabricBases] : [];
     preparationGroupsList.value = Array.isArray(props.preparationGroups)
-        ? [...new Set(props.preparationGroups.map((g) => String(g ?? '').trim()).filter(Boolean))]
+        ? sortGroupNames([...new Set(props.preparationGroups.map((g) => String(g ?? '').trim()).filter(Boolean))])
         : [];
 }
 
@@ -227,7 +256,7 @@ function addPreparationGroupFromSelect(rawName?: string) {
         return;
     }
 
-    preparationGroupsList.value = [...preparationGroupsList.value, group];
+    preparationGroupsList.value = sortGroupNames([...preparationGroupsList.value, group]);
     currentRow.value.grupo_preparacion = group;
     preparationGroupSearchTerm.value = '';
     clearValidationError();
@@ -244,7 +273,7 @@ function addPreparationGroupFromEditRow(rawName?: string) {
 
     const existing = preparationGroupsList.value.find((g) => g.toLowerCase() === group.toLowerCase());
     if (!existing) {
-        preparationGroupsList.value = [...preparationGroupsList.value, group];
+        preparationGroupsList.value = sortGroupNames([...preparationGroupsList.value, group]);
     }
 
     if (editRow.value) {
@@ -291,8 +320,12 @@ watch(
         const samTotal = Number(op.sam_base ?? 0);
         currentRow.value.sam_total_base = Number.isFinite(samTotal) ? samTotal : 0;
         currentRow.value.optimal_time = currentRow.value.sam_total_base.toFixed(2);
-        // Reset grupo_preparacion if section is not PREPARACION
-        if (!isSectionPreparacion(currentRow.value.section_id)) {
+        // Grupo de preparación: se sugiere desde garment_part si la sección
+        // es PREPARACION y hay una coincidencia confiable; si no, se limpia
+        // para que el usuario elija/cree uno manualmente (como hoy).
+        if (isSectionPreparacion(currentRow.value.section_id)) {
+            currentRow.value.grupo_preparacion = suggestPreparationGroup(op.garment_part, preparationGroupsList.value);
+        } else {
             currentRow.value.grupo_preparacion = null;
         }
 
@@ -315,6 +348,11 @@ watch(
 );
 
 const isEditMode = computed(() => props.mode === 'edit');
+
+/** True cuando la fila en alta necesita un grupo de preparación y no se pudo sugerir uno automáticamente. */
+const needsManualPreparationGroup = computed(
+    () => isSectionPreparacion(currentRow.value.section_id) && !currentRow.value.grupo_preparacion,
+);
 
 const availableProductSheets = computed(() => {
     const excluded = new Set((props.excludedProductSheetIds ?? []).map((id) => normalizeComparableId(id as number | string | null | undefined)));
@@ -366,8 +404,6 @@ function openAddNewDialog(entity: 'section' | 'operation' | 'machine') {
     addNewEntity.value = entity;
     addNewDialogOpen.value = true;
 }
-
-const openCreateDialog = () => openAddNewDialog('operation');
 
 function handleEntityCreated(data: ProductOperationEntityCreatedData) {
     if (addNewEntity.value === 'section') {
@@ -438,10 +474,6 @@ function getSupplementForRow(row: ProductOperationDialogRow): number {
     return typeof f === 'number' && f >= 1 ? f : 1;
 }
 
-function getSupplementPercentage(row: ProductOperationDialogRow): number {
-    return (getSupplementForRow(row) - 1) * 100;
-}
-
 /** SAM ajustado = SAM_base / (factor_operario / 100) */
 function getSamAjustado(row: ProductOperationDialogRow): number {
     const samBase = Number(row.sam_total_base ?? row.optimal_time ?? 0);
@@ -474,10 +506,6 @@ function getOpsPerHour(row: ProductOperationDialogRow): number {
     const samOp = getSamOperacion(row);
     if (samOp <= 0) return 0;
     return Math.floor(60 / samOp);
-}
-
-function getSectionName(id: number | null): string {
-    return sectionsList.value.find((s) => idsMatch(s.id, id))?.name ?? '-';
 }
 
 function getOperationName(id: number | null): string {
@@ -541,7 +569,7 @@ function addOperation() {
         return;
     }
     if (isSectionPreparacion(currentRow.value.section_id) && !currentRow.value.grupo_preparacion) {
-        const msg = 'Para operaciones de PREPARACION, debes seleccionar o crear un grupo de preparación.';
+        const msg = 'Para operaciones de PREPARACIÓN, debes seleccionar o crear un grupo de preparación.';
         setValidationError(msg);
         return;
     }
@@ -630,7 +658,7 @@ function initializeForm() {
     resetForm();
 }
 
-function saveOperations() {
+function saveOperations(markComplete = false) {
     if (editingRowIndex.value !== null) {
         saveEditRow(editingRowIndex.value);
         if (editingRowIndex.value !== null) return;
@@ -647,7 +675,7 @@ function saveOperations() {
         (row) => isSectionPreparacion(row.section_id) && !row.grupo_preparacion
     );
     if (missingPreparationGroup) {
-        const msg = 'Todas las operaciones de PREPARACION deben tener un grupo asignado. Edita las filas sin grupo.';
+        const msg = 'Todas las operaciones de PREPARACIÓN deben tener un grupo asignado. Edita las filas sin grupo.';
         setValidationError(msg);
         return;
     }
@@ -680,7 +708,7 @@ function saveOperations() {
     });
 
     clearValidationError();
-    emit('save', payload);
+    emit('save', payload, { markComplete });
     resetForm();
     localOpen.value = false;
 }
@@ -724,7 +752,11 @@ function resetForm() {
                             <SelectField
                                 v-model="productSheetId"
                                 label="Sábana de producto"
-                                :options="availableProductSheets.map((s) => ({ id: s.id, name: buildProductSheetLabel(s) }))"
+                                :options="
+                                    availableProductSheets
+                                        .map((s) => ({ id: s.id, name: buildProductSheetLabel(s) }))
+                                        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }))
+                                "
                                 :disabled="isEditMode || readonly"
                                 required
                             />
@@ -783,8 +815,10 @@ function resetForm() {
                             <HelpTooltip text="SAM total unitario: (SAM base / F.op.) × suplemento máq. × factor base tela." />
                         </div>
                         <div class="col-span-3 flex items-center gap-1">
-                            Grupo prep.
-                            <HelpTooltip text="Solo para secciones de tipo PREPARACIÓN. Reagrupa operaciones dentro de la sección." />
+                            Grupo prep.<span v-if="needsManualPreparationGroup" class="text-red-500">*</span>
+                            <HelpTooltip
+                                text="Solo para secciones de tipo PREPARACIÓN. Se sugiere desde la parte de prenda de la operación; si no hay coincidencia, elige o crea uno."
+                            />
                         </div>
                         <div class="col-span-1"></div>
                     </div>
@@ -792,7 +826,11 @@ function resetForm() {
                         <div class="col-span-3">
                             <SelectField
                                 v-model="currentRow.operation_id"
-                                :options="availableOperationOptions.map((o) => ({ id: o.id, name: getOperationOptionLabel(o) }))"
+                                :options="
+                                    availableOperationOptions
+                                        .map((o) => ({ id: o.id, name: getOperationOptionLabel(o) }))
+                                        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }))
+                                "
                                 placeholder="Buscar operación"
                                 class="h-9 w-full"
                                 @keydown.enter.prevent="handleEnterAddOperation"
@@ -857,13 +895,23 @@ function resetForm() {
                             </Button>
                         </div>
                         <div class="col-span-12">
-                            <input
+                            <input data-no-uppercase
                                 v-model="currentRow.row_notes"
                                 type="text"
                                 placeholder="Nota de la operación (opcional)"
                                 class="h-7 w-full rounded-md border border-input bg-transparent px-2 text-xs text-muted-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:ring-1 focus:ring-ring"
                                 @keydown.enter.prevent="handleEnterAddOperation"
                             />
+                        </div>
+                        <div
+                            v-if="needsManualPreparationGroup"
+                            class="col-span-12 flex items-start gap-2 rounded-lg border border-blue-200 bg-blue-50 px-3 py-2 text-xs text-blue-700"
+                        >
+                            <Lightbulb class="mt-0.5 h-3.5 w-3.5 shrink-0" />
+                            <span>
+                                Esta operación es de sección PREPARACIÓN y no se pudo sugerir un grupo automáticamente desde su parte de
+                                prenda — elige uno existente o escribe uno nuevo (ej. Cuello, Manga, Bolsillo) para poder añadirla.
+                            </span>
                         </div>
                     </div>
 
@@ -940,7 +988,7 @@ function resetForm() {
                                                 class="mt-0.5 block truncate text-[10px] italic text-muted-foreground/60"
                                                 :title="row.row_notes"
                                             >{{ row.row_notes }}</span>
-                                            <input
+                                            <input data-no-uppercase
                                                 v-if="isEditingRow(index) && editRow"
                                                 v-model="editRow.row_notes"
                                                 type="text"
@@ -1060,12 +1108,23 @@ function resetForm() {
             </TooltipProvider>
 
             <FormDialogFooter class="flex items-center justify-end gap-2">
+                <HoverTooltip v-if="!readonly && allowMarkComplete" text="Guarda y deja el listado marcado como completo (listo para producción).">
+                    <Button
+                        type="button"
+                        variant="outline"
+                        class="rounded-full border-emerald-600 bg-emerald-600 px-5 text-white hover:bg-emerald-700 hover:text-white dark:border-emerald-500 dark:bg-emerald-600 dark:text-white dark:hover:bg-emerald-500"
+                        :disabled="operationList.length === 0"
+                        @click="saveOperations(true)"
+                    >
+                        Guardar y marcar completo
+                    </Button>
+                </HoverTooltip>
                 <DialogActionButtons
                     v-if="!readonly"
                     cancel-label="Cancelar"
                     :submit-label="operationList.length > 0 ? `Guardar (${operationList.length})` : 'Guardar (vaciar lista)'"
                     @cancel="localOpen = false"
-                    @submit="saveOperations"
+                    @submit="saveOperations()"
                 />
                 <Button v-else variant="outline" @click="localOpen = false">
                     Cerrar

@@ -68,7 +68,7 @@ class PurchasesDemoSeeder extends Seeder
                 'document_number' => 'FAC-TELA-001',
                 'contact_id' => $supplier->id,
                 'date' => now()->subDays(5),
-                'status' => 'received', // Estados válidos para invoices: pending_receipt, received, rejected
+                'status' => 'invoiced', // Estados válidos para invoices: pending_receipt, invoiced, partially_invoiced, rejected
                 'invoiced_at' => now()->subDays(5),
                 'supplier_invoice_number' => 'PROV-TELA-001',
             ]);
@@ -152,7 +152,7 @@ class PurchasesDemoSeeder extends Seeder
                 'document_number' => 'FAC-GENERAL-001',
                 'contact_id' => $supplier->id,
                 'date' => now()->subDays(2),
-                'status' => 'received', // Estados válidos para invoices: pending_receipt, received, rejected
+                'status' => 'invoiced', // Estados válidos para invoices: pending_receipt, invoiced, partially_invoiced, rejected
                 'invoiced_at' => now()->subDays(2),
                 'supplier_invoice_number' => 'PROV-GENERAL-001',
             ]);

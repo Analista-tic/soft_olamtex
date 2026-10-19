@@ -17,8 +17,14 @@ class ExampleDataSeeder extends Seeder
 {
     public function run(): void
     {
-        // Usar subgrupo existente creado por CategorySeeder
-        $categorySubGroupId = DB::table('category_sub_groups')->where('name', 'General')->value('id') ?? 1;
+        // Usar subgrupo existente creado por CategorySeeder; en una BD limpia (p. ej. pruebas)
+        // se crea el catálogo base primero, para no violar la FK de items.category_sub_group_id.
+        $categorySubGroupId = DB::table('category_sub_groups')->where('name', 'General')->value('id');
+        if ($categorySubGroupId === null) {
+            $this->call(CategorySeeder::class);
+            $categorySubGroupId = DB::table('category_sub_groups')->where('name', 'General')->value('id');
+        }
+        $categorySubGroupId ??= 1;
 
         // Insertar usuario de ejemplo
         $user = DB::table('users')->where('email', 'ejemplo@correo.com')->first();
@@ -53,8 +59,13 @@ class ExampleDataSeeder extends Seeder
             'updated_at' => now(),
         ]);
 
-        // Usar impuestos existentes creados por TaxesSeeder
-        $tax19Id = DB::table('taxes')->where('name', 'IVA 19%')->value('id') ?? 1;
+        // Usar impuestos existentes creados por TaxesSeeder; en una BD limpia se crean primero.
+        $tax19Id = DB::table('taxes')->where('name', 'IVA 19%')->value('id');
+        if ($tax19Id === null) {
+            $this->call(TaxesSeeder::class);
+            $tax19Id = DB::table('taxes')->where('name', 'IVA 19%')->value('id');
+        }
+        $tax19Id ??= 1;
 
         // Insertar retenciones (retentions) de ejemplo si no existen
         DB::table('retentions')->updateOrInsert(

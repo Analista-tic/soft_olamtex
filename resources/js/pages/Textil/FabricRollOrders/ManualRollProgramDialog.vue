@@ -114,12 +114,13 @@ function validateForm(): boolean {
     let linesOk = true;
     selectedLines.value.forEach((line) => {
         const qty = Number(line.quantity);
-        const available = Number(line.roll.real_availability_value ?? 0);
+        // Se reserva del disponible libre (real − reservas de otras órdenes), igual que el servidor.
+        const available = Number(line.roll.partial_availability_value ?? 0);
         if (!line.quantity || Number.isNaN(qty) || qty <= 0) {
             line.error = 'Ingresa una cantidad mayor a 0.';
             linesOk = false;
         } else if (qty > available) {
-            line.error = `No puede superar la disponibilidad real (${line.roll.real_availability}).`;
+            line.error = `No puede superar el disponible libre del rollo (${line.roll.partial_availability}).`;
             linesOk = false;
         } else {
             line.error = '';
@@ -183,7 +184,7 @@ async function submitProgram() {
                     </div>
                     <div class="space-y-1">
                         <p class="text-xs font-semibold text-muted-foreground">Notas</p>
-                        <Input v-model="form.notes" placeholder="Opcional" />
+                        <Input data-no-uppercase v-model="form.notes" placeholder="Opcional" />
                     </div>
                 </div>
 
@@ -208,7 +209,7 @@ async function submitProgram() {
                                 </Badge>
                             </span>
                             <span class="shrink-0 text-xs text-muted-foreground">
-                                {{ selectedIds.has(roll.id) ? 'Ya agregado' : `Disp: ${roll.real_availability}` }}
+                                {{ selectedIds.has(roll.id) ? 'Ya agregado' : `Libre: ${roll.partial_availability}` }}
                             </span>
                         </button>
                     </div>
@@ -231,7 +232,7 @@ async function submitProgram() {
                                     <TableHead>Rollo</TableHead>
                                     <TableHead>Tela</TableHead>
                                     <TableHead>Color</TableHead>
-                                    <TableHead>Disponible</TableHead>
+                                    <TableHead>Libre</TableHead>
                                     <TableHead>Cantidad a usar</TableHead>
                                     <TableHead></TableHead>
                                 </TableRow>
@@ -246,7 +247,7 @@ async function submitProgram() {
                                     </TableCell>
                                     <TableCell class="max-w-[160px] truncate text-muted-foreground" :title="line.roll.fabric">{{ line.roll.fabric }}</TableCell>
                                     <TableCell class="text-muted-foreground">{{ line.roll.color || '-' }}</TableCell>
-                                    <TableCell class="text-muted-foreground">{{ line.roll.real_availability }}</TableCell>
+                                    <TableCell class="text-muted-foreground">{{ line.roll.partial_availability }}</TableCell>
                                     <TableCell>
                                         <Input
                                             v-model="line.quantity"

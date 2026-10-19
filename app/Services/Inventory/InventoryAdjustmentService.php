@@ -4,13 +4,16 @@ namespace App\Services\Inventory;
 
 use App\Models\Inventory\InventoryAdjustment;
 use App\Models\Inventory\InventoryAdjustmentLine;
+use App\Support\DocumentSequence;
 use App\Models\MasterData\Item;
+use App\Models\Finance\AccountingAccount;
 use App\Services\Finance\AccountingPostingService;
 use App\Services\Inventory\InventoryMovementService;
 use App\Services\Inventory\WarehouseResolver;
 use Illuminate\Pagination\LengthAwarePaginator;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Collection;
 use Illuminate\Validation\ValidationException;
 use Illuminate\Support\Str;
@@ -69,27 +72,19 @@ class InventoryAdjustmentService
         return InventoryAdjustment::with(['lines.item', 'lines.warehouse'])->findOrFail($id);
     }
 
-    public function nextNumber(): string
+    /**
+     * Consecutivo atómico (OL-###) que asigna el servidor al guardar. No se muestra un número "sugerido" en el
+     * formulario: con dos usuarios a la vez ambos veían el mismo y el segundo recibía un error. Cuenta también
+     * los ajustes eliminados (la validación única los incluye).
+     */
+    protected function allocateNumber(): string
     {
-        return DB::transaction(function () {
-            $prefix = 'OL';
-            $sequenceLength = 3;
+        $next = DocumentSequence::next(
+            'inventory_adjustments:OL',
+            fn () => DocumentSequence::maxInTable('inventory_adjustments', 'document_number', 'OL')
+        );
 
-            $lastNumber = InventoryAdjustment::whereNotNull('document_number')
-                ->where('document_number', 'like', "{$prefix}-%")
-                ->orderByDesc('id')
-                ->lockForUpdate()
-                ->value('document_number');
-
-            $next = 1;
-            if ($lastNumber && preg_match("/^{$prefix}-(\\d{{$sequenceLength}})$/", $lastNumber, $matches)) {
-                $next = (int) $matches[1] + 1;
-            }
-
-            $sequence = str_pad((string) $next, $sequenceLength, '0', STR_PAD_LEFT);
-
-            return "{$prefix}-{$sequence}";
-        });
+        return sprintf('OL-%03d', $next);
     }
 
     public function movementReasons(): array
@@ -178,9 +173,11 @@ class InventoryAdjustmentService
     private function persistAdjustment(array $data, Collection $items, ?InventoryAdjustment $adjustment = null): InventoryAdjustment
     {
         $movementReasons = $this->movementReasons();
+        $accountingGaps = $this->itemsWithoutPostingAccounts($data, $items);
 
-        return DB::transaction(function () use ($data, $items, $adjustment, $movementReasons) {
-            $documentNumber = $data['document_number'] ?: ($adjustment->document_number ?? $this->nextNumber());
+        return DB::transaction(function () use ($data, $items, $adjustment, $movementReasons, $accountingGaps) {
+            // El número lo decide siempre el servidor; el que envíe el cliente se ignora al crear.
+            $documentNumber = $adjustment->document_number ?? $this->allocateNumber();
 
             if (!$adjustment) {
                 $adjustment = InventoryAdjustment::create([
@@ -210,12 +207,23 @@ class InventoryAdjustmentService
                     'total'            => $data['total'],
                 ]);
 
-                $adjustment->lines()->delete();
+                // Por instancia para que el AuditObserver registre cada línea eliminada.
+                $adjustment->lines()->get()->each->delete();
             }
 
             $createdMovements = $this->syncLinesAndStock($adjustment, $data['lines'], $items, $movementReasons);
 
-            if ($adjustment->type === 'salida') {
+            // Totales del encabezado con los precios realmente guardados (en una salida es el costo promedio, no lo que mande el cliente).
+            [$subtotal, $iva] = $this->calculateTotals(
+                $adjustment->lines()->get(['price', 'quantity', 'tax'])->map(fn ($line) => $line->only(['price', 'quantity', 'tax']))->all()
+            );
+            $adjustment->update(['subtotal' => $subtotal, 'iva' => $iva, 'total' => $subtotal + $iva]);
+
+            if ($accountingGaps !== []) {
+                // La contabilidad aún no está completa: el kardex se actualiza igual y se avisa que no hubo asiento.
+                Log::warning("Ajuste de inventario {$adjustment->document_number} guardado sin asiento contable.", ['motivos' => $accountingGaps]);
+                $adjustment->setAttribute('accounting_warning', 'No se generó asiento contable: '.implode(' ', $accountingGaps));
+            } elseif ($adjustment->type === 'salida') {
                 $this->accountingPostingService->postInventoryAdjustmentOutflow(
                     $adjustment->fresh('lines.item'),
                     $createdMovements,
@@ -229,6 +237,41 @@ class InventoryAdjustmentService
 
             return $adjustment->load('lines.item');
         });
+    }
+
+    /**
+     * Las salidas y las regularizaciones positivas generan asiento contable solo si el ítem tiene cuentas válidas.
+     * Devuelve los motivos por los que no se puede contabilizar; el ajuste de kardex se guarda de todos modos.
+     */
+    private function itemsWithoutPostingAccounts(array $data, Collection $items): array
+    {
+        if ($data['type'] !== 'salida' && ($data['movement_reason'] ?? null) !== 'entry_regularization') {
+            return [];
+        }
+
+        $accountIds = $items->flatMap(fn ($item) => [$item->inventory_account_id, $item->cost_of_sale_account_id])->filter()->unique();
+        $postable = AccountingAccount::query()->active()->allowsEntries()->whereIn('id', $accountIds)->pluck('id')->all();
+
+        $messages = [];
+        foreach (collect($data['lines'])->pluck('item_id')->unique() as $itemId) {
+            $item = $items->get($itemId);
+            if (! $item || ! $item->tracks_inventory) {
+                continue;
+            }
+
+            $missing = [];
+            if (! in_array($item->inventory_account_id, $postable, true)) {
+                $missing[] = 'cuenta de inventario';
+            }
+            if (! in_array($item->cost_of_sale_account_id, $postable, true)) {
+                $missing[] = 'cuenta de costo/gasto directo';
+            }
+            if ($missing !== []) {
+                $messages[] = 'El ítem "'.$item->name.'" no tiene '.implode(' ni ', $missing).' válida. Configúrala en la ficha del ítem para contabilizar.';
+            }
+        }
+
+        return $messages;
     }
 
     private function syncLinesAndStock(InventoryAdjustment $adjustment, array $lines, Collection $items, array $movementReasons): Collection
@@ -275,6 +318,13 @@ class InventoryAdjustmentService
             }
 
             $price = (float) ($line['price'] ?? 0);
+            if ($lineType === 'salida') {
+                // La salida se valora siempre al costo promedio vigente; el precio enviado no cuenta.
+                $averagePrice = $this->movementService->getCurrentWeightedPrice((int) $line['item_id'], $warehouseId);
+                if ($averagePrice > 0) {
+                    $price = round($averagePrice, 2);
+                }
+            }
             $qty   = (int) ($line['quantity'] ?? 0);
             $tax   = (float) ($line['tax'] ?? 0);
             $base = $price * $qty;

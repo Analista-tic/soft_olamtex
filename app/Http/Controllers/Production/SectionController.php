@@ -22,7 +22,9 @@ class SectionController extends Controller
     {
         $validated = $request->validate([
             'name' => ['required', 'string', 'max:255'],
-            'type' => ['required', 'string', 'in:confeccion,presentacion'],
+            // Mismo enum que OperationCatalogController — operation_sections.type ya
+            // no acepta confeccion/presentacion (ver migración update_operation_sections_enum_type).
+            'type' => ['required', 'string', 'in:PREPARACION,ENSAMBLE,TERMINACION'],
             'is_active' => ['sometimes', 'boolean'],
         ]);
 
@@ -31,7 +33,7 @@ class SectionController extends Controller
         $section = $this->service->create($validated);
 
         return response()->json([
-            'message' => 'Seccion creada correctamente.',
+            'message' => 'Sección creada correctamente.',
             'data' => $section,
         ], 201);
     }

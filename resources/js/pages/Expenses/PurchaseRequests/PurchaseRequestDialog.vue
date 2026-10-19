@@ -1,31 +1,43 @@
 <script setup lang="ts">
 import AlertStack from '@/components/common/AlertStack.vue';
+import CreatableSelectField from '@/components/CreatableSelectField.vue';
 import DatePickerField from '@/components/DatePickerField.vue';
+import FormDialogBody from '@/components/FormDialogBody.vue';
 import FormDialogContent from '@/components/FormDialogContent.vue';
+import FormDialogFooter from '@/components/FormDialogFooter.vue';
+import FormDialogHeader from '@/components/FormDialogHeader.vue';
 import FormLoadingOverlay from '@/components/FormLoadingOverlay.vue';
 import HelpTooltip from '@/components/HelpTooltip.vue';
 import InputField from '@/components/InputField.vue';
+import InventoryDetailTableLayout from '@/components/InventoryDetailTableLayout.vue';
+import StatusBanner from '@/components/common/StatusBanner.vue';
 import SelectField from '@/components/SelectField.vue';
 import TextareaField from '@/components/TextareaField.vue';
 import { Button } from '@/components/ui/button';
-import { Dialog, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogDescription, DialogTitle } from '@/components/ui/dialog';
 import Label from '@/components/ui/label/Label.vue';
 import { TooltipProvider } from '@/components/ui/tooltip';
 import { useAlertStack } from '@/composables/useAlert';
 import { useDialogLoadingState } from '@/composables/useDialogLoadingState';
 import type { PurchaseRequestForm, PurchaseRequestItem } from '@/domain/Expenses';
+import { canEditRequest as canEditRequestRule } from '@/domain/Expenses/rules';
 import { useAuthStore } from '@/stores/auth';
 import axios from 'axios';
 import { Plus } from 'lucide-vue-next';
 import { computed, nextTick, ref, watch } from 'vue';
 import PurchaseRequestItemsTable from './PurchaseRequestItemsTable.vue';
+import PurchaseTraceability from '../PurchaseTraceability.vue';
 
 type PurchaseRequestDialogForm = Omit<PurchaseRequestForm, 'items' | 'estimated_amount'> & {
     items?: PurchaseRequestItem[];
     estimated_amount?: number | null;
     requester?: { name?: string };
+    buyer?: { id?: number; name?: string } | null;
     solicited_to?: 'gerencia' | 'logistica' | null;
     buyer_user_id?: number | null;
+    rejected_by?: { name?: string };
+    rejected_at?: string | null;
+    rejection_reason?: string | null;
 };
 
 const props = defineProps<{
@@ -46,14 +58,9 @@ const PURCHASE_REQUESTS_BASE_URL = '/gastos/solicitudes-compra';
 const authStore = useAuthStore();
 const dialogOpen = ref(props.isOpen);
 const localForm = ref<PurchaseRequestDialogForm>(createDefaultForm());
-const isLoading = ref(false);
 const users = ref<{ id: number; name: string; area_name: string }[]>([]);
 const isLoadingUsers = ref(false);
-const isSubmittingDialog = ref(false);
-const nextRequestId = ref<number | null>(null);
-const isLoadingRequestId = ref(false);
-const { successMessage, errorMessage, errorType, showSuccess, showError, clearSuccess, clearError } = useAlertStack();
-const originalFormSnapshot = ref('');
+const { successMessage, errorMessage, errorType, showError, clearSuccess, clearError } = useAlertStack();
 const itemsTableRef = ref<InstanceType<typeof PurchaseRequestItemsTable> | null>(null);
 const { isBootstrapping, isHydrating, isBlockingLoading, canRenderForm, startLoadingRun, isCurrentLoadingRun, cancelLoadingRun } =
     useDialogLoadingState(dialogOpen);
@@ -148,43 +155,31 @@ const canEdit = computed(() => {
         return true;
     }
 
-    const status = localForm.value.status;
-    return status === 'draft' || !status;
+    return canEditRequestRule(localForm.value.status || 'draft');
 });
 
 const isReadOnly = computed(() => props.readonly || !canEdit.value);
 
-const id = computed(() => {
-    if (props.dialogType === 'edit') {
-        return props.form?.id?.toString() || localForm.value.id?.toString() || '';
-    }
-
-    if (isLoadingRequestId.value) {
-        return 'Cargando...';
-    }
-
-    if (nextRequestId.value == null) {
-        return '';
-    }
-
-    return nextRequestId.value.toString();
+const isRejected = computed(() => localForm.value.status === 'rejected');
+const rejectedByName = computed(() => localForm.value.rejected_by?.name ?? 'Usuario');
+const rejectedAtFormatted = computed(() => {
+    const at = localForm.value.rejected_at;
+    if (!at) return '';
+    return new Date(at).toLocaleString('es-CO', {
+        dateStyle: 'medium',
+        timeStyle: 'short',
+    });
 });
 
-const canSendToApproval = computed(() => {
-    if (props.readonly) {
-        return false;
-    }
-
-    const status = localForm.value.status;
-    return status === 'draft' || status === undefined || status === null;
+const requestNumberPlaceholder = computed(() => {
+    // El consecutivo lo asigna el servidor al guardar; en edición se muestra el real (no `SOL-{id}`).
+    return props.form?.request_number || localForm.value.request_number || 'Se asigna al guardar';
 });
 
 const solicitadoAOptions = [
     { id: 'gerencia', name: 'Gerencia' },
     { id: 'logistica', name: 'Logística' },
 ];
-
-const canSelectRequester = computed(() => authStore.can('ver todos solicitudes compra'));
 
 const currentRequesterName = computed(() => {
     if (localForm.value.requester?.name) {
@@ -194,12 +189,20 @@ const currentRequesterName = computed(() => {
     return user?.name ?? '';
 });
 
-const userOptions = computed(() =>
-    users.value.map((u) => ({
+const userOptions = computed(() => {
+    const options = users.value.map((u) => ({
         id: u.id,
         name: u.area_name ? `${u.name} — ${u.area_name}` : u.name,
-    })),
-);
+    }));
+
+    // El encargado vigente siempre debe tener etiqueta, aunque la búsqueda lo excluya.
+    const buyer = localForm.value.buyer;
+    if (buyer?.id && buyer.name && !options.some((o) => o.id === buyer.id)) {
+        options.push({ id: buyer.id, name: buyer.name });
+    }
+
+    return options.sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
+});
 
 async function fetchUsers(search = ''): Promise<void> {
     isLoadingUsers.value = true;
@@ -216,47 +219,33 @@ async function fetchUsers(search = ''): Promise<void> {
     }
 }
 
-function scrollToDialogTop() {
-    const dialogEl = document.querySelector('[role="dialog"]');
-    dialogEl?.scrollTo({ top: 0, behavior: 'smooth' });
-}
+const providerOptions = ref<{ id: string; name: string }[]>([]);
+const isLoadingProviders = ref(false);
 
-function setErrorMessage(message: string, type: 'success' | 'error' | 'info' | 'warning' = 'error') {
-    showError(message, type);
-    scrollToDialogTop();
-}
+// Sugerencias de proveedor desde Contactos; el texto libre sigue permitido (provider_name es string).
+let providersRequestId = 0;
 
-function stableStringify(value: any): string {
-    const normalize = (currentValue: any): any => {
-        if (currentValue instanceof File) {
-            return {
-                name: currentValue.name,
-                size: currentValue.size,
-                type: currentValue.type,
-                lastModified: currentValue.lastModified,
-            };
-        }
-
-        if (Array.isArray(currentValue)) {
-            return currentValue.map((entry) => normalize(entry));
-        }
-
-        if (currentValue && typeof currentValue === 'object') {
-            return Object.keys(currentValue)
-                .sort()
-                .reduce(
-                    (accumulator: Record<string, unknown>, key) => {
-                        accumulator[key] = normalize(currentValue[key]);
-                        return accumulator;
-                    },
-                    {} as Record<string, unknown>,
-                );
-        }
-
-        return currentValue;
-    };
-
-    return JSON.stringify(normalize(value));
+async function fetchProviders(search = ''): Promise<void> {
+    const requestId = ++providersRequestId;
+    isLoadingProviders.value = true;
+    try {
+        const params = { per_page: 20, ...(search.trim() ? { search: search.trim() } : {}) };
+        const [providers, both] = await Promise.all([
+            axios.get('/contactos/data', { params: { ...params, contact_type: 'proveedor' } }),
+            axios.get('/contactos/data', { params: { ...params, contact_type: 'cliente_proveedor' } }),
+        ]);
+        if (requestId !== providersRequestId) return;
+        const names = [...(providers.data?.data ?? []), ...(both.data?.data ?? [])]
+            .map((contact: { full_name?: string }) => String(contact.full_name ?? '').trim())
+            .filter(Boolean);
+        providerOptions.value = [...new Set(names)].sort((a, b) => a.localeCompare(b)).map((name) => ({ id: name, name }));
+    } catch (err) {
+        if (requestId !== providersRequestId) return;
+        console.error('Error cargando proveedores:', err);
+        providerOptions.value = [];
+    } finally {
+        if (requestId === providersRequestId) isLoadingProviders.value = false;
+    }
 }
 
 function resetForm(source: Partial<PurchaseRequestDialogForm> = props.form) {
@@ -286,7 +275,6 @@ function resetForm(source: Partial<PurchaseRequestDialogForm> = props.form) {
     successMessage.value = '';
     errorMessage.value = '';
     errorType.value = 'error';
-    originalFormSnapshot.value = stableStringify(localForm.value);
 }
 
 async function initializeDialog() {
@@ -299,23 +287,21 @@ async function initializeDialog() {
         await authStore.fetchUser();
         resetForm();
 
-        await fetchUsers();
+        // En modo solo lectura no hay buscadores de usuario/proveedor que llenar
+        // (el nombre ya viene incluido en los datos de la solicitud), así que se omiten.
+        const tasks: Promise<unknown>[] = props.readonly ? [] : [fetchUsers(), fetchProviders()];
 
         if (props.dialogType === 'edit' && props.form?.id) {
-            const { data } = await axios.get(`${PURCHASE_REQUESTS_BASE_URL}/${props.form.id}`);
-            if (isCurrentLoadingRun(currentRun)) {
-                resetForm(data?.data || props.form);
-            }
+            tasks.push(
+                axios.get(`${PURCHASE_REQUESTS_BASE_URL}/${props.form.id}`).then(({ data }) => {
+                    if (isCurrentLoadingRun(currentRun)) {
+                        resetForm(data?.data || props.form);
+                    }
+                }),
+            );
         }
 
-        if (props.dialogType === 'create') {
-            const user = authStore.user as any;
-            if (user?.id && !localForm.value.requester_user_id) {
-                localForm.value.requester_user_id = user.id;
-            }
-            nextRequestId.value = null;
-            await fetchNextRequestId();
-        }
+        await Promise.all(tasks);
     } catch (error) {
         const message = 'No se pudo cargar la solicitud de compra.';
         showError(message);
@@ -327,170 +313,6 @@ async function initializeDialog() {
             isHydrating.value = false;
         }
     }
-}
-
-async function fetchNextRequestId() {
-    isLoadingRequestId.value = true;
-
-    try {
-        const { data } = await axios.get(`${PURCHASE_REQUESTS_BASE_URL}/data`, {
-            params: { per_page: 1, order_by: 'id', order_direction: 'desc' },
-        });
-
-        const lastId = Array.isArray(data.data) && data.data.length > 0 ? Number(data.data[0].id) : 0;
-        nextRequestId.value = lastId + 1;
-    } catch (error) {
-        nextRequestId.value = 1;
-        console.error('Error fetching next request ID:', error);
-    } finally {
-        isLoadingRequestId.value = false;
-    }
-}
-
-function appendFormDataValue(formData: FormData, key: string, value: unknown) {
-    if (value === null || value === undefined || value === '') {
-        return;
-    }
-
-    formData.append(key, typeof value === 'number' ? value.toString() : String(value));
-}
-
-function appendItemsToFormData(formData: FormData, items: PurchaseRequestItem[]) {
-    items.forEach((item, index) => {
-        appendFormDataValue(formData, `items[${index}][uid]`, item.uid);
-        appendFormDataValue(formData, `items[${index}][item_id]`, item.item_id);
-        appendFormDataValue(formData, `items[${index}][name]`, item.name ?? '');
-        appendFormDataValue(formData, `items[${index}][price]`, Number(item.price) || 0);
-        appendFormDataValue(formData, `items[${index}][quantity]`, Number(item.quantity) || 0);
-        appendFormDataValue(formData, `items[${index}][description]`, item.description ?? '');
-        appendFormDataValue(formData, `items[${index}][total]`, Number(item.total) || 0);
-
-        if (item.total_tax != null) {
-            appendFormDataValue(formData, `items[${index}][total_tax]`, Number(item.total_tax) || 0);
-        }
-
-        if (item._delete_image) {
-            formData.append(`items[${index}][_delete_image]`, '1');
-        }
-
-        if (item.image_file) {
-            formData.append(`items[${index}][image]`, item.image_file);
-        }
-    });
-}
-
-function validateForm() {
-    if (!localForm.value.description || !String(localForm.value.description).trim()) {
-        setErrorMessage('La descripcion es obligatoria.', 'warning');
-        return false;
-    }
-
-    const items = Array.isArray(localForm.value.items) ? localForm.value.items : [];
-    if (items.length < 1) {
-        setErrorMessage('Debe agregar al menos un ítem a la solicitud.', 'warning');
-        return false;
-    }
-
-    return true;
-}
-
-async function handleSubmit(sendToApproval: boolean = false) {
-    successMessage.value = '';
-    errorMessage.value = '';
-    errorType.value = 'error';
-
-    try {
-        if (!validateForm()) {
-            return;
-        }
-
-        const hasNewItemImages = (localForm.value.items || []).some((item) => item.image_file instanceof File);
-
-        if (!sendToApproval && props.dialogType === 'edit' && stableStringify(localForm.value) === originalFormSnapshot.value && !hasNewItemImages) {
-            return;
-        }
-    } catch (error) {
-        const message = 'Error inesperado preparando la solicitud. Recarga e intenta nuevamente.';
-        setErrorMessage(message);
-        emit('error', message);
-        console.error('Error previo al guardado de solicitud:', error);
-        return;
-    }
-
-    isLoading.value = true;
-    isSubmittingDialog.value = true;
-
-    try {
-        const formData = new FormData();
-        const payload: Record<string, unknown> = {
-            ...localForm.value,
-            date: normalizeIsoDate(localForm.value.date, getTodayDate()) || getTodayDate(),
-            status: sendToApproval ? 'pending' : (localForm.value.status || 'draft'),
-        };
-
-        delete payload.estimated_amount;
-        delete payload.items;
-
-        if (props.dialogType === 'create') {
-            delete payload.id;
-        }
-
-        appendItemsToFormData(formData, Array.isArray(localForm.value.items) ? localForm.value.items : []);
-
-        Object.keys(payload).forEach((key) => {
-            appendFormDataValue(formData, key, payload[key]);
-        });
-
-        if (props.dialogType === 'edit') {
-            formData.append('_method', 'PUT');
-        }
-
-        const url = props.dialogType === 'create' ? PURCHASE_REQUESTS_BASE_URL : `${PURCHASE_REQUESTS_BASE_URL}/${localForm.value.id}`;
-        await axios({
-            method: 'POST',
-            url,
-            data: formData,
-            headers: {
-                'Content-Type': 'multipart/form-data',
-            },
-        });
-
-        if (sendToApproval) {
-            const message =
-                props.dialogType === 'create'
-                    ? 'Solicitud creada y enviada a aprobacion correctamente.'
-                    : 'Solicitud actualizada y enviada a aprobacion correctamente.';
-            emit('refresh', message);
-            showSuccess(message);
-            dialogOpen.value = false;
-            return;
-        }
-
-        const message = props.dialogType === 'create' ? 'Solicitud creada correctamente.' : 'Solicitud actualizada correctamente.';
-        emit('refresh', message);
-        showSuccess(message);
-        dialogOpen.value = false;
-    } catch (error) {
-        const serverMessage =
-            (error as any)?.response?.data?.message ||
-            Object.values((error as any)?.response?.data?.errors || {})?.flat()?.[0] ||
-            'Error al guardar la solicitud. Por favor intenta nuevamente.';
-        setErrorMessage(serverMessage);
-        emit('error', serverMessage);
-        console.error('Error guardando solicitud:', error);
-    } finally {
-        isLoading.value = false;
-        isSubmittingDialog.value = false;
-    }
-}
-
-function handleSubmitSafe(sendToApproval: boolean = false) {
-    void handleSubmit(sendToApproval).catch((error) => {
-        const message = 'Error inesperado al guardar la solicitud. Intenta nuevamente.';
-        setErrorMessage(message);
-        emit('error', message);
-        console.error('Error no controlado al guardar solicitud:', error);
-    });
 }
 
 watch(
@@ -510,7 +332,6 @@ watch(
         if (isOpen) {
             await initializeDialog();
         } else {
-            isSubmittingDialog.value = false;
             cancelLoadingRun();
         }
     },
@@ -518,7 +339,6 @@ watch(
 
 watch(dialogOpen, (isOpen) => {
     if (!isOpen) {
-        isSubmittingDialog.value = false;
         cancelLoadingRun();
         emit('close');
     }
@@ -529,10 +349,10 @@ watch(dialogOpen, (isOpen) => {
     <Dialog v-model:open="dialogOpen">
         <FormDialogContent class="flex max-h-[95vh] max-w-[95vw] flex-col px-2 py-2" :scrollable="false">
             <div class="flex min-h-0 flex-1 flex-col">
-                <DialogHeader class="shrink-0 border-b border-sidebar-border/70 bg-muted/20 px-5 py-4 dark:border-sidebar-border">
-                    <DialogTitle>{{ dialogType === 'edit' ? 'Editar' : 'Nueva' }} Solicitud de Compra</DialogTitle>
+                <FormDialogHeader class="px-4 pb-3 pr-12 pt-4">
+                    <DialogTitle>{{ props.readonly ? 'Ver' : dialogType === 'edit' ? 'Editar' : 'Nueva' }} Solicitud de Compra</DialogTitle>
                     <DialogDescription>Completa los campos de la solicitud de compra.</DialogDescription>
-                </DialogHeader>
+                </FormDialogHeader>
 
                 <AlertStack
                     :success-message="successMessage"
@@ -544,11 +364,15 @@ watch(dialogOpen, (isOpen) => {
                     @close-error="clearError"
                 />
 
-                <div
-                    class="relative min-h-0 flex-1 overflow-y-auto scroll-smooth px-4 pr-2"
-                    :class="{ 'min-h-[420px]': isBlockingLoading }"
-                    style="scrollbar-width: thin"
-                >
+                <StatusBanner v-if="isRejected && canRenderForm" tone="danger" title="Solicitud rechazada" class="mx-4 mt-3">
+                    <p>
+                        Rechazada por <strong>{{ rejectedByName }}</strong>
+                        <template v-if="rejectedAtFormatted"> el {{ rejectedAtFormatted }}</template>
+                    </p>
+                    <p class="mt-1 italic">{{ localForm.rejection_reason || 'Sin motivo registrado.' }}</p>
+                </StatusBanner>
+
+                <FormDialogBody class="relative px-4 pr-2" :class="{ 'min-h-[420px]': isBlockingLoading }" style="scrollbar-width: thin">
                     <FormLoadingOverlay
                         :active="isBlockingLoading"
                         :delay-ms="0"
@@ -557,30 +381,27 @@ watch(dialogOpen, (isOpen) => {
                     />
 
                     <TooltipProvider v-if="canRenderForm">
-                        <form
-                            @submit.prevent="handleSubmitSafe(false)"
-                            :class="{ 'pointer-events-none opacity-50': dialogType === 'create' && isLoadingRequestId }"
-                            class="mt-2 space-y-4 pb-4"
-                        >
+                        <div class="mt-2 space-y-4 pb-4">
+                            <PurchaseTraceability
+                                v-if="localForm.id && localForm.status !== 'draft'"
+                                :url="`/gastos/solicitudes-compra/${localForm.id}/trazabilidad`"
+                            />
                             <div class="space-y-3">
                                 <div class="grid grid-cols-1 gap-4 md:grid-cols-2">
                                     <div class="flex flex-col gap-1.5">
                                         <div class="flex items-center gap-2">
                                             <Label class="text-sm font-medium">N° Solicitud</Label>
                                             <HelpTooltip
-                                                text="Numero unico de la solicitud de compra."
-                                                aria-label="Ayuda sobre numero de solicitud"
+                                                text="Número único de la solicitud de compra."
+                                                aria-label="Ayuda sobre número de solicitud"
                                             />
                                         </div>
                                         <InputField
                                             label=""
                                             v-model="localForm.request_number"
-                                            :placeholder="id ? `SOL-${id}` : 'SOL-001'"
+                                            :placeholder="requestNumberPlaceholder"
                                             :readonly="true"
                                         />
-                                        <span v-if="dialogType === 'create' && isLoadingRequestId" class="text-xs text-muted-foreground">
-                                            Generando numero...
-                                        </span>
                                     </div>
 
                                     <div class="flex flex-col gap-1.5">
@@ -603,25 +424,11 @@ watch(dialogOpen, (isOpen) => {
                                         <div class="flex items-center gap-2">
                                             <Label class="text-sm font-medium">Solicitante</Label>
                                             <HelpTooltip
-                                                text="Persona que realiza la solicitud de compra."
+                                                text="Es la persona que crea la solicitud (tú)."
                                                 aria-label="Ayuda sobre solicitante"
                                             />
                                         </div>
-                                        <SelectField
-                                            v-if="canSelectRequester"
-                                            label=""
-                                            v-model="localForm.requester_user_id"
-                                            :options="userOptions"
-                                            :searchable="true"
-                                            :loading="isLoadingUsers"
-                                            :disabled="isReadOnly"
-                                            option-label="name"
-                                            option-value="id"
-                                            placeholder="Selecciona un usuario"
-                                            @search="(t) => fetchUsers(t)"
-                                        />
                                         <InputField
-                                            v-else
                                             label=""
                                             :model-value="currentRequesterName"
                                             :readonly="true"
@@ -633,7 +440,7 @@ watch(dialogOpen, (isOpen) => {
                                         <div class="flex items-center gap-2">
                                             <Label class="text-sm font-medium">Solicitado a</Label>
                                             <HelpTooltip
-                                                text="Area a quien va dirigida esta solicitud para aprobacion."
+                                                text="Área a quien va dirigida esta solicitud para aprobación."
                                                 aria-label="Ayuda sobre solicitado a"
                                             />
                                         </div>
@@ -644,7 +451,7 @@ watch(dialogOpen, (isOpen) => {
                                             :disabled="isReadOnly"
                                             option-label="name"
                                             option-value="id"
-                                            placeholder="Selecciona el area"
+                                            placeholder="Selecciona el área"
                                         />
                                     </div>
 
@@ -680,13 +487,23 @@ watch(dialogOpen, (isOpen) => {
                                                 aria-label="Ayuda sobre proveedor"
                                             />
                                         </div>
-                                        <InputField
+                                        <CreatableSelectField
                                             dusk="input-proveedor"
                                             label=""
-                                            :model-value="localForm.provider_name ?? ''"
-                                            @update:model-value="localForm.provider_name = $event || null"
-                                            placeholder="Escribe el nombre del proveedor"
-                                            :readonly="isReadOnly"
+                                            :model-value="localForm.provider_name ?? null"
+                                            @update:model-value="localForm.provider_name = $event ? String($event) : null"
+                                            :options="providerOptions"
+                                            :loading="isLoadingProviders"
+                                            :server-search="true"
+                                            searchable
+                                            clearable
+                                            allow-custom
+                                            custom-option-label='Usar "{value}"'
+                                            search-placeholder="Buscar proveedor..."
+                                            placeholder="Busca o escribe el nombre del proveedor"
+                                            :button-class="'w-full'"
+                                            :disabled="isReadOnly"
+                                            @search="fetchProviders"
                                         />
                                     </div>
 
@@ -702,7 +519,7 @@ watch(dialogOpen, (isOpen) => {
                                             label=""
                                             :model-value="localForm.destination ?? ''"
                                             @update:model-value="localForm.destination = $event || null"
-                                            placeholder="Ej: Almacen, Produccion, etc."
+                                            placeholder="Ej: Almacén, Producción, etc."
                                             :readonly="isReadOnly"
                                         />
                                     </div>
@@ -710,10 +527,10 @@ watch(dialogOpen, (isOpen) => {
 
                                 <div class="flex flex-col gap-1.5">
                                     <div class="flex items-center gap-2">
-                                        <Label class="text-sm font-medium">Descripcion <span class="text-red-500">*</span></Label>
+                                        <Label class="text-sm font-medium">Descripción <span class="text-red-500">*</span></Label>
                                         <HelpTooltip
                                             text="Describe brevemente la solicitud de compra y su proposito."
-                                            aria-label="Ayuda sobre descripcion"
+                                            aria-label="Ayuda sobre descripción"
                                         />
                                     </div>
                                     <TextareaField
@@ -721,68 +538,46 @@ watch(dialogOpen, (isOpen) => {
                                         label=""
                                         :model-value="localForm.description || ''"
                                         @update:model-value="localForm.description = $event"
-                                        placeholder="Agrega la descripcion y observaciones de la solicitud"
+                                        placeholder="Agrega la descripción y observaciones de la solicitud"
                                         :readonly="isReadOnly"
                                         :rows="3"
                                     />
                                 </div>
                             </div>
 
-                            <div class="border-t border-border"></div>
-
-                            <div class="space-y-2">
-                                <div class="flex items-center justify-between">
-                                    <div>
-                                        <h3 class="text-sm font-semibold">Items</h3>
-                                        <p class="text-xs text-muted-foreground">Agrega los items necesarios para esta solicitud</p>
-                                    </div>
+                            <InventoryDetailTableLayout
+                                title="Ítems"
+                                description="Agrega los ítems necesarios para esta solicitud"
+                                :show-create-line-button="false"
+                            >
+                                <template #actions>
                                     <Button
                                         v-if="!isReadOnly"
                                         type="button"
                                         variant="outline"
                                         size="pill"
                                         dusk="btn-agregar-item"
-                                        class="border-primary/40 text-primary shadow-sm hover:bg-primary/10"
+                                        class="border-primary/40 bg-background text-primary hover:bg-primary/10 hover:text-primary"
                                         @click="itemsTableRef?.addItem()"
                                     >
                                         <Plus class="h-4 w-4" />
                                         Agregar Item
                                     </Button>
-                                </div>
+                                </template>
                                 <PurchaseRequestItemsTable
                                     ref="itemsTableRef"
                                     :items="localForm.items || []"
                                     :readonly="isReadOnly"
                                     @update:items="localForm.items = $event"
                                 />
-                            </div>
-                        </form>
+                            </InventoryDetailTableLayout>
+                        </div>
                     </TooltipProvider>
-                </div>
+                </FormDialogBody>
 
-                <DialogFooter class="shrink-0 justify-end gap-2 border-t border-border px-5 py-4">
+                <FormDialogFooter class="justify-end gap-4 bg-background">
                     <Button variant="outline" size="pill" @click="dialogOpen = false">Cancelar</Button>
-                    <Button
-                        v-if="!props.readonly && !isReadOnly"
-                        variant="default"
-                        size="pill"
-                        dusk="btn-guardar-borrador"
-                        :disabled="isLoading || isBlockingLoading"
-                        @click="handleSubmitSafe(false)"
-                    >
-                        {{ isLoading ? 'Guardando...' : 'Guardar borrador' }}
-                    </Button>
-                    <Button
-                        v-if="!props.readonly && !isReadOnly && canSendToApproval"
-                        variant="default"
-                        size="pill"
-                        dusk="btn-guardar-y-enviar"
-                        :disabled="isLoading || isBlockingLoading"
-                        @click="handleSubmitSafe(true)"
-                    >
-                        {{ isLoading ? 'Guardando...' : 'Guardar y enviar a aprobacion' }}
-                    </Button>
-                </DialogFooter>
+                </FormDialogFooter>
             </div>
         </FormDialogContent>
     </Dialog>

@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatPersonNameDisplay } from '@/lib/textNormalizer';
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import DatePickerField from '@/components/DatePickerField.vue';
@@ -146,15 +147,17 @@ const isReadOnly = computed(() => isViewMode.value || (props.mode === 'edit' && 
 const canConvert = computed(() => props.mode === 'view' && ['accepted', 'sent'].includes(quoteStatus.value));
 
 const contactOptions = computed(() =>
-    contacts.value.map((contact) => ({
-        id: contact.id,
-        name: contact.full_name,
-    })),
+    contacts.value
+        .map((contact) => ({
+            id: contact.id,
+            name: formatPersonNameDisplay(contact.full_name, contact.person_type),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
 );
 
 const paymentTermOptions = [
     { id: 'cash', name: 'Contado' },
-    { id: 'credit', name: 'Credito' },
+    { id: 'credit', name: 'Crédito' },
 ];
 
 const quoteItems = computed(() => normalizeItems(localQuote.value.items));
@@ -176,26 +179,26 @@ const totalAmount = computed(() => roundCurrency(subtotalAmount.value - discount
 
 const dialogTitle = computed(() => {
     if (props.mode === 'create') {
-        return 'Nueva cotizacion';
+        return 'Nueva cotización';
     }
 
     if (props.mode === 'view') {
-        return 'Ver Cotizacion';
+        return 'Ver Cotización';
     }
 
-    return 'Editar cotizacion';
+    return 'Editar cotización';
 });
 
 const dialogDescription = computed(() => {
     if (isReadOnly.value && props.mode !== 'view') {
-        return 'La cotizacion esta bloqueada para edicion por su estado actual.';
+        return 'La cotización está bloqueada para edición por su estado actual.';
     }
 
     if (props.mode === 'view') {
-        return 'Consulta la informacion general y el detalle de la cotizacion.';
+        return 'Consulta la información general y el detalle de la cotización.';
     }
 
-    return 'Completa los datos del cliente y los items de la cotizacion.';
+    return 'Completa los datos del cliente y los ítems de la cotización.';
 });
 
 function formatCurrency(value: number): string {
@@ -241,7 +244,7 @@ async function loadDialogData() {
     }
 
     if (!props.quoteId) {
-        setError('No se recibio el identificador de la cotizacion.');
+        setError('No se recibió el identificador de la cotización.');
         return;
     }
 
@@ -252,7 +255,7 @@ async function loadDialogData() {
         localQuote.value = cloneQuote(quote);
     } catch (error: any) {
         if (isCurrentLoadingRun(currentRun)) {
-            setError(normalizeErrorMessage(error, 'No se pudo cargar la cotizacion.'));
+            setError(normalizeErrorMessage(error, 'No se pudo cargar la cotización.'));
         }
     } finally {
         if (isCurrentLoadingRun(currentRun)) {
@@ -301,19 +304,19 @@ function validateForm(): boolean {
     }
 
     if (!localQuote.value.date) {
-        setError('La fecha de emision es obligatoria.', 'warning');
+        setError('La fecha de emisión es obligatoria.', 'warning');
         return false;
     }
 
     if (localQuote.value.due_date && localQuote.value.date && localQuote.value.due_date < localQuote.value.date) {
-        setError('La fecha de vencimiento no puede ser anterior a la fecha de emision.', 'warning');
+        setError('La fecha de vencimiento no puede ser anterior a la fecha de emisión.', 'warning');
         return false;
     }
 
     if (localQuote.value.payment_terms !== 'credit') {
         localQuote.value.payment_days = null;
     } else if ((localQuote.value.payment_days ?? 0) < 0) {
-        setError('Los dias de credito no pueden ser negativos.', 'warning');
+        setError('Los días de crédito no pueden ser negativos.', 'warning');
         return false;
     }
 
@@ -325,7 +328,7 @@ function validateForm(): boolean {
 
     const invalidItem = items.find((item) => !item.item_id || Number(item.quantity) < 0.01 || Number(item.unit_price) < 0);
     if (invalidItem) {
-        setError('Cada item debe tener producto, cantidad valida y precio unitario valido.', 'warning');
+        setError('Cada ítem debe tener producto, cantidad válida y precio unitario válido.', 'warning');
         return false;
     }
 
@@ -353,16 +356,16 @@ async function saveQuote(status: 'draft' | 'sent') {
 
         if (props.mode === 'edit' && props.quoteId) {
             await incomeStore.updateQuote(props.quoteId, payload);
-            successMessage.value = 'Cotizacion actualizada correctamente.';
+            successMessage.value = 'Cotización actualizada correctamente.';
         } else {
             await incomeStore.createQuote(payload);
-            successMessage.value = status === 'sent' ? 'Cotizacion emitida correctamente.' : 'Cotizacion guardada como borrador.';
+            successMessage.value = status === 'sent' ? 'Cotización emitida correctamente.' : 'Cotización guardada como borrador.';
         }
 
         emit('saved');
         dialogOpen.value = false;
     } catch (error: any) {
-        setError(normalizeErrorMessage(error, 'No se pudo guardar la cotizacion.'));
+        setError(normalizeErrorMessage(error, 'No se pudo guardar la cotización.'));
     } finally {
         isSaving.value = false;
     }
@@ -379,11 +382,11 @@ async function convertQuote() {
 
     try {
         await incomeStore.convertToOrder(props.quoteId);
-        successMessage.value = 'Cotizacion convertida a pedido correctamente.';
+        successMessage.value = 'Cotización convertida a pedido correctamente.';
         emit('saved');
         dialogOpen.value = false;
     } catch (error: any) {
-        setError(normalizeErrorMessage(error, 'No se pudo convertir la cotizacion.'));
+        setError(normalizeErrorMessage(error, 'No se pudo convertir la cotización.'));
     } finally {
         isSaving.value = false;
         confirmConvertOpen.value = false;
@@ -459,7 +462,7 @@ watch(
                             :searchable="contactOptions.length >= 8"
                             search-placeholder="Buscar cliente..."
                         />
-                        <DatePickerField v-model="localQuote.date" label="Fecha emision" :disabled="isReadOnly" :show-today="true" />
+                        <DatePickerField v-model="localQuote.date" label="Fecha emisión" :disabled="isReadOnly" :show-today="true" />
                         <DatePickerField
                             v-model="localQuote.due_date"
                             label="Fecha vencimiento"
@@ -477,16 +480,16 @@ watch(
                             <div :class="localQuote.payment_terms === 'credit' ? 'w-1/2' : 'w-full'">
                                 <SelectField
                                     v-model="localQuote.payment_terms"
-                                    label="Condicion de pago"
+                                    label="Condición de pago"
                                     :options="paymentTermOptions"
-                                    placeholder="Selecciona una condicion"
+                                    placeholder="Selecciona una condición"
                                     :disabled="isReadOnly"
                                 />
                             </div>
                             <div v-if="localQuote.payment_terms === 'credit'" class="w-1/2">
                                 <InputField
                                     v-model="localQuote.payment_days"
-                                    label="Dias de credito"
+                                    label="Días de crédito"
                                     type="number"
                                     placeholder="0"
                                     :disabled="isReadOnly"
@@ -497,7 +500,7 @@ watch(
 
                     <InventoryDetailTableLayout
                         title="Items"
-                        description="Agrega los productos o servicios de la cotizacion."
+                        description="Agrega los productos o servicios de la cotización."
                         :show-create-line-button="!isReadOnly"
                         :create-line-button-disabled="isReadOnly"
                         button-label="Crear item"
@@ -533,9 +536,9 @@ watch(
                     </div>
 
                     <TextareaField
-                        :model-value="localQuote.description ?? undefined"
+                        :model-value="localQuote.description ?? undefined" data-no-uppercase
                         label="Notas"
-                        placeholder="Agrega observaciones para la cotizacion"
+                        placeholder="Agrega observaciones para la cotización"
                         :disabled="isReadOnly"
                         @update:modelValue="localQuote.description = $event"
                     />
@@ -586,8 +589,8 @@ watch(
 
     <ConfirmDialog
         :open="confirmConvertOpen"
-        title="Convertir cotizacion"
-        description="Se creara un pedido de venta con los datos actuales de la cotizacion."
+        title="Convertir cotización"
+        description="Se creará un pedido de venta con los datos actuales de la cotización."
         confirm-text="Convertir"
         cancel-text="Cancelar"
         @update:open="confirmConvertOpen = $event"

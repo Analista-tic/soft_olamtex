@@ -16,7 +16,6 @@ import SelectField from '@/components/SelectField.vue';
 
 import ServerPagination from '@/components/common/ServerPagination.vue';
 import Button from '@/components/ui/button/Button.vue';
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu';
 import Input from '@/components/ui/input/Input.vue';
 import { Skeleton } from '@/components/ui/skeleton';
@@ -29,14 +28,6 @@ import BulkUploadDialog from './BulkUploadDialog.vue';
 import ItemDialog from './ItemDialog.vue';
 
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
-
-type PreloadedColor = {
-    id: number;
-    name: string;
-    rgb: string | null;
-    hexadecimal: string | null;
-    description: string | null;
-};
 
 const breadcrumbs = [{ title: 'Catálogo de ítem', href: '/inventario/item' }];
 
@@ -77,8 +68,8 @@ const form = ref<Partial<Item>>({});
 // Precarga de catálogos para el dialog de ítems
 const preloadedSubGroups = ref<any[]>([]);
 const preloadedTaxes = ref<any[]>([]);
-const page = usePage<{ preloadedColors?: PreloadedColor[] }>();
-const preloadedColors = computed(() => page.props.preloadedColors ?? []);
+const page = usePage<{ auth?: { permissions?: string[] } }>();
+const canEnableItems = computed(() => (page.props.auth?.permissions ?? []).includes('habilitar item'));
 
 const isDeleteDialogOpen = ref(false);
 const itemToDelete = ref<Item | null>(null);
@@ -88,6 +79,14 @@ const itemToToggleStatus = ref<Item | null>(null);
 
 const isBulkDialogOpen = ref(false);
 const defaultTaxId = ref<number | null>(null);
+
+// Selección múltiple para habilitar/deshabilitar en bloque. Se mantiene entre
+// páginas (no se limpia al paginar) para poder armar una selección grande sin
+// perderla al navegar la tabla.
+const selectedIds = ref<Set<number>>(new Set());
+const isBulkStatusDialogOpen = ref(false);
+const bulkStatusTarget = ref<boolean | null>(null);
+const isBulkStatusSubmitting = ref(false);
 
 const successMessage = ref('');
 const errorMessage = ref('');
@@ -212,6 +211,11 @@ async function deleteItem() {
         await axios.delete(`/item/${itemToDelete.value.id}`);
         await fetchItems(currentPage.value);
         isDeleteDialogOpen.value = false;
+        if (itemToDelete.value) {
+            const next = new Set(selectedIds.value);
+            next.delete(itemToDelete.value.id as number);
+            selectedIds.value = next;
+        }
         itemToDelete.value = null;
         setSuccess('El ítem se eliminó correctamente.');
     } catch (err) {
@@ -224,11 +228,72 @@ async function toggleStatus() {
 
     try {
         await axios.post(`/item/${itemToToggleStatus.value.id}/toggle-status`);
+        const wasEnabled = !!itemToToggleStatus.value.status;
         await fetchItems(currentPage.value);
         isStatusDialogOpen.value = false;
         itemToToggleStatus.value = null;
+        setSuccess(wasEnabled ? 'El ítem se deshabilitó correctamente.' : 'El ítem se habilitó correctamente.');
     } catch (err) {
         setError(getErrorMessage(err, 'No se pudo cambiar el estado del ítem.'));
+    }
+}
+
+const allOnPageSelected = computed(() => items.value.length > 0 && items.value.every((item) => selectedIds.value.has(item.id as number)));
+const someOnPageSelected = computed(() => items.value.some((item) => selectedIds.value.has(item.id as number)));
+
+function isItemSelected(item: Item): boolean {
+    return selectedIds.value.has(item.id as number);
+}
+
+function toggleItemSelected(item: Item, checked: boolean) {
+    const next = new Set(selectedIds.value);
+    if (checked) {
+        next.add(item.id as number);
+    } else {
+        next.delete(item.id as number);
+    }
+    selectedIds.value = next;
+}
+
+function toggleSelectAllOnPage(checked: boolean) {
+    const next = new Set(selectedIds.value);
+    for (const item of items.value) {
+        if (checked) {
+            next.add(item.id as number);
+        } else {
+            next.delete(item.id as number);
+        }
+    }
+    selectedIds.value = next;
+}
+
+function clearSelection() {
+    selectedIds.value = new Set();
+}
+
+function openBulkStatusDialog(status: boolean) {
+    bulkStatusTarget.value = status;
+    isBulkStatusDialogOpen.value = true;
+}
+
+async function confirmBulkStatus() {
+    if (bulkStatusTarget.value === null || selectedIds.value.size === 0) return;
+
+    isBulkStatusSubmitting.value = true;
+    try {
+        const { data } = await axios.post('/item/bulk-toggle-status', {
+            ids: Array.from(selectedIds.value),
+            status: bulkStatusTarget.value,
+        });
+        await fetchItems(currentPage.value);
+        clearSelection();
+        isBulkStatusDialogOpen.value = false;
+        setSuccess(data.message ?? 'Estado actualizado.');
+    } catch (err) {
+        setError(getErrorMessage(err, 'No se pudo cambiar el estado de los ítems seleccionados.'));
+    } finally {
+        isBulkStatusSubmitting.value = false;
+        bulkStatusTarget.value = null;
     }
 }
 
@@ -447,11 +512,57 @@ onBeforeUnmount(() => {
 
             </FilterBar>
 
+            <div
+                v-if="selectedIds.size > 0"
+                class="flex flex-wrap items-center justify-between gap-2 rounded-lg border border-primary/30 bg-primary/5 px-4 py-2"
+            >
+                <span class="text-sm font-medium">{{ selectedIds.size }} ítem(s) seleccionado(s)</span>
+                <div class="flex flex-wrap items-center gap-2">
+                    <Tooltip>
+                        <TooltipTrigger as-child>
+                            <span>
+                                <Button
+                                    variant="outline"
+                                    size="sm"
+                                    class="gap-1 rounded-full border-emerald-600 text-emerald-700 hover:bg-emerald-50 hover:text-emerald-800 dark:text-emerald-400 dark:hover:bg-emerald-500/15 dark:hover:text-emerald-300"
+                                    :disabled="!canEnableItems"
+                                    @click="openBulkStatusDialog(true)"
+                                >
+                                    <CheckCircle class="h-4 w-4" /> Habilitar
+                                </Button>
+                            </span>
+                        </TooltipTrigger>
+                        <TooltipContent v-if="!canEnableItems"> No tienes permiso para habilitar ítems. </TooltipContent>
+                    </Tooltip>
+
+                    <Button
+                        variant="outline"
+                        size="sm"
+                        class="gap-1 rounded-full border-red-600 text-red-700 hover:bg-red-50 hover:text-red-800 dark:text-red-400 dark:hover:bg-red-500/15 dark:hover:text-red-300"
+                        @click="openBulkStatusDialog(false)"
+                    >
+                        <Ban class="h-4 w-4" /> Deshabilitar
+                    </Button>
+
+                    <Button variant="ghost" size="sm" class="rounded-full" @click="clearSelection"> Cancelar selección </Button>
+                </div>
+            </div>
+
             <div class="relative min-h-0 flex-1 rounded-xl border border-sidebar-border/70 dark:border-sidebar-border md:min-h-min">
                 <TooltipProvider>
                     <Table>
                         <TableHeader>
                             <TableRow>
+                                <TableHead class="w-10">
+                                    <input
+                                        type="checkbox"
+                                        class="size-4 cursor-pointer accent-primary"
+                                        :checked="allOnPageSelected"
+                                        :indeterminate.prop="someOnPageSelected && !allOnPageSelected"
+                                        aria-label="Seleccionar todos los ítems de esta página"
+                                        @change="toggleSelectAllOnPage(($event.target as HTMLInputElement).checked)"
+                                    />
+                                </TableHead>
                                 <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('id')">
                                     <span class="inline-flex items-center gap-1">
                                         N° ítem
@@ -499,6 +610,15 @@ onBeforeUnmount(() => {
                                             : '',
                                     ]"
                                 >
+                                    <TableCell class="w-10">
+                                        <input
+                                            type="checkbox"
+                                            class="size-4 cursor-pointer accent-primary"
+                                            :checked="isItemSelected(item)"
+                                            :aria-label="`Seleccionar ítem ${item.id}`"
+                                            @change="toggleItemSelected(item, ($event.target as HTMLInputElement).checked)"
+                                        />
+                                    </TableCell>
                                     <TableCell>{{ item.id }}</TableCell>
                                     <TableCell>{{ item.name }}</TableCell>
                                     <TableCell>{{ item.reference }}</TableCell>
@@ -586,7 +706,6 @@ onBeforeUnmount(() => {
             :form="form"
             :preloaded-sub-groups="preloadedSubGroups"
             :preloaded-taxes="preloadedTaxes"
-            :preloaded-colors="preloadedColors"
             @close="closeDialog"
             @refresh="handleDialogRefresh"
         />
@@ -601,49 +720,35 @@ onBeforeUnmount(() => {
             @confirm="deleteItem"
         />
 
-        <!-- Diálogo de confirmación para habilitar/deshabilitar -->
-        <Dialog v-model:open="isStatusDialogOpen">
-            <DialogContent>
-                <DialogHeader>
-                    <DialogTitle> {{ itemToToggleStatus?.status ? 'Deshabilitar' : 'Habilitar' }} ítem </DialogTitle>
-                    <DialogDescription>
-                        ¿Estás seguro de que deseas
-                        {{ itemToToggleStatus?.status ? 'deshabilitar' : 'habilitar' }}
-                        este ítem?
-                    </DialogDescription>
-                </DialogHeader>
+        <ConfirmDialog
+            v-model:open="isStatusDialogOpen"
+            :title="itemToToggleStatus?.status ? 'Deshabilitar ítem' : 'Habilitar ítem'"
+            :description="`¿Estás seguro de que deseas ${itemToToggleStatus?.status ? 'deshabilitar' : 'habilitar'} este ítem?`"
+            :confirm-text="itemToToggleStatus?.status ? 'Deshabilitar' : 'Habilitar'"
+            cancel-text="Cancelar"
+            :destructive="!!itemToToggleStatus?.status"
+            @confirm="toggleStatus"
+        >
+            <template #icon>
+                <Ban v-if="itemToToggleStatus?.status" class="h-5 w-5" />
+                <CheckCircle v-else class="h-5 w-5" />
+            </template>
+        </ConfirmDialog>
 
-                <DialogFooter class="mt-4 flex flex-col gap-2 md:flex-row md:justify-end">
-                    <div class="w-full md:w-auto">
-                        <Button
-                            variant="outline"
-                            size="pill"
-                            class="mx-auto flex w-full max-w-[140px] justify-center"
-                            @click="isStatusDialogOpen = false"
-                        >
-                            Cancelar
-                        </Button>
-                    </div>
-
-                    <div class="w-full md:w-auto">
-                        <button
-                            type="button"
-                            :class="[
-                                'mx-auto flex w-full max-w-[140px] items-center justify-center gap-1 rounded-full px-5 py-2 text-sm font-semibold transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2',
-                                itemToToggleStatus?.status
-                                    ? 'border border-red-600 bg-red-600 text-white hover:bg-red-700 focus-visible:ring-red-500'
-                                    : 'border border-emerald-600 bg-emerald-600 text-white hover:bg-emerald-700 focus-visible:ring-emerald-500',
-                            ]"
-                            @click="toggleStatus"
-                        >
-                            <Ban v-if="itemToToggleStatus?.status" class="mr-1 h-4 w-4" />
-                            <CheckCircle v-else class="mr-1 h-4 w-4" />
-                            {{ itemToToggleStatus?.status ? 'Deshabilitar' : 'Habilitar' }}
-                        </button>
-                    </div>
-                </DialogFooter>
-            </DialogContent>
-        </Dialog>
+        <ConfirmDialog
+            v-model:open="isBulkStatusDialogOpen"
+            :title="`${bulkStatusTarget ? 'Habilitar' : 'Deshabilitar'} ${selectedIds.size} ítem(s)`"
+            :description="`¿Estás seguro de que deseas ${bulkStatusTarget ? 'habilitar' : 'deshabilitar'} los ${selectedIds.size} ítems seleccionados?`"
+            :confirm-text="bulkStatusTarget ? 'Habilitar' : 'Deshabilitar'"
+            cancel-text="Cancelar"
+            :destructive="!bulkStatusTarget"
+            @confirm="confirmBulkStatus"
+        >
+            <template #icon>
+                <CheckCircle v-if="bulkStatusTarget" class="h-5 w-5" />
+                <Ban v-else class="h-5 w-5" />
+            </template>
+        </ConfirmDialog>
 
         <BulkUploadDialog
             :open="isBulkDialogOpen"

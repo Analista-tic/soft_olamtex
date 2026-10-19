@@ -2,13 +2,30 @@
 
 namespace App\Models\MasterData;
 
+use App\Models\Concerns\NormalizesAttributes;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
 class Contact extends Model implements \App\Contracts\HasAuditLabel
 {
-    use HasFactory, SoftDeletes;
+    use HasFactory, SoftDeletes, NormalizesAttributes;
+
+    /**
+     * Reglas de normalización al guardar (ver NormalizesAttributes).
+     * contact_type / id_type / person_type y los JSON quedan fuera: se guardan tal cual.
+     * full_name es persona o razón social ("S.A.S"): se conserva lo escrito, solo se limpian espacios.
+     *
+     * @var array<string, string>
+     */
+    protected array $normalizedAttributes = [
+        'full_name' => 'normalizeDisplayText',
+        'municipality' => 'normalizeDisplayText',
+        'department' => 'normalizeDisplayText',
+        'address' => 'freeText',
+        'email' => 'email',
+        'id_number' => 'code',
+    ];
 
     public const CONTACT_TYPES = [
         'proveedor',

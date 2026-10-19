@@ -144,12 +144,6 @@ async function openDetail(order: any) {
     }
 }
 
-function backToList() {
-    view.value          = 'list';
-    selectedOrder.value = null;
-    detailLines.value   = [];
-}
-
 // ─── Export / Print ───────────────────────────────────
 async function exportPdf() {
     isPrintLoading.value = true;

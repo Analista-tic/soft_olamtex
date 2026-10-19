@@ -3,6 +3,7 @@ import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { useCompanyInfo } from '@/composables/useCompanyInfo';
 import type { PurchaseInvoice } from '@/domain/Expenses';
+import { withholdingAmount } from '@/domain/Expenses/withholdings';
 import { computed, ref, watch, nextTick } from 'vue';
 import printElement from '@/utils/print';
 
@@ -44,14 +45,9 @@ function formatDate(value?: string | null): string {
     });
 }
 
-/** Base efectiva: si base_amount es null se asume el subtotal. */
-function getWithholdingBase(w: { base_amount?: number | null; percentage?: number }): number {
-    const b = w.base_amount;
-    if (b != null && Number.isFinite(Number(b))) return Number(b);
-    return Number(subtotal.value) || 0;
-}
-function getWithholdingAmount(w: { base_amount?: number | null; percentage?: number }): number {
-    return (getWithholdingBase(w) * (Number(w.percentage) || 0)) / 100;
+function getWithholdingAmount(w: { base_amount?: number | null; percentage?: number; type?: string | null; value?: number | string | null }): number {
+    const saved = Number(w.value);
+    return Number.isFinite(saved) && saved > 0 ? saved : withholdingAmount(w, Number(subtotal.value), Number(iva.value));
 }
 const retencionesTotal = computed(() => (props.invoice?.withholdings || []).reduce((acc, w) => acc + getWithholdingAmount(w), 0));
 const totalPagar = computed(() => Number(total.value) - Number(retencionesTotal.value));
@@ -163,7 +159,7 @@ function formatItemTaxPercentage(tax: number | null | undefined): number {
                             <th class="border border-gray-200 px-2 py-2 text-right">Cantidad</th>
                             <th class="border border-gray-200 px-2 py-2 text-right">Precio s/imp.</th>
                             <th class="border border-gray-200 px-2 py-2 text-right">IVA</th>
-                            <th class="border border-gray-200 px-2 py-2 text-right">Total</th>
+                            <th class="border border-gray-200 px-2 py-2 text-right">Subtotal</th>
                         </tr>
                     </thead>
                     <tbody>

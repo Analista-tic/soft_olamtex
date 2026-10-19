@@ -9,7 +9,7 @@ class ProgramManualRollRequest extends \App\Http\Requests\Inventory\InventoryFor
         return [
             'fabric_roll_id' => ['required', 'integer', 'exists:fabric_rolls,id'],
             'manual_order_code' => ['required', 'string', 'max:100'],
-            'programmed_meters' => ['required', 'numeric', 'min:0.01'],
+            'programmed_meters' => ['required', 'numeric', 'min:0.01', 'decimal:0,2'],
             'notes' => ['nullable', 'string', 'max:500'],
         ];
     }

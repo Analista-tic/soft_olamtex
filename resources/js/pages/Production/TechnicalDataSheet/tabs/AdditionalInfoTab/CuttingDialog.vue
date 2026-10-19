@@ -29,12 +29,6 @@ type RawMaterialsInfoRow = {
     programmedColors?: string[];
 };
 
-function normalizeText(value: string | null | undefined): string | null {
-    if (!value) return null;
-    const clean = value.trim();
-    return clean === '' ? null : clean;
-}
-
 const SIZE_ORDER = [
     'XS',
     'S',
@@ -148,11 +142,6 @@ function updateSizeField(size: string, field: SizeField, value: string | number 
         item.size === size ? { ...item, [field]: num } : item,
     );
     emit('update:data', { ...localData.value, sizes: updatedSizes });
-}
-
-function updateGeneralNotes(value: string): void {
-    if (props.readonly) return;
-    emit('update:data', { ...localData.value, generalNotes: normalizeText(value) || value });
 }
 
 function clearLocalMessages(): void {

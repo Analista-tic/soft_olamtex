@@ -3,6 +3,7 @@ import axios from 'axios';
 import { useClipboard } from '@vueuse/core';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
+import { useColorsCatalog } from '@/composables/useColorsCatalog';
 import { hexToRgb } from '@/lib/colorUtils';
 import { autoUpdate, computePosition, flip, offset, shift } from '@floating-ui/dom';
 import { Combobox, ComboboxButton, ComboboxInput, ComboboxOption, ComboboxOptions } from '@headlessui/vue';
@@ -21,10 +22,12 @@ const props = withDefaults(
     defineProps<{
         modelValue: number | string | null;
         label?: string;
+        required?: boolean;
         disabled?: boolean;
-        preloadedColors?: ColorOption[];
+        invalid?: boolean;
+        errorMessage?: string;
     }>(),
-    { label: 'Color', disabled: false },
+    { label: 'Color', required: false, disabled: false, invalid: false, errorMessage: 'Requerido' },
 );
 
 const emit = defineEmits<{
@@ -32,8 +35,7 @@ const emit = defineEmits<{
     (e: 'selected-color', value: ColorOption | null): void;
 }>();
 
-const colors = ref<ColorOption[]>([]);
-const isLoading = ref(false);
+const { colors, isLoading, fetch: fetchColorsCatalog, invalidate: invalidateColorsCatalog } = useColorsCatalog();
 const searchTerm = ref('');
 
 const isCreating = ref(false);
@@ -47,9 +49,7 @@ const inlineInputRef = ref<HTMLInputElement | null>(null);
 const colorNameInputId = `color-name-${Math.random().toString(36).slice(2)}`;
 const colorHexInputId = `color-hex-${Math.random().toString(36).slice(2)}`;
 
-const NO_APLICA_ID = '';
-
-const colorOptions = computed(() => [{ id: NO_APLICA_ID, name: 'No aplica' }, ...colors.value.map((c) => ({ id: String(c.id), name: c.name }))]);
+const colorOptions = computed(() => colors.value.map((c) => ({ id: String(c.id), name: c.name })));
 
 const filteredOptions = computed(() => {
     const term = searchTerm.value.trim().toLowerCase();
@@ -63,12 +63,12 @@ const selectedColorData = computed<ColorOption | null>(() => {
 });
 
 const comboboxValue = computed(() => {
-    if (!props.modelValue) return colorOptions.value[0] ?? null;
-    return colorOptions.value.find((o) => o.id !== NO_APLICA_ID && o.id === String(props.modelValue)) ?? colorOptions.value[0] ?? null;
+    if (!props.modelValue) return null;
+    return colorOptions.value.find((o) => o.id === String(props.modelValue)) ?? null;
 });
 
 function handleComboboxChange(option: { id: string; name: string } | null) {
-    if (!option || option.id === NO_APLICA_ID) {
+    if (!option) {
         emit('update:modelValue', null);
         emit('selected-color', null);
         return;
@@ -77,6 +77,10 @@ function handleComboboxChange(option: { id: string; name: string } | null) {
     emit('update:modelValue', numId);
     const color = colors.value.find((c) => c.id === numId) ?? null;
     emit('selected-color', color);
+}
+
+function displayColorName(option: unknown): string {
+    return (option as { id: string; name: string } | null)?.name ?? '';
 }
 
 function handleInput(event: Event) {
@@ -218,34 +222,6 @@ const colorFormattedValue = computed(() => {
 
 const triggerColorStyle = computed(() => colorStyle(selectedColorData.value));
 
-async function fetchColors() {
-    isLoading.value = true;
-    try {
-        if (props.preloadedColors && props.preloadedColors.length > 0) {
-            colors.value = props.preloadedColors;
-            return;
-        }
-        const { data } = await axios.get('/colors');
-        colors.value = Array.isArray(data) ? data : [];
-    } catch {
-        colors.value = [];
-    } finally {
-        isLoading.value = false;
-    }
-}
-
-watch(
-    () => props.preloadedColors,
-    (preloadedColors) => {
-        if (preloadedColors && preloadedColors.length > 0) {
-            colors.value = [...preloadedColors];
-        } else if (colors.value.length === 0 && !isLoading.value) {
-            void fetchColors();
-        }
-    },
-    { immediate: true, deep: true },
-);
-
 watch(
     selectedColorData,
     (color) => {
@@ -255,9 +231,7 @@ watch(
 );
 
 onMounted(() => {
-    if (colors.value.length === 0) {
-        void fetchColors();
-    }
+    void fetchColorsCatalog(true);
 });
 
 function openInlineCreate() {
@@ -305,7 +279,8 @@ async function submitInlineCreate() {
             hexadecimal: createHex.value.toUpperCase(),
             ...(createDescription.value.trim() ? { description: createDescription.value.trim() } : {}),
         });
-        await fetchColors();
+        await fetchColorsCatalog(true);
+        invalidateColorsCatalog();
         isCreating.value = false;
         createName.value = '';
         createHex.value = '#9ca3af';
@@ -392,14 +367,17 @@ onBeforeUnmount(stopFloatingUpdates);
 
 <template>
     <div class="grid w-full items-center gap-1.5">
-        <Label>{{ label }}</Label>
+        <Label>
+            {{ label }}
+            <span v-if="required" class="text-destructive">*</span>
+        </Label>
 
         <Combobox :modelValue="comboboxValue" :disabled="disabled" by="id" @update:modelValue="handleComboboxChange">
             <template #default="{ open }">
                 <div ref="triggerRef" class="relative">
                     <ComboboxInput
                         :class="[
-                            'h-10 min-h-[42px] w-full rounded-md border border-input',
+                            'h-9 min-h-9 w-full rounded-md border border-input',
                             'bg-background py-2 pr-10 text-sm text-foreground',
                             'shadow-sm transition',
                             'placeholder:text-muted-foreground',
@@ -408,9 +386,10 @@ onBeforeUnmount(stopFloatingUpdates);
                             'focus-visible:ring-offset-background',
                             'disabled:cursor-not-allowed disabled:opacity-60',
                             selectedColorData ? 'pl-8' : 'pl-3',
+                            invalid ? 'border-destructive ring-1 ring-destructive/40 focus-visible:ring-destructive/40' : '',
                         ]"
                         placeholder="Selecciona un color"
-                        :displayValue="(opt) => (opt as { id: string; name: string } | null)?.name ?? ''"
+                        :displayValue="displayColorName"
                         :disabled="disabled || isCreating"
                         @input="handleInput"
                     />
@@ -449,7 +428,7 @@ onBeforeUnmount(stopFloatingUpdates);
                                     <template #default="{ active, selected }">
                                         <div
                                             class="flex cursor-pointer items-center gap-2 px-3 py-2 text-sm transition-colors"
-                                            :class="active ? 'bg-accent text-accent-foreground' : 'text-popover-foreground'"
+                                            :class="active ? 'bg-muted text-foreground' : 'text-popover-foreground'"
                                         >
                                             <span
                                                 v-if="option.id !== ''"
@@ -592,5 +571,6 @@ onBeforeUnmount(stopFloatingUpdates);
                 </div>
             </template>
         </Combobox>
+        <p v-if="invalid && errorMessage" class="text-xs text-destructive">{{ errorMessage }}</p>
     </div>
 </template>

@@ -25,7 +25,13 @@ use Illuminate\Database\Eloquent\Builder;
  */
 class Machine extends Model
 {
-    use HasFactory, SoftDeletes, HasAuditLabel;
+    use HasFactory, SoftDeletes, HasAuditLabel, \App\Models\Concerns\NormalizesAttributes;
+
+    /** Reglas de normalización al guardar (ver NormalizesAttributes). */
+    protected array $normalizedAttributes = [
+        'code' => 'code',
+        'name' => 'catalogName',
+    ];
 
     protected $table = 'machines';
 

@@ -135,7 +135,7 @@ class PurchaseInvoiceTelaTest extends DuskTestCase
             // Campos obligatorios de tela
             $browser->type('[dusk="factura-item-0-codigo-proveedor"]', 'COD-TELA-001');
             $browser->type('[dusk="factura-item-0-color-proveedor"]', 'Azul marino');
-            $browser->type('[dusk="factura-item-0-ancho"]', '150');
+            $browser->type('[dusk="factura-item-0-ancho"]', '1.5');
 
             $browser->screenshot('debug-c06-form-completo');
 

@@ -59,9 +59,29 @@ function closeDialog() {
     emit('update:modelValue', false);
 }
 
+/**
+ * Mismas reglas que FabricRollService::updateManualProgram(): no se baja lo programado por
+ * debajo de lo consumido, y ampliar la reserva sale del disponible libre del rollo.
+ */
 function validateForm(): boolean {
+    const line = props.line;
     const qty = Number(form.programmedMeters);
-    errors.programmed_meters = !form.programmedMeters || Number.isNaN(qty) || qty <= 0 ? 'Ingresa una cantidad mayor a 0.' : '';
+
+    if (!form.programmedMeters || Number.isNaN(qty) || qty <= 0) {
+        errors.programmed_meters = 'Ingresa una cantidad mayor a 0.';
+    } else if (line && qty < line.programmed_meters && qty < line.consumed_meters) {
+        errors.programmed_meters = `No puede ser menor que lo ya consumido (${consumedLabel.value}).`;
+    } else if (line && line.roll_free_meters !== null) {
+        const reservedBefore = line.remaining_meters;
+        const reservedAfter = Math.max(0, qty - line.consumed_meters - line.released_meters);
+        const increase = reservedAfter - reservedBefore;
+        errors.programmed_meters =
+            increase > line.roll_free_meters + 0.001
+                ? `El rollo solo tiene ${numFmt.format(line.roll_free_meters)} m libres para ampliar la reserva.`
+                : '';
+    } else {
+        errors.programmed_meters = '';
+    }
 
     return !errors.programmed_meters;
 }
@@ -114,7 +134,7 @@ async function submitEdit() {
                 </div>
                 <div class="space-y-1">
                     <p class="text-xs font-semibold text-muted-foreground">Notas</p>
-                    <Input v-model="form.notes" placeholder="Opcional" />
+                    <Input data-no-uppercase v-model="form.notes" placeholder="Opcional" />
                 </div>
             </div>
 

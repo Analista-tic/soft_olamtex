@@ -341,7 +341,7 @@ onMounted(() => void fetchData());
                         <div class="relative">
                             <Input
                                 v-model="searchQuery"
-                                placeholder="Buscar por codigo o nombre"
+                                placeholder="Buscar por código o nombre"
                                 class="h-10 w-full rounded-md border border-input bg-background pl-10 text-sm focus:border-primary focus:ring-0"
                             />
                             <span class="absolute inset-y-0 start-0 flex items-center justify-center px-2">
@@ -398,7 +398,7 @@ onMounted(() => void fetchData());
                             Cuenta
                         </div>
                         <div class="account-tree-grid__header-cell account-tree-grid__header-cell--description" role="columnheader">
-                            Descripcion
+                            Descripción
                         </div>
                         <div class="account-tree-grid__header-cell" role="columnheader">Estado</div>
                         <div class="account-tree-grid__header-cell" role="columnheader" />

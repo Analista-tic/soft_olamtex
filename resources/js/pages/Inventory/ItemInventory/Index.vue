@@ -7,15 +7,16 @@ import FilterBar from '@/components/FilterBar.vue';
 import FilterField from '@/components/FilterField.vue';
 import SelectField from '@/components/SelectField.vue';
 import Input from '@/components/ui/input/Input.vue';
+import { Button } from '@/components/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { useFilterButtonClasses } from '@/composables/useFilterButtonClasses';
-import type { Warehouse } from '@/domain/Inventory';
+import type { Warehouse } from '@/domain/inventory';
 import type { Option } from '@/domain/shared';
 import AppLayout from '@/layouts/AppLayout.vue';
 import { useWarehousesStore } from '@/stores/inventory/warehouses';
 import { Head } from '@inertiajs/vue3';
 import axios from 'axios';
-import { Search } from 'lucide-vue-next';
+import { Download, Search } from 'lucide-vue-next';
 import { computed, onMounted, ref, watch } from 'vue';
 
 type InventoryViewItem = {
@@ -23,8 +24,11 @@ type InventoryViewItem = {
     item_id: number;
     item_name: string;
     reference?: string | null;
+    warehouse_name?: string | null;
     quantity: number;
     reserved_quantity: number;
+    /** Metros de rollos rechazados en recepción con nota crédito pendiente (no incluidos en `quantity`). */
+    restricted_quantity: number;
     is_fabric: boolean;
     status: boolean;
     average_cost: number;
@@ -105,6 +109,14 @@ function toggleSort(column: string) {
     void fetchItems(1);
 }
 
+function exportExcel() {
+    const params = new URLSearchParams({ sort_by: sortBy.value, sort_dir: sortDir.value });
+    if (searchQuery.value.trim()) params.set('search', searchQuery.value.trim());
+    if (selectedWarehouseId.value) params.set('warehouse_id', String(selectedWarehouseId.value));
+    if (resolvedStatusFilter.value !== undefined) params.set('status', String(resolvedStatusFilter.value));
+    window.open(`/inventario-item/exportar-excel?${params.toString()}`, '_blank');
+}
+
 async function fetchItems(page = 1) {
     isLoading.value = true;
     const params: Record<string, unknown> = {
@@ -138,13 +150,14 @@ async function fetchItems(page = 1) {
 
 async function fetchWarehouses() {
     try {
-        await warehousesStore.fetchWarehouses();
+        await warehousesStore.fetchWarehouses(true);
         warehouses.value = warehousesStore.items
             .filter((warehouse: Warehouse) => warehouse.id != null)
             .map((warehouse: Warehouse) => ({
                 id: warehouse.id!,
                 name: warehouse.name,
-            }));
+            }))
+            .sort((a: Option, b: Option) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' }));
     } catch (error) {
         console.error('Error al cargar bodegas', error);
     }
@@ -170,6 +183,9 @@ onMounted(() => {
                     <h1 class="text-lg font-bold">Inventario de Items</h1>
                     <p class="text-sm text-muted-foreground">Visualiza el stock actual, su costo promedio y el valor total.</p>
                 </div>
+                <Button variant="outline" class="gap-2" :disabled="isLoading || totalItems === 0" @click="exportExcel">
+                    <Download class="h-4 w-4" /> Exportar Excel
+                </Button>
             </div>
 
             <FilterBar align="start" gap="gap-4">
@@ -208,10 +224,11 @@ onMounted(() => {
                 <Table>
                     <TableHeader>
                         <TableRow>
-                            <TableHead class="text-start">Item</TableHead>
-                            <TableHead>Referencia</TableHead>
-                            <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('quantity')">
-                                <span class="inline-flex items-center gap-1">
+                            <TableHead class="text-start">Ítem</TableHead>
+                            <TableHead class="text-start">Referencia</TableHead>
+                            <TableHead class="text-start">{{ isWarehouseActive ? 'Bodega' : 'Bodegas' }}</TableHead>
+                            <TableHead class="cursor-pointer select-none whitespace-nowrap text-right" @click="toggleSort('quantity')">
+                                <span class="inline-flex items-center justify-end gap-1">
                                     Cantidad
                                     <span class="text-muted-foreground">
                                         <template v-if="sortBy === 'quantity'">
@@ -223,9 +240,10 @@ onMounted(() => {
                                     </span>
                                 </span>
                             </TableHead>
-                            <TableHead>Estado</TableHead>
-                            <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('average_cost')">
-                                <span class="inline-flex items-center gap-1">
+                            <TableHead class="whitespace-nowrap text-right">Restringido</TableHead>
+                            <TableHead class="text-center">Estado</TableHead>
+                            <TableHead class="cursor-pointer select-none whitespace-nowrap text-right" @click="toggleSort('average_cost')">
+                                <span class="inline-flex items-center justify-end gap-1">
                                     Costo promedio
                                     <span class="text-muted-foreground">
                                         <template v-if="sortBy === 'average_cost'">
@@ -237,8 +255,8 @@ onMounted(() => {
                                     </span>
                                 </span>
                             </TableHead>
-                            <TableHead class="cursor-pointer select-none whitespace-nowrap" @click="toggleSort('total_cost')">
-                                <span class="inline-flex items-center gap-1">
+                            <TableHead class="cursor-pointer select-none whitespace-nowrap text-right" @click="toggleSort('total_cost')">
+                                <span class="inline-flex items-center justify-end gap-1">
                                     Total
                                     <span class="text-muted-foreground">
                                         <template v-if="sortBy === 'total_cost'">
@@ -256,25 +274,23 @@ onMounted(() => {
                     <TableBody>
                         <template v-if="isLoading">
                             <TableRow>
-                                <TableCell :colspan="6" class="py-6 text-center text-sm text-muted-foreground">
+                                <TableCell :colspan="8" class="py-6 text-center text-sm text-muted-foreground">
                                     Cargando inventario de items...
                                 </TableCell>
                             </TableRow>
                         </template>
                         <template v-else-if="items.length === 0">
                             <TableRow>
-                                <TableCell :colspan="6" class="text-center text-muted-foreground">
+                                <TableCell :colspan="8" class="text-center text-muted-foreground">
                                     No hay items con stock actual en el inventario.
                                 </TableCell>
                             </TableRow>
                         </template>
                         <template v-else>
                             <TableRow v-for="item in items" :key="item.id">
-                                <TableCell class="text-start">{{ item.item_name }}</TableCell>
-                                <TableCell class="text-center">{{ item.reference ?? '-' }}</TableCell>
-                                <TableCell class="text-right font-medium tabular-nums">
-                                    <div class="inline-flex items-center justify-end gap-2">
-                                        <span>{{ formatQuantity(item.quantity) }}</span>
+                                <TableCell class="text-start">
+                                    <div class="flex items-center gap-2">
+                                        <span>{{ item.item_name }}</span>
                                         <template v-if="item.is_fabric">
                                             <TooltipProvider v-if="item.reserved_quantity > 0">
                                                 <Tooltip>
@@ -292,11 +308,31 @@ onMounted(() => {
                                         </template>
                                     </div>
                                 </TableCell>
+                                <TableCell class="text-start">{{ item.reference ?? '-' }}</TableCell>
+                                <TableCell class="text-start">{{ item.warehouse_name ?? '-' }}</TableCell>
+                                <TableCell class="text-right font-medium tabular-nums">{{ formatQuantity(item.quantity) }}</TableCell>
+                                <TableCell class="text-right tabular-nums">
+                                    <TooltipProvider v-if="item.is_fabric && Number(item.restricted_quantity) > 0">
+                                        <Tooltip>
+                                            <TooltipTrigger as-child>
+                                                <span class="inline-flex items-center justify-end gap-2">
+                                                    <span class="font-medium">{{ formatQuantity(item.restricted_quantity) }}</span>
+                                                    <TableStatusBadge label="Restringido" tone="warning" />
+                                                </span>
+                                            </TooltipTrigger>
+                                            <TooltipContent>
+                                                {{ formatQuantity(item.restricted_quantity) }} metros de rollos rechazados en recepción, pendientes de
+                                                nota crédito. No están incluidos en la cantidad disponible.
+                                            </TooltipContent>
+                                        </Tooltip>
+                                    </TooltipProvider>
+                                    <span v-else class="text-muted-foreground">—</span>
+                                </TableCell>
                                 <TableCell class="text-center">
                                     <StatusBadge :status="item.status" />
                                 </TableCell>
-                                <TableCell class="text-center">{{ formatCurrency(item.average_cost) }}</TableCell>
-                                <TableCell class="text-center">{{ formatCurrency(item.total_cost) }}</TableCell>
+                                <TableCell class="text-right tabular-nums">{{ formatCurrency(item.average_cost) }}</TableCell>
+                                <TableCell class="text-right tabular-nums">{{ formatCurrency(item.total_cost) }}</TableCell>
                             </TableRow>
                         </template>
                     </TableBody>

@@ -18,6 +18,7 @@ class ManualRollProgramming extends Model
         'production_order_id',
         'programmed_meters',
         'consumed_meters',
+        'released_meters',
         'notes',
         'created_by_user_id',
     ];
@@ -25,6 +26,7 @@ class ManualRollProgramming extends Model
     protected $casts = [
         'programmed_meters' => 'decimal:6',
         'consumed_meters' => 'decimal:6',
+        'released_meters' => 'decimal:6',
     ];
 
     public function fabricRoll(): BelongsTo
@@ -42,8 +44,15 @@ class ManualRollProgramming extends Model
         return $this->belongsTo(User::class, 'created_by_user_id');
     }
 
+    /** Reserva que la línea mantiene sobre el rollo: programado − consumido − liberado (rollo terminado). */
     public function getRemainingMetersAttribute(): float
     {
-        return max(0.0, (float) $this->programmed_meters - (float) $this->consumed_meters);
+        return max(0.0, round((float) $this->programmed_meters - (float) $this->consumed_meters - (float) $this->released_meters, 6));
+    }
+
+    /** Metros descargados por encima de lo programado (sobreconsumo registrado con motivo). */
+    public function getOverconsumedMetersAttribute(): float
+    {
+        return max(0.0, round((float) $this->consumed_meters - (float) $this->programmed_meters, 6));
     }
 }

@@ -80,7 +80,17 @@ const moduleSections: ModuleSection[] = [
             {
                 label: 'Compras',
                 items: [
-                    { title: 'Solicitud de compra', href: '/gastos/solicitudes-compra', permission: ['ver propios solicitudes compra', 'ver area solicitudes compra', 'ver todos solicitudes compra'] },
+                    {
+                        title: 'Solicitud de compra',
+                        href: '/gastos/solicitudes-compra',
+                        permission: [
+                            'ver propios solicitudes compra',
+                            'ver area solicitudes compra',
+                            'ver todos solicitudes compra',
+                            'ver solicitudes compra a gerencia',
+                            'ver solicitudes compra a logistica',
+                        ],
+                    },
                     { title: 'Orden de compra', href: '/gastos/ordenes-compra', permission: 'ver ordenes compra' },
                     { title: 'Factura de compra', href: '/gastos/facturas-compra', permission: 'ver facturas compra' },
                     { title: 'Factura de compra tela', href: '/gastos/facturas-compra-tela', permission: 'ver facturas compra' },
@@ -127,7 +137,7 @@ const moduleSections: ModuleSection[] = [
                 items: [
                     { title: 'Contactos', href: '/contactos' },
                     { title: 'Categorías', href: '/categorias/subgrupos' },
-                    { title: 'Catálogo de ítems', href: '/item', permission: 'ver inventario telas' },
+                    { title: 'Catálogo de ítems', href: '/item', permission: 'ver catalogo items' },
                     { title: 'Campos adicionales', href: '/campos-adicionales' },
                     { title: 'Parámetros', href: '/parametros' },
                     // { title: 'Activos Fijos', href: underConstructionHref('Activos Fijos') },
@@ -151,7 +161,7 @@ const moduleSections: ModuleSection[] = [
                 label: 'Kárdex',
                 items: [
                     { title: 'Movimientos de inventario', href: '/movimientos-inventario', permission: 'ver inventario telas' },
-                    { title: 'Ajuste de inventario', href: '/inventario/ajuste-inventario', permission: 'ver inventario telas' },
+                    { title: 'Ajuste de inventario', href: '/inventario/ajuste-inventario', permission: 'ver ajustes inventario' },
                 ],
             },
         ],
@@ -184,7 +194,12 @@ const moduleSections: ModuleSection[] = [
                     { title: 'Inventario tela por rollos', href: route('kardex-telas.inventario-rollos'), permission: 'ver telas rollos' },
                     { title: 'Descargue de telas por orden', href: route('kardex-telas.descargue-orden'), permission: 'ver descargue telas orden' },
                     { title: 'Programación de rollos', href: route('kardex-telas.programacion-rollos'), permission: 'ver telas rollos' },
-                    { title: 'Historial de ajustes de rollos', href: route('kardex-telas.inventario-rollos.movimientos'), permission: 'ver telas rollos' },
+                    { title: 'Diferencias de metraje', href: route('kardex-telas.diferencias-metraje'), permission: 'ver telas rollos' },
+                    {
+                        title: 'Historial de ajustes de rollos',
+                        href: route('kardex-telas.inventario-rollos.movimientos'),
+                        permission: 'ver telas rollos',
+                    },
                 ],
             },
         ],
@@ -193,7 +208,15 @@ const moduleSections: ModuleSection[] = [
 
 const sectionPermissions: Partial<Record<ModuleSection['title'], PermissionRequirement>> = {
     Ingresos: 'ver ingresos',
-    Gastos: ['ver todos solicitudes compra', 'ver todos documentos compra', 'ver facturas compra', 'ver propios solicitudes compra', 'crear solicitudes compra'],
+    Gastos: [
+        'ver todos solicitudes compra',
+        'ver todos documentos compra',
+        'ver facturas compra',
+        'ver propios solicitudes compra',
+        'ver solicitudes compra a gerencia',
+        'ver solicitudes compra a logistica',
+        'crear solicitudes compra',
+    ],
     Financiero: 'ver financiero',
     Inventarios: ['ver solicitudes insumos', 'ver inventario telas'],
     Producción: ['ver programador', 'ver sabana productos', 'ver listados operacionales'],
@@ -499,7 +522,12 @@ watch(
                                     <SidebarMenuButton
                                         as-child
                                         :tooltip="item.title"
-                                        :class="{ active: isRouteActive(item.href, group.items.map((i) => i.href)) }"
+                                        :class="{
+                                            active: isRouteActive(
+                                                item.href,
+                                                group.items.map((i) => i.href),
+                                            ),
+                                        }"
                                     >
                                         <Link :href="item.href">
                                             <span>{{ item.title }}</span>
@@ -512,7 +540,7 @@ watch(
                 </Collapsible>
             </template>
         </SidebarContent>
-        <SidebarFooter class="mt-auto border-t border-sidebar-border/80 px-1 py-2 bg-sidebar [background-image:none]">
+        <SidebarFooter class="mt-auto border-t border-sidebar-border/80 bg-sidebar px-1 py-2 [background-image:none]">
             <NavFooter :items="filteredFooterNavItems" />
         </SidebarFooter>
     </Sidebar>

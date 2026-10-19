@@ -12,6 +12,7 @@ class FabricRollAdjustment extends Model
         'fabric_roll_id',
         'user_id',
         'type',
+        'quantity',
         'quantity_before',
         'quantity_after',
         'partial_before',
@@ -20,10 +21,13 @@ class FabricRollAdjustment extends Model
         'actual_output_after',
         'reason',
         'reference',
+        'production_order_code',
+        'corrects_adjustment_id',
         'inventory_movement_id',
     ];
 
     protected $casts = [
+        'quantity' => 'decimal:2',
         'quantity_before' => 'decimal:2',
         'quantity_after' => 'decimal:2',
         'partial_before' => 'decimal:2',
@@ -45,5 +49,16 @@ class FabricRollAdjustment extends Model
     public function inventoryMovement()
     {
         return $this->belongsTo(InventoryMovement::class);
+    }
+
+    /** Correcciones aplicadas a este descargue, en orden. */
+    public function corrections()
+    {
+        return $this->hasMany(self::class, 'corrects_adjustment_id')->orderBy('id');
+    }
+
+    public function correctedAdjustment()
+    {
+        return $this->belongsTo(self::class, 'corrects_adjustment_id');
     }
 }

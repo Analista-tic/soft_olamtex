@@ -4,6 +4,7 @@ namespace App\Console\Commands;
 
 use App\Models\Inventory\InventoryMovement;
 use App\Models\Inventory\WarehouseItem;
+use App\Services\Audit\AuditLogService;
 use App\Services\Inventory\InventoryMovementService;
 use Illuminate\Console\Command;
 use Illuminate\Support\Facades\DB;
@@ -63,6 +64,7 @@ class InventoryRepairOpeningBalancesCommand extends Command
         $skippedWithoutCost = 0;
         $repaired = 0;
         $failed = 0;
+        $repairedIds = [];
 
         foreach ($rows as $row) {
             $currentQty = (float) $row->quantity;
@@ -126,11 +128,28 @@ class InventoryRepairOpeningBalancesCommand extends Command
                 });
 
                 $repaired++;
+                $repairedIds[] = (int) $row->id;
             } catch (\Throwable $e) {
                 $failed++;
                 $this->error("FAIL [warehouse_item_id={$row->id}] item={$row->item_id} wh={$row->warehouse_id}: {$e->getMessage()}");
             }
         }
+
+        // El reinicio de warehouse_items por query builder no dispara el AuditObserver: resumen.
+        // El stock reconstruido queda auditado por el InventoryMovement de saldo inicial.
+        app(AuditLogService::class)->logBulk(
+            WarehouseItem::class,
+            'updated',
+            $repairedIds,
+            [
+                'quantity' => 0,
+                'weighted_average_price' => null,
+                'total_cost' => 0,
+                'source_type' => 'opening_balance_repair',
+                'source_reference' => $sourceReference,
+            ],
+            'Comando inventory:repair-opening-balances (reinicio previo al saldo inicial)',
+        );
 
         $this->newLine();
         $this->info('Resumen saneamiento:');

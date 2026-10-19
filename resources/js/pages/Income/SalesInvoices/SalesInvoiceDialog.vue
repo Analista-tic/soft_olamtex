@@ -1,4 +1,5 @@
 <script setup lang="ts">
+import { formatPersonNameDisplay } from '@/lib/textNormalizer';
 import AlertStack from '@/components/common/AlertStack.vue';
 import ConfirmDialog from '@/components/common/ConfirmDialog.vue';
 import DatePickerField from '@/components/DatePickerField.vue';
@@ -169,10 +170,14 @@ const canVoid = computed(() => props.mode === 'view' && ['issued', 'partial'].in
 const hasOriginOrder = computed(() => Boolean(originOrder.value?.id || localSalesInvoice.value.parent_document_id));
 const disableClientField = computed(() => isReadOnly.value || hasOriginOrder.value);
 
-const contactOptions = computed(() => contacts.value.map((contact) => ({ id: contact.id, name: contact.full_name })));
+const contactOptions = computed(() =>
+    contacts.value
+        .map((contact) => ({ id: contact.id, name: formatPersonNameDisplay(contact.full_name, contact.person_type) }))
+        .sort((a, b) => a.name.localeCompare(b.name, 'es', { sensitivity: 'base' })),
+);
 const paymentTermOptions = [
     { id: 'cash', name: 'Contado' },
-    { id: 'credit', name: 'Credito' },
+    { id: 'credit', name: 'Crédito' },
 ];
 const salesInvoiceItems = computed(() => normalizeItems(localSalesInvoice.value.items));
 
@@ -218,9 +223,9 @@ const dialogTitle = computed(() => {
 });
 
 const dialogDescription = computed(() => {
-    if (isReadOnly.value && props.mode !== 'view') return 'La factura esta bloqueada para edicion por su estado actual.';
-    if (props.mode === 'view') return 'Consulta la informacion comercial y contable de la factura.';
-    return 'Completa los datos del cliente, los items y las retenciones antes de emitir.';
+    if (isReadOnly.value && props.mode !== 'view') return 'La factura está bloqueada para edición por su estado actual.';
+    if (props.mode === 'view') return 'Consulta la información comercial y contable de la factura.';
+    return 'Completa los datos del cliente, los ítems y las retenciones antes de emitir.';
 });
 
 function formatCurrency(value: number): string {
@@ -233,7 +238,7 @@ function formatCurrency(value: number): string {
 }
 
 async function fetchContacts() {
-    await fetchContactsCatalog();
+    await fetchContactsCatalog({}, true);
 }
 
 function preloadFromOrder(order: SalesOrder) {
@@ -302,7 +307,7 @@ async function loadDialogData() {
     }
 
     if (!props.salesInvoiceId) {
-        setError('No se recibio el identificador de la factura de venta.');
+        setError('No se recibió el identificador de la factura de venta.');
         return;
     }
 
@@ -339,14 +344,14 @@ function validateForm(): boolean {
     if (localSalesInvoice.value.payment_terms !== 'credit') {
         localSalesInvoice.value.payment_days = null;
     } else if ((localSalesInvoice.value.payment_days ?? 0) < 0) {
-        return (setError('Los dias de credito no pueden ser negativos.', 'warning'), false);
+        return (setError('Los días de crédito no pueden ser negativos.', 'warning'), false);
     }
 
     const items = normalizeItems(localSalesInvoice.value.items);
     if (!items.length) return (setError('Debes agregar al menos un item.', 'warning'), false);
 
     const invalidItem = items.find((item) => !item.item_id || Number(item.quantity) < 0.01 || Number(item.unit_price) < 0);
-    if (invalidItem) return (setError('Cada item debe tener producto, cantidad valida y precio unitario valido.', 'warning'), false);
+    if (invalidItem) return (setError('Cada ítem debe tener producto, cantidad válida y precio unitario válido.', 'warning'), false);
 
     localSalesInvoice.value.items = items;
     localSalesInvoice.value.withholdings = (localSalesInvoice.value.withholdings ?? []).filter(
@@ -540,7 +545,7 @@ watch(
                             />
                         </div>
                         <div class="lg:order-3">
-                            <DatePickerField v-model="localSalesInvoice.date" label="Fecha emision" :disabled="isReadOnly" :show-today="true" />
+                            <DatePickerField v-model="localSalesInvoice.date" label="Fecha emisión" :disabled="isReadOnly" :show-today="true" />
                         </div>
                         <div class="lg:order-4">
                             <DatePickerField
@@ -564,16 +569,16 @@ watch(
                                 <div :class="localSalesInvoice.payment_terms === 'credit' ? 'w-1/2' : 'w-full'">
                                     <SelectField
                                         v-model="localSalesInvoice.payment_terms"
-                                        label="Condicion de pago"
+                                        label="Condición de pago"
                                         :options="paymentTermOptions"
-                                        placeholder="Selecciona una condicion"
+                                        placeholder="Selecciona una condición"
                                         :disabled="isReadOnly"
                                     />
                                 </div>
                                 <div v-if="localSalesInvoice.payment_terms === 'credit'" class="w-1/2">
                                     <InputField
                                         v-model="localSalesInvoice.payment_days"
-                                        label="Dias de credito"
+                                        label="Días de crédito"
                                         type="number"
                                         placeholder="0"
                                         :disabled="isReadOnly"
@@ -586,7 +591,7 @@ watch(
                     <section class="space-y-3">
                         <div class="flex items-center justify-between">
                             <div>
-                                <h3 class="text-sm font-semibold text-foreground">Items</h3>
+                                <h3 class="text-sm font-semibold text-foreground">Ítems</h3>
                                 <p class="text-xs text-muted-foreground">Agrega los productos o servicios que se facturan al cliente.</p>
                             </div>
                             <Button
@@ -652,7 +657,7 @@ watch(
                     </div>
 
                     <TextareaField
-                        :model-value="localSalesInvoice.description ?? undefined"
+                        :model-value="localSalesInvoice.description ?? undefined" data-no-uppercase
                         label="Notas"
                         placeholder="Agrega observaciones para la factura"
                         :disabled="isReadOnly"
@@ -716,7 +721,7 @@ watch(
     <ConfirmDialog
         :open="confirmEmitOpen"
         title="Emitir factura de venta"
-        description="Se guardara el documento si hace falta y se generara el asiento contable de la factura."
+        description="Se guardará el documento si hace falta y se generará el asiento contable de la factura."
         confirm-text="Emitir"
         cancel-text="Cancelar"
         @update:open="confirmEmitOpen = $event"
@@ -726,7 +731,7 @@ watch(
     <ConfirmDialog
         :open="confirmVoidOpen"
         title="Anular factura de venta"
-        description="La anulacion solo es posible si la factura no tiene pagos aplicados."
+        description="La anulación solo es posible si la factura no tiene pagos aplicados."
         confirm-text="Anular"
         cancel-text="Cancelar"
         @update:open="confirmVoidOpen = $event"

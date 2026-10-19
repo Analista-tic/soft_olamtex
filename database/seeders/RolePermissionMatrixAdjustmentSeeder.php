@@ -24,6 +24,8 @@ class RolePermissionMatrixAdjustmentSeeder extends Seeder
             'aprobar solicitudes compra',
             'rechazar solicitudes compra',
             'cancelar solicitudes compra',
+            'ver solicitudes compra a gerencia',
+            'ver solicitudes compra a logistica',
             'aprobar orden compra',
             'recibir factura compra',
             'anular factura compra',
@@ -63,6 +65,10 @@ class RolePermissionMatrixAdjustmentSeeder extends Seeder
             'corregir descargue telas orden',
             'aprobar recepcion tela',
             'rechazar recepcion tela',
+            'habilitar item',
+            'crear referencia manual item',
+            'ver catalogo items',
+            ...InventoryAdjustmentPermissionSeeder::PERMISSIONS,
         ];
 
         foreach ($permissions as $permissionName) {
@@ -92,6 +98,8 @@ class RolePermissionMatrixAdjustmentSeeder extends Seeder
             'crear contactos',
             'editar contactos',
             'eliminar contactos',
+            'carga masiva contactos',
+            'exportar contactos',
             'ver parametros',
             'editar parametros',
             'ver campos adicionales',
@@ -99,9 +107,13 @@ class RolePermissionMatrixAdjustmentSeeder extends Seeder
             'editar campos adicionales',
             'eliminar campos adicionales',
             'activar desactivar item',
+            'crear items',
+            'editar items',
+            'eliminar items',
             'carga masiva items',
             'exportar items',
             'ver colores',
+            'ver catalogo items',
         ];
 
         $sharedProductionInventoryTextil = [
@@ -139,10 +151,10 @@ class RolePermissionMatrixAdjustmentSeeder extends Seeder
             'crear recepcion telas',
             'editar recepcion telas',
             'eliminar recepcion telas',
-            'ver inventario telas',
-            'crear inventario telas',
-            'editar inventario telas',
-            'eliminar inventario telas',
+            'ver catalogo items',
+            'crear items',
+            'editar items',
+            'eliminar items',
             'ver solicitudes insumos',
             'crear solicitudes insumos',
             'ver propios solicitudes insumos',
@@ -293,7 +305,6 @@ class RolePermissionMatrixAdjustmentSeeder extends Seeder
             $purchaseOrderManage,
             $purchaseInvoiceViewAll,
             [
-                'atender solicitudes insumos',
                 'entregar solicitudes insumos',
                 'rechazar solicitudes insumos',
                 'ver todos solicitudes insumos',
@@ -303,6 +314,12 @@ class RolePermissionMatrixAdjustmentSeeder extends Seeder
                 'eliminar transferencias bodegas',
                 'ver todos transferencias bodegas',
                 'recibir factura compra',
+                'ver solicitudes compra a logistica',
+                ...InventoryAdjustmentPermissionSeeder::PERMISSIONS,
+                // Producción ya tenía esto habilitado; se preserva para no
+                // regresionar el flujo real al desplegar esta matriz.
+                'crear facturas compra',
+                'editar facturas compra',
             ]
         ));
 
@@ -337,8 +354,18 @@ class RolePermissionMatrixAdjustmentSeeder extends Seeder
             $purchaseInvoiceViewAll,
             $incomeManagementViewPermissions,
             [
+                'ver solicitudes compra a gerencia',
                 'aprobar orden compra',
                 'ver auditoria',
+                // Habilitar un ítem deshabilitado requiere este permiso aparte de
+                // 'activar desactivar item' (que ya tienen todos los roles vía
+                // $commonMasterDataAndCore) — deshabilitar sigue siendo libre,
+                // habilitar queda reservado a un rol de mayor jerarquía.
+                'habilitar item',
+                // La referencia de un ítem nuevo se genera automática por defecto;
+                // asignarla a mano queda reservado a un rol de mayor jerarquía, igual
+                // que 'habilitar item'.
+                'crear referencia manual item',
             ]
         ));
 

@@ -151,13 +151,20 @@ class NotificationService
         $data = $notification->data ?? [];
         $archivedAt = $notification->archived_at;
 
+        // Notificaciones de solicitudes de compra anteriores al deep link: se completa la URL
+        // con ?ver=<id> para que abran el dialog de la solicitud.
+        $url = $data['url'] ?? null;
+        if ($url && !empty($data['request_id']) && str_starts_with((string) ($data['type'] ?? ''), 'purchase_request_') && !str_contains($url, 'ver=')) {
+            $url .= (str_contains($url, '?') ? '&' : '?') . 'ver=' . $data['request_id'];
+        }
+
         return [
             'id' => $notification->id,
             'type' => $data['type'] ?? $notification->type ?? null,
             'title' => $data['title'] ?? null,
             'body' => $data['body'] ?? null,
             'module' => $data['module'] ?? null,
-            'url' => $data['url'] ?? null,
+            'url' => $url,
             'data' => $data,
             'area' => $data['area'] ?? null,
             'user_name' => $data['user_name'] ?? null,
